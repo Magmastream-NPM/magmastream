@@ -6,7 +6,7 @@
 [![Issues](https://img.shields.io/github/issues/Blackfort-Hosting/magmastream.svg)](https://github.com/Blackfort-Hosting/magmastream/issues)
 [![Pull Requests](https://img.shields.io/github/issues-pr/Blackfort-Hosting/magmastream.svg)](https://github.com/Blackfort-Hosting/magmastream/pulls)
 
-**Magmastream** a lavalink wrapper for NodeJs.
+**Magmastream** a lavalink wrapper for NodeJs. Magmastream only supports lavalink version 4.
 
 ## Documentation
 
