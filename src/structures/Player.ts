@@ -126,7 +126,7 @@ export class Player {
     this.guild = options.guild;
     this.voiceState = Object.assign({
       op: "voiceUpdate",
-      guildId: options.guild,
+      guild_id: options.guild,
     });
 
     if (options.voiceChannel) this.voiceChannel = options.voiceChannel;
@@ -524,6 +524,10 @@ export interface PlayerOptions {
 export interface Track {
   /** The base64 encoded track. */
   readonly track: string;
+  /** The artwork url of the track. */
+  readonly artworkUrl: string;
+  /** The track source name. */
+  readonly sourceName: string;
   /** The title of the track. */
   readonly title: string;
   /** The identifier of the track. */

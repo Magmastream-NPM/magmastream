@@ -162,18 +162,15 @@ export class Node {
   public connect(): void {
     if (this.connected) return;
 
-    const headers = Object.assign(
-      {
-        Authorization: this.options.password,
-        "Num-Shards": String(this.manager.options.shards),
-        "User-Id": this.manager.options.clientId,
-        "Client-Name": this.manager.options.clientName,
-      },
-      this.options.resumeKey && { "Resume-Key": this.options.resumeKey }
-    );
+    const headers = Object.assign({
+      Authorization: this.options.password,
+      "Num-Shards": String(this.manager.options.shards),
+      "User-Id": this.manager.options.clientId,
+      "Client-Name": this.manager.options.clientName,
+    });
 
     this.socket = new WebSocket(
-      `ws${this.options.secure ? "s" : ""}://${this.address}`,
+      `ws${this.options.secure ? "s" : ""}://${this.address}/v4/websocket`,
       { headers }
     );
     this.socket.on("open", this.open.bind(this));
@@ -230,14 +227,20 @@ export class Node {
   /**
    * Sends data to the Node.
    * @param data
+   * @deprecated
    */
   public send(data: unknown): Promise<boolean> {
     return new Promise((resolve, reject) => {
       if (!this.connected) return resolve(false);
-      if (!data || !JSON.stringify(data).startsWith("{")) {
+      if (!data) return reject(false);
+
+      const payload = JSON.stringify(data);
+
+      if (!payload?.startsWith("{")) {
         return reject(false);
       }
-      this.socket.send(JSON.stringify(data), (error: Error) => {
+
+      this.socket.send(payload, (error: Error) => {
         if (error) reject(error);
         else resolve(true);
       });
@@ -254,7 +257,7 @@ export class Node {
         this.manager.emit("nodeError", this, error);
         return this.destroy();
       }
-      this.socket.removeAllListeners();
+      this.socket?.removeAllListeners();
       this.socket = null;
       this.manager.emit("nodeReconnect", this);
       this.connect();
@@ -302,9 +305,9 @@ export class Node {
         this.rest.setSessionId(payload.sessionId);
         this.sessionId = payload.sessionId;
 
-        if (this.options.resumeKey) {
-          this.rest.patch(`/v3/sessions/${this.sessionId}`, {
-            resumingKey: this.options.resumeKey,
+        if (this.options.resumeStatus) {
+          this.rest.patch(`/v4/sessions/${this.sessionId}`, {
+            resuming: this.options.resumeStatus,
             timeout: this.options.resumeTimeout,
           });
         }
@@ -378,14 +381,14 @@ export class Node {
     }
 
     // If a track was forcibly played
-    if (payload.reason === "REPLACED") {
+    if (payload.reason === "replaced") {
       this.manager.emit("trackEnd", player, track, payload);
       return;
     }
 
     // If a track ended and is track repeating
     if (track && player.trackRepeat) {
-      if (payload.reason === "STOPPED") {
+      if (payload.reason === "stopped") {
         player.queue.previous = player.queue.current;
         player.queue.current = player.queue.shift();
       }
@@ -401,7 +404,7 @@ export class Node {
     if (track && player.queueRepeat) {
       player.queue.previous = player.queue.current;
 
-      if (payload.reason === "STOPPED") {
+      if (payload.reason === "stopped") {
         player.queue.current = player.queue.shift();
         if (!player.queue.current) return this.queueEnd(player, track, payload);
       } else {
@@ -479,10 +482,10 @@ export interface NodeOptions {
   retryAmount?: number;
   /** The retryDelay for the node. */
   retryDelay?: number;
-  /** The key used to resume the previous session. */
-  resumeKey: string;
+  /** Whether to resume the previous session. */
+  resumeStatus?: boolean;
   /** The time the manager will wait before trying to resume the previous session. */
-  resumeTimeout: number;
+  resumeTimeout?: number;
   /** The timeout used for api calls */
   requestTimeout?: number;
   /** Options for the undici http pool used for http requests */

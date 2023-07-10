@@ -19,7 +19,7 @@ import {
   WebSocketClosedEvent,
 } from "./Utils";
 
-const REQUIRED_KEYS = ["event", "guildId", "op", "sessionId"];
+const REQUIRED_KEYS = ["event", "guild_id", "op", "sessionId"];
 
 function check(options: ManagerOptions) {
   if (!options) throw new TypeError("ManagerOptions must not be empty.");
@@ -282,7 +282,7 @@ export class Manager extends EventEmitter {
         {
           identifier: "default",
           host: "localhost",
-          resumeKey: "secret_key",
+          resumeStatus: false,
           resumeTimeout: 1000,
         },
       ],
@@ -363,38 +363,47 @@ export class Manager extends EventEmitter {
       }
 
       const res = (await node.rest
-        .get(`/v3/loadtracks?identifier=${encodeURIComponent(search)}`)
-        .catch((err) => reject(err))) as LavalinkResult;
+        .get(`/v4/loadtracks?identifier=${encodeURIComponent(search)}`)
+        .catch((err) => reject(err))) as LavalinkResponse;
 
       if (!res) {
         return reject(new Error("Query not found."));
       }
 
+      let searchData = [];
+      let playlistData: PlaylistRawData;
+      switch (res.loadType) {
+        case "search":
+          searchData = res.data as TrackData[];
+          break;
+
+        case "track":
+          const data = res.data as TrackData[];
+          searchData = [data];
+          break;
+        case "playlist":
+          playlistData = res.data as PlaylistRawData;
+      }
+
       const result: SearchResult = {
         loadType: res.loadType,
-        exception: res.exception ?? null,
         tracks:
-          res.tracks?.map((track: TrackData) =>
-            TrackUtils.build(track, requester)
-          ) ?? [],
-      };
-
-      if (result.loadType === "PLAYLIST_LOADED") {
-        result.playlist = {
-          name: res.playlistInfo.name,
-          selectedTrack:
-            res.playlistInfo.selectedTrack === -1
-              ? null
-              : TrackUtils.build(
-                  res.tracks[res.playlistInfo.selectedTrack],
-                  requester
+          searchData.map((track) => TrackUtils.build(track, requester)) ?? [],
+        playlist:
+          res.loadType === "playlist"
+            ? {
+                name: playlistData.info.name,
+                tracks:
+                  playlistData.tracks.map((track) =>
+                    TrackUtils.build(track, requester)
+                  ) ?? [],
+                duration: playlistData.tracks.reduce(
+                  (acc: number, cur: TrackData) => acc + (cur.info.length || 0),
+                  0
                 ),
-          duration: result.tracks.reduce(
-            (acc: number, cur: Track) => acc + (cur.duration || 0),
-            0
-          ),
-        };
-      }
+              }
+            : null,
+      };
 
       return resolve(result);
     });
@@ -535,7 +544,15 @@ export class Manager extends EventEmitter {
     }
 
     if (REQUIRED_KEYS.every((key) => key in player.voiceState)) {
-      player.node.send(player.voiceState);
+      const {
+        sessionId,
+        event: { token, endpoint },
+      } = player.voiceState;
+
+      player.node.rest.updatePlayer({
+        guildId: player.guild,
+        data: { voice: { token, endpoint, sessionId } },
+      });
     }
   }
 }
@@ -589,42 +606,36 @@ export interface SearchQuery {
   query: string;
 }
 
+export interface LavalinkResponse {
+  loadType: LoadType;
+  data: TrackData[] | PlaylistRawData;
+}
+
 export interface SearchResult {
   /** The load type of the result. */
   loadType: LoadType;
   /** The array of tracks from the result. */
   tracks: Track[];
-  /** The playlist info if the load type is PLAYLIST_LOADED. */
-  playlist?: PlaylistInfo;
-  /** The exception when searching if one. */
-  exception?: {
-    /** The message for the exception. */
-    message: string;
-    /** The severity of exception. */
-    severity: string;
-  };
+  /** The playlist info if the load type is 'playlist'. */
+  playlist?: PlaylistData;
 }
 
-export interface PlaylistInfo {
+export interface PlaylistRawData {
+  info: {
+    /** The playlist name. */
+    name: string;
+  };
+  /** Addition info provided by plugins. */
+  pluginInfo: object;
+  /** The tracks of the playlist */
+  tracks: TrackData[];
+}
+
+export interface PlaylistData {
   /** The playlist name. */
   name: string;
-  /** The playlist selected track. */
-  selectedTrack?: Track;
-  /** The duration of the playlist. */
+  /** The length of the playlist. */
   duration: number;
-}
-
-export interface LavalinkResult {
-  tracks: TrackData[];
-  loadType: LoadType;
-  exception?: {
-    /** The message for the exception. */
-    message: string;
-    /** The severity of exception. */
-    severity: string;
-  };
-  playlistInfo: {
-    name: string;
-    selectedTrack?: number;
-  };
+  /** The songs of the playlist. */
+  tracks: Track[];
 }

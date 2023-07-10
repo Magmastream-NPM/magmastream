@@ -23,18 +23,19 @@ export class Rest {
    * @returns {string} Returns the session ID.
    */
   public setSessionId(sessionId: string): string {
-    return (this.sessionId = sessionId);
+    this.sessionId = sessionId;
+    return this.sessionId;
   }
 
   /** Retrieves all the players that are currently running on the node. */
   public getAllPlayers(): Promise<unknown> {
-    return this.get(`/v3/sessions/${this.sessionId}/players`);
+    return this.get(`/v4/sessions/${this.sessionId}/players`);
   }
 
   /** Sends a PATCH request to update player related data. */
   public async updatePlayer(options: playOptions): Promise<unknown> {
     const request = await this.patch(
-      `/v3/sessions/${this.sessionId}/players/${options.guildId}/?noReplace=false`,
+      `/v4/sessions/${this.sessionId}/players/${options.guildId}?noReplace=false`,
       options.data
     );
     return request;
@@ -43,7 +44,7 @@ export class Rest {
   /** Sends a DELETE request to the server to destroy the player. */
   public async destroyPlayer(guildId: string) {
     const request = await this.delete(
-      `/v3/sessions/${this.sessionId}/players/${guildId}`
+      `/v4/sessions/${this.sessionId}/players/${guildId}`
     );
     return request;
   }
@@ -126,14 +127,23 @@ export class Rest {
 interface playOptions {
   guildId: string;
   data: {
+    /** The base64 encoded track. */
     encodedTrack?: string;
+    /** The track ID. */
     identifier?: string;
+    /** The track time to start at. */
     startTime?: number;
+    /** The track time to end at. */
     endTime?: number;
+    /** The player volume level. */
     volume?: number;
+    /** The player position in a track. */
     position?: number;
+    /** Whether the player is paused. */
     paused?: boolean;
+    /** The audio effects. */
     filters?: object;
+    /** voice payload. */
     voice?: unknown;
     /** Whether to not replace the track if a play payload is sent. */
     noReplace?: boolean;
