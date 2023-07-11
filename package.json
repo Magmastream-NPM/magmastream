@@ -1,6 +1,6 @@
 {
   "name": "magmastream",
-  "version": "2.0.0-beta",
+  "version": "2.0.1-beta",
   "description": "A user-friendly Lavalink client designed for NodeJS.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -27,7 +27,7 @@
     "typescript": "^5.1.6"
   },
   "dependencies": {
-    "@discordjs/collection": "^1.1.0",
+    "@discordjs/collection": "^1.5.1",
     "events": "^3.3.0",
     "lodash": "^4.17.21",
     "tslib": "^2.4.0",
@@ -53,6 +53,33 @@
       "eslint:recommended",
       "plugin:@typescript-eslint/recommended"
     ]
+  },
+  "keywords": [
+    "lavalink client",
+    "wrapper",
+    "typescript",
+    "discord.js",
+    "node.js",
+    "java",
+    "javascript",
+    "audio streaming",
+    "music bot",
+    "voice chat",
+    "discord integration",
+    "high performance",
+    "scalable",
+    "easy-to-use",
+    "feature-rich",
+    "cross-platform",
+    "seamless integration",
+    "community support",
+    "documentation",
+    "open-source",
+    "lavalink",
+    "magmastream"
+  ],
+  "repository": {
+    "url": "https://github.com/Blackfort-Hosting/magmastream/tree/main"
   },
   "author": "Abel Purnwasy",
   "license": "Apache-2.0"
