@@ -197,56 +197,6 @@ export class Node {
     this.manager.destroyNode(this.options.identifier);
   }
 
-  /**
-   * Makes an API call to the Node
-   * @param endpoint The endpoint that we will make the call to
-   * @param modify Used to modify the request before being sent
-   * @returns The returned data
-   */
-  public async makeRequest<T>(
-    endpoint: string,
-    modify?: ModifyRequest
-  ): Promise<T> {
-    const options: Dispatcher.RequestOptions = {
-      path: `/${endpoint.replace(/^\//gm, "")}`,
-      method: "GET",
-      headers: {
-        Authorization: this.options.password,
-      },
-      headersTimeout: this.options.requestTimeout,
-    };
-
-    modify?.(options);
-
-    const request = await this.http.request(options);
-    this.calls++;
-
-    return await request.body.json();
-  }
-
-  /**
-   * Sends data to the Node.
-   * @param data
-   * @deprecated
-   */
-  public send(data: unknown): Promise<boolean> {
-    return new Promise((resolve, reject) => {
-      if (!this.connected) return resolve(false);
-      if (!data) return reject(false);
-
-      const payload = JSON.stringify(data);
-
-      if (!payload?.startsWith("{")) {
-        return reject(false);
-      }
-
-      this.socket.send(payload, (error: Error) => {
-        if (error) reject(error);
-        else resolve(true);
-      });
-    });
-  }
-
   private reconnect(): void {
     this.reconnectTimeout = setTimeout(() => {
       if (this.reconnectAttempts >= this.options.retryAmount) {
@@ -333,23 +283,35 @@ export class Node {
     const track = player.queue.current;
     const type = payload.type;
 
-    if (payload.type === "TrackStartEvent") {
-      this.trackStart(player, track as Track, payload);
-    } else if (payload.type === "TrackEndEvent") {
-      if (player?.nowPlayingMessage && !player?.nowPlayingMessage?.deleted) {
-        player?.nowPlayingMessage?.delete().catch(() => {});
-      }
+    switch (type) {
+      case "TrackStartEvent":
+        this.trackStart(player, track as Track, payload);
+        break;
 
-      this.trackEnd(player, track as Track, payload);
-    } else if (payload.type === "TrackStuckEvent") {
-      this.trackStuck(player, track as Track, payload);
-    } else if (payload.type === "TrackExceptionEvent") {
-      this.trackError(player, track, payload);
-    } else if (payload.type === "WebSocketClosedEvent") {
-      this.socketClosed(player, payload);
-    } else {
-      const error = new Error(`Node#event unknown event '${type}'.`);
-      this.manager.emit("nodeError", this, error);
+      case "TrackEndEvent":
+        if (player?.nowPlayingMessage && !player?.nowPlayingMessage?.deleted) {
+          player?.nowPlayingMessage?.delete().catch(() => {});
+        }
+
+        this.trackEnd(player, track as Track, payload);
+        break;
+
+      case "TrackStuckEvent":
+        this.trackStuck(player, track as Track, payload);
+        break;
+
+      case "TrackExceptionEvent":
+        this.trackError(player, track, payload);
+        break;
+
+      case "WebSocketClosedEvent":
+        this.socketClosed(player, payload);
+        break;
+
+      default:
+        const error = new Error(`Node#event unknown event '${type}'.`);
+        this.manager.emit("nodeError", this, error);
+        break;
     }
   }
 
@@ -369,7 +331,7 @@ export class Node {
     payload: TrackEndEvent
   ): void {
     // If a track had an error while starting
-    if (["LOAD_FAILED", "CLEAN_UP"].includes(payload.reason)) {
+    if (["loadFailed", "cleanup"].includes(payload.reason)) {
       player.queue.previous = player.queue.current;
       player.queue.current = player.queue.shift();
 
@@ -463,9 +425,6 @@ export class Node {
     this.manager.emit("socketClosed", player, payload);
   }
 }
-
-/** Modifies any outgoing REST requests. */
-export type ModifyRequest = (options: Dispatcher.RequestOptions) => void;
 
 export interface NodeOptions {
   /** The host for the node. */

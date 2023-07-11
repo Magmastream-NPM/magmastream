@@ -586,5 +586,5 @@ export interface NowPlayingMessage {
   /** The delete function. */
   delete: () => Promise<void>;
   /** The edit function. */
-  edit: () => void;
+  edit: () => Promise<void>;
 }

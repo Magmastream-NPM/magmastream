@@ -1,5 +1,5 @@
 import { Node } from "./Node";
-import { fetch } from "undici";
+import axios, { AxiosRequestConfig } from "axios";
 
 /** Handles the requests sent to the Lavalink REST API. */
 export class Rest {
@@ -33,94 +33,60 @@ export class Rest {
   }
 
   /** Sends a PATCH request to update player related data. */
-  public async updatePlayer(options: playOptions): Promise<unknown> {
-    const request = await this.patch(
+  public updatePlayer(options: playOptions): Promise<unknown> {
+    return this.patch(
       `/v4/sessions/${this.sessionId}/players/${options.guildId}?noReplace=false`,
       options.data
     );
-    return request;
   }
 
   /** Sends a DELETE request to the server to destroy the player. */
-  public async destroyPlayer(guildId: string) {
-    const request = await this.delete(
-      `/v4/sessions/${this.sessionId}/players/${guildId}`
-    );
-    return request;
+  public destroyPlayer(guildId: string): Promise<unknown> {
+    return this.delete(`/v4/sessions/${this.sessionId}/players/${guildId}`);
   }
 
   /* Sends a GET request to the specified endpoint and returns the response data. */
-  public async get(path: RouteLike): Promise<unknown> {
-    try {
-      const req = await fetch(this.url + path, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: this.password,
-        },
-      });
+  private async request(
+    method: string,
+    endpoint: RouteLike,
+    body?: unknown
+  ): Promise<unknown> {
+    const config: AxiosRequestConfig = {
+      method,
+      url: this.url + endpoint,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: this.password,
+      },
+      data: body,
+    };
 
-      const json = await req.json();
-      return json;
-    } catch (e) {
+    try {
+      const response = await axios(config);
+      return response.data;
+    } catch {
       return null;
     }
+  }
+
+  /* Sends a GET request to the specified endpoint and returns the response data. */
+  public async get(endpoint: RouteLike): Promise<unknown> {
+    return await this.request("GET", endpoint);
   }
 
   /* Sends a PATCH request to the specified endpoint and returns the response data. */
   public async patch(endpoint: RouteLike, body: unknown): Promise<unknown> {
-    try {
-      const req = await fetch(this.url + endpoint, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: this.password,
-        },
-        body: JSON.stringify(body),
-      });
-
-      const json = await req.json();
-      return json;
-    } catch (e) {
-      return null;
-    }
+    return await this.request("PATCH", endpoint, body);
   }
 
   /* Sends a POST request to the specified endpoint and returns the response data. */
   public async post(endpoint: RouteLike, body: unknown): Promise<unknown> {
-    try {
-      const req = await fetch(this.url + endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: this.password,
-        },
-        body: JSON.stringify(body),
-      });
-
-      const json = await req.json();
-      return json;
-    } catch (e) {
-      return null;
-    }
+    return await this.request("POST", endpoint, body);
   }
 
   /* Sends a DELETE request to the specified endpoint and returns the response data. */
   public async delete(endpoint: RouteLike): Promise<unknown> {
-    try {
-      const req = await fetch(this.url + endpoint, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: this.password,
-        },
-      });
-
-      const json = await req.json();
-      return json;
-    } catch (e) {
-      return null;
-    }
+    return await this.request("DELETE", endpoint);
   }
 }
 

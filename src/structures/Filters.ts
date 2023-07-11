@@ -2,167 +2,26 @@ import { Player } from "./Player";
 
 export class Filters {
   public player: Player;
-  public volume = 1.0;
-  public equalizer: Band[] = [];
-  public vibrato: vibratoOptions = null;
-  public rotation: rotationOptions = null;
-  public timescale: timescaleOptions = null;
-  public karaoke: karaokeOptions = null;
-  public distortion: distortionOptions = null;
+  public volume: number;
+  public equalizer: Band[];
+  public vibrato: vibratoOptions;
+  public rotation: rotationOptions;
+  public timescale: timescaleOptions;
+  public karaoke: karaokeOptions;
+  public distortion: distortionOptions;
 
   constructor(player: Player) {
     this.player = player;
+    this.volume = 1.0;
+    this.equalizer = [];
+    this.vibrato = null;
+    this.rotation = null;
+    this.timescale = null;
+    this.karaoke = null;
+    this.distortion = null;
   }
 
-  /**
-   * Sets the equalizer bands and updates the filters.
-   * @param bands - The equalizer bands.
-   */
-  public setEqualizer(bands?: Band[]): this {
-    this.equalizer = bands;
-    this.updateFilters();
-    return this;
-  }
-
-  /**
-   * Applies the 8D filter.
-   */
-  public eightD(): this {
-    return this.setRotation({ rotationHz: 0.2 });
-  }
-
-  /**
-   * Applies the bass boost filter.
-   */
-  public bassBoost(): this {
-    return this.setEqualizer(bassBoostEqualizer);
-  }
-
-  /**
-   * Applies the nightcore filter.
-   */
-  public nightcore(): this {
-    return this.setTimescale({
-      speed: 1.1,
-      pitch: 1.125,
-      rate: 1.05,
-    });
-  }
-
-  /**
-   * Applies the slow motion filter.
-   */
-  public slowmo(): this {
-    return this.setTimescale({
-      speed: 0.7,
-      pitch: 1.0,
-      rate: 0.8,
-    });
-  }
-
-  /**
-   * Applies the soft filter.
-   */
-  public soft(): this {
-    return this.setEqualizer(softEqualizer);
-  }
-
-  /**
-   * Applies the TV filter.
-   */
-  public tv(): this {
-    return this.setEqualizer(tvEqualizer);
-  }
-
-  /**
-   * Applies the treble bass filter.
-   */
-  public trebleBass(): this {
-    return this.setEqualizer(trebleBassEqualizer);
-  }
-
-  /**
-   * Applies the vaporwave filter.
-   */
-  public vaporwave(): this {
-    this.setEqualizer(vaporwaveEqualizer);
-    return this.setTimescale({ pitch: 0.55 });
-  }
-
-  /**
-   * Applies the distortion filter.
-   */
-  public distort(): this {
-    return this.setDistortion({
-      sinOffset: 0,
-      sinScale: 0.2,
-      cosOffset: 0,
-      cosScale: 0.2,
-      tanOffset: 0,
-      tanScale: 0.2,
-      offset: 0,
-      scale: 1.2,
-    });
-  }
-
-  /**
-   * Applies the karaoke options specified by the filter.
-   */
-  public setKaraoke(karaoke?: karaokeOptions): this {
-    this.karaoke = karaoke || null;
-    this.updateFilters();
-
-    return this;
-  }
-
-  /**
-   * Applies the timescale options specified by the filter.
-   */
-  public setTimescale(timescale?: timescaleOptions): this {
-    this.timescale = timescale || null;
-    this.updateFilters();
-
-    return this;
-  }
-
-  /**
-   * Applies the vibrato options specified by the filter.
-   */
-  public setVibrato(vibrato?: vibratoOptions): this {
-    this.vibrato = vibrato || null;
-    this.updateFilters();
-    return this;
-  }
-
-  /**
-   * Applies the rotation options specified by the filter.
-   */
-  public setRotation(rotation?: rotationOptions): this {
-    this.rotation = rotation || null;
-    this.updateFilters();
-
-    return this;
-  }
-
-  public setDistortion(distortion?: distortionOptions): this {
-    this.distortion = distortion || null;
-    this.updateFilters();
-
-    return this;
-  }
-  /**
-   * Clears the filters.
-   */
-  public clearFilters(): this {
-    this.player.filters = new Filters(this.player);
-    this.updateFilters();
-    return this;
-  }
-
-  /**
-   * Updates the filters.
-   */
-  public updateFilters(): this {
+  private updateFilters(): this {
     const {
       equalizer,
       karaoke,
@@ -188,6 +47,122 @@ export class Filters {
       },
     });
 
+    return this;
+  }
+
+  private applyFilter(
+    filter: {
+      property: keyof Filters;
+      value: any;
+    },
+    updateFilters: boolean = true
+  ): this {
+    this[filter.property] = filter.value;
+    if (updateFilters) {
+      this.updateFilters();
+    }
+    return this;
+  }
+
+  /**
+   * Sets the equalizer bands and updates the filters.
+   * @param bands - The equalizer bands.
+   */
+  public setEqualizer(bands?: Band[]): this {
+    return this.applyFilter({ property: "equalizer", value: bands });
+  }
+
+  /** Applies the eight dimension audio effect. */
+  public eightD(): this {
+    return this.setRotation({ rotationHz: 0.2 });
+  }
+
+  /** Applies the bass boost effect. */
+  public bassBoost(): this {
+    return this.setEqualizer(bassBoostEqualizer);
+  }
+
+  /** Applies the nightcore effect. */
+  public nightcore(): this {
+    return this.setTimescale({
+      speed: 1.1,
+      pitch: 1.125,
+      rate: 1.05,
+    });
+  }
+
+  /** Applies the slow motion audio effect. */
+  public slowmo(): this {
+    return this.setTimescale({
+      speed: 0.7,
+      pitch: 1.0,
+      rate: 0.8,
+    });
+  }
+
+  /** Applies the soft audio effect. */
+  public soft(): this {
+    return this.setEqualizer(softEqualizer);
+  }
+
+  /** Applies the television audio effect. */
+  public tv(): this {
+    return this.setEqualizer(tvEqualizer);
+  }
+
+  /** Applies the treble bass effect. */
+  public trebleBass(): this {
+    return this.setEqualizer(trebleBassEqualizer);
+  }
+
+  /** Applies the vaporwave effect. */
+  public vaporwave(): this {
+    return this.setEqualizer(vaporwaveEqualizer).setTimescale({ pitch: 0.55 });
+  }
+
+  /** Applies the distortion audio effect. */
+  public distort(): this {
+    return this.setDistortion({
+      sinOffset: 0,
+      sinScale: 0.2,
+      cosOffset: 0,
+      cosScale: 0.2,
+      tanOffset: 0,
+      tanScale: 0.2,
+      offset: 0,
+      scale: 1.2,
+    });
+  }
+
+  /** Applies the karaoke options specified by the filter. */
+  public setKaraoke(karaoke?: karaokeOptions): this {
+    return this.applyFilter({ property: "karaoke", value: karaoke });
+  }
+
+  /** Applies the timescale options specified by the filter. */
+  public setTimescale(timescale?: timescaleOptions): this {
+    return this.applyFilter({ property: "timescale", value: timescale });
+  }
+
+  /** Applies the vibrato options specified by the filter. */
+  public setVibrato(vibrato?: vibratoOptions): this {
+    return this.applyFilter({ property: "vibrato", value: vibrato });
+  }
+
+  /** Applies the rotation options specified by the filter. */
+  public setRotation(rotation?: rotationOptions): this {
+    return this.applyFilter({ property: "rotation", value: rotation });
+  }
+
+  /** Applies the distortion options specified by the filter. */
+  public setDistortion(distortion?: distortionOptions): this {
+    return this.applyFilter({ property: "distortion", value: distortion });
+  }
+
+  /** Removes the audio effects. */
+  public clearFilters(): this {
+    this.player.filters = new Filters(this.player);
+    this.updateFilters();
     return this;
   }
 }
@@ -237,6 +212,14 @@ interface distortionOptions {
   tanScale?: number;
   offset?: number;
   scale?: number;
+}
+
+/** Represents an equalizer band. */
+interface Band {
+  /** The index of the equalizer band. */
+  band: number;
+  /** The gain value of the equalizer band. */
+  gain: number;
 }
 
 const bassBoostEqualizer: Band[] = [
@@ -324,11 +307,3 @@ const vaporwaveEqualizer: Band[] = [
   { band: 12, gain: 0.15 },
   { band: 13, gain: 0.15 },
 ];
-
-/** Represents an equalizer band. */
-interface Band {
-  /** The index of the equalizer band. */
-  band: number;
-  /** The gain value of the equalizer band. */
-  gain: number;
-}

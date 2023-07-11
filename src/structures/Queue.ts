@@ -8,11 +8,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
   /** The total duration of the queue. */
   public get duration(): number {
     const current = this.current?.duration ?? 0;
-    return this
-      .reduce(
-        (acc: number, cur: Track) => acc + (cur.duration || 0),
-        current
-      );
+    return this.reduce((acc, cur) => acc + (cur.duration || 0), current);
   }
 
   /** The total size of tracks in the queue including the current track. */
@@ -22,7 +18,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 
   /** The size of tracks in the queue. */
   public get size(): number {
-    return this.length
+    return this.length;
   }
 
   /** The current track */
@@ -45,30 +41,34 @@ export class Queue extends Array<Track | UnresolvedTrack> {
     }
 
     if (!this.current) {
-      if (!Array.isArray(track)) {
-        this.current = track;
-        return;
+      if (Array.isArray(track)) {
+        this.current = track.shift() || null;
+        this.push(...track);
       } else {
-        this.current = (track = [...track]).shift();
+        this.current = track;
       }
-    }
-
-    if (typeof offset !== "undefined" && typeof offset === "number") {
-      if (isNaN(offset)) {
-        throw new RangeError("Offset must be a number.");
-      }
-
-      if (offset < 0 || offset > this.length) {
-        throw new RangeError(`Offset must be or between 0 and ${this.length}.`);
-      }
-    }
-
-    if (typeof offset === "undefined" && typeof offset !== "number") {
-      if (track instanceof Array) this.push(...track);
-      else this.push(track);
     } else {
-      if (track instanceof Array) this.splice(offset, 0, ...track);
-      else this.splice(offset, 0, track);
+      if (typeof offset !== "undefined" && typeof offset === "number") {
+        if (isNaN(offset)) {
+          throw new RangeError("Offset must be a number.");
+        }
+
+        if (offset < 0 || offset > this.length) {
+          throw new RangeError(`Offset must be between 0 and ${this.length}.`);
+        }
+
+        if (Array.isArray(track)) {
+          this.splice(offset, 0, ...track);
+        } else {
+          this.splice(offset, 0, track);
+        }
+      } else {
+        if (Array.isArray(track)) {
+          this.push(...track);
+        } else {
+          this.push(track);
+        }
+      }
     }
   }
 
@@ -76,7 +76,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
    * Removes a track from the queue. Defaults to the first track, returning the removed track, EXCLUDING THE `current` TRACK.
    * @param [position=0]
    */
-  public remove(position?: number): Track[];
+  public remove(position?: number): (Track | UnresolvedTrack)[];
 
   /**
    * Removes an amount of tracks using a exclusive start and end exclusive index, returning the removed tracks, EXCLUDING THE `current` TRACK.
@@ -84,16 +84,18 @@ export class Queue extends Array<Track | UnresolvedTrack> {
    * @param end
    */
   public remove(start: number, end: number): (Track | UnresolvedTrack)[];
-  public remove(startOrPosition = 0, end?: number): (Track | UnresolvedTrack)[] {
+
+  public remove(
+    startOrPosition = 0,
+    end?: number
+  ): (Track | UnresolvedTrack)[] {
     if (typeof end !== "undefined") {
-      if (isNaN(Number(startOrPosition))) {
-        throw new RangeError(`Missing "start" parameter.`);
-      } else if (isNaN(Number(end))) {
-        throw new RangeError(`Missing "end" parameter.`);
-      } else if (startOrPosition >= end) {
-        throw new RangeError("Start can not be bigger than end.");
-      } else if (startOrPosition >= this.length) {
-        throw new RangeError(`Start can not be bigger than ${this.length}.`);
+      if (isNaN(Number(startOrPosition)) || isNaN(Number(end))) {
+        throw new RangeError(`Missing "start" or "end" parameter.`);
+      }
+
+      if (startOrPosition >= end || startOrPosition >= this.length) {
+        throw new RangeError("Invalid start or end values.");
       }
 
       return this.splice(startOrPosition, end - startOrPosition);

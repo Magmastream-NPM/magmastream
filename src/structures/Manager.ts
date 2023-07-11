@@ -378,8 +378,7 @@ export class Manager extends EventEmitter {
           break;
 
         case "track":
-          const data = res.data as TrackData[];
-          searchData = [data];
+          searchData = [res.data as TrackData[]];
           break;
         case "playlist":
           playlistData = res.data as PlaylistRawData;
@@ -418,14 +417,9 @@ export class Manager extends EventEmitter {
       const node = this.nodes.first();
       if (!node) throw new Error("No available nodes.");
 
-      const res = await node
-        .makeRequest<TrackData[]>(`/decodetracks`, (r) => {
-          r.method = "POST";
-          r.body = JSON.stringify(tracks);
-          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          r.headers!["Content-Type"] = "application/json";
-        })
-        .catch((err) => reject(err));
+      const res = (await node.rest
+        .post("/v4/decodetracks", JSON.stringify(tracks))
+        .catch((err) => reject(err))) as TrackData[];
 
       if (!res) {
         return reject(new Error("No data returned from query."));
