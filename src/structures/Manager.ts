@@ -1,9 +1,4 @@
 /* eslint-disable no-async-promise-executor */
-import { Collection } from "@discordjs/collection";
-import { EventEmitter } from "events";
-import { VoiceState } from "..";
-import { Node, NodeOptions } from "./Node";
-import { Player, PlayerOptions, Track, UnresolvedTrack } from "./Player";
 import {
   LoadType,
   Plugin,
@@ -18,65 +13,14 @@ import {
   VoiceServer,
   WebSocketClosedEvent,
 } from "./Utils";
+import { Collection } from "@discordjs/collection";
+import { EventEmitter } from "events";
+import { Node, NodeOptions } from "./Node";
+import { Player, PlayerOptions, Track, UnresolvedTrack } from "./Player";
+import { VoiceState } from "..";
+import managerCheck from "../utils/managerCheck";
 
 const REQUIRED_KEYS = ["event", "guild_id", "op", "sessionId"];
-
-function check(options: ManagerOptions) {
-  if (!options) throw new TypeError("ManagerOptions must not be empty.");
-
-  if (typeof options.send !== "function")
-    throw new TypeError(
-      'Manager option "send" must be present and a function.'
-    );
-
-  if (
-    typeof options.clientId !== "undefined" &&
-    !/^\d+$/.test(options.clientId)
-  )
-    throw new TypeError(
-      'Manager option "clientId" must be a non-empty string.'
-    );
-
-  if (typeof options.nodes !== "undefined" && !Array.isArray(options.nodes))
-    throw new TypeError('Manager option "nodes" must be a array.');
-
-  if (
-    typeof options.shards !== "undefined" &&
-    typeof options.shards !== "number"
-  )
-    throw new TypeError('Manager option "shards" must be a number.');
-
-  if (typeof options.plugins !== "undefined" && !Array.isArray(options.plugins))
-    throw new TypeError('Manager option "plugins" must be a Plugin array.');
-
-  if (
-    typeof options.autoPlay !== "undefined" &&
-    typeof options.autoPlay !== "boolean"
-  )
-    throw new TypeError('Manager option "autoPlay" must be a boolean.');
-
-  if (
-    typeof options.trackPartial !== "undefined" &&
-    !Array.isArray(options.trackPartial)
-  )
-    throw new TypeError(
-      'Manager option "trackPartial" must be a string array.'
-    );
-
-  if (
-    typeof options.clientName !== "undefined" &&
-    typeof options.clientName !== "string"
-  )
-    throw new TypeError('Manager option "clientName" must be a string.');
-
-  if (
-    typeof options.defaultSearchPlatform !== "undefined" &&
-    typeof options.defaultSearchPlatform !== "string"
-  )
-    throw new TypeError(
-      'Manager option "defaultSearchPlatform" must be a string.'
-    );
-}
 
 export interface Manager {
   /**
@@ -265,7 +209,7 @@ export class Manager extends EventEmitter {
   constructor(options: ManagerOptions) {
     super();
 
-    check(options);
+    managerCheck(options);
 
     Structure.get("Player").init(this);
     Structure.get("Node").init(this);
@@ -588,10 +532,10 @@ export interface ManagerOptions {
 }
 
 export type SearchPlatform =
-  | "youtube"
-  | "youtube music"
+  | "deezer"
   | "soundcloud"
-  | "deezer";
+  | "youtube music"
+  | "youtube";
 
 export interface SearchQuery {
   /** The source to search from. */

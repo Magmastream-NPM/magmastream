@@ -1,49 +1,10 @@
+import { Filters } from "./Filters";
 import { Manager, SearchQuery, SearchResult } from "./Manager";
 import { Node } from "./Node";
 import { Queue } from "./Queue";
-import { Filters } from "./Filters";
 import { Sizes, State, Structure, TrackUtils, VoiceState } from "./Utils";
 import * as _ from "lodash";
-
-function check(options: PlayerOptions) {
-  if (!options) throw new TypeError("PlayerOptions must not be empty.");
-
-  if (!/^\d+$/.test(options.guild))
-    throw new TypeError(
-      'Player option "guild" must be present and be a non-empty string.'
-    );
-
-  if (options.textChannel && !/^\d+$/.test(options.textChannel))
-    throw new TypeError(
-      'Player option "textChannel" must be a non-empty string.'
-    );
-
-  if (options.voiceChannel && !/^\d+$/.test(options.voiceChannel))
-    throw new TypeError(
-      'Player option "voiceChannel" must be a non-empty string.'
-    );
-
-  if (options.node && typeof options.node !== "string")
-    throw new TypeError('Player option "node" must be a non-empty string.');
-
-  if (
-    typeof options.volume !== "undefined" &&
-    typeof options.volume !== "number"
-  )
-    throw new TypeError('Player option "volume" must be a number.');
-
-  if (
-    typeof options.selfMute !== "undefined" &&
-    typeof options.selfMute !== "boolean"
-  )
-    throw new TypeError('Player option "selfMute" must be a boolean.');
-
-  if (
-    typeof options.selfDeafen !== "undefined" &&
-    typeof options.selfDeafen !== "boolean"
-  )
-    throw new TypeError('Player option "selfDeafen" must be a boolean.');
-}
+import playerCheck from "../utils/playerCheck";
 
 export class Player {
   /** The Queue for the Player. */
@@ -121,7 +82,7 @@ export class Player {
       return this.manager.players.get(options.guild);
     }
 
-    check(options);
+    playerCheck(options);
 
     this.guild = options.guild;
     this.voiceState = Object.assign({

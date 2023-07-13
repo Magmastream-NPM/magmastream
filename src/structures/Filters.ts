@@ -1,50 +1,50 @@
 import { Player } from "./Player";
 
 export class Filters {
-  public player: Player;
-  public volume: number;
+  public distortion: distortionOptions;
   public equalizer: Band[];
-  public vibrato: vibratoOptions;
+  public karaoke: karaokeOptions;
+  public player: Player;
   public rotation: rotationOptions;
   public timescale: timescaleOptions;
-  public karaoke: karaokeOptions;
-  public distortion: distortionOptions;
+  public vibrato: vibratoOptions;
+  public volume: number;
 
   constructor(player: Player) {
-    this.player = player;
-    this.volume = 1.0;
+    this.distortion = null;
     this.equalizer = [];
-    this.vibrato = null;
+    this.karaoke = null;
+    this.player = player;
     this.rotation = null;
     this.timescale = null;
-    this.karaoke = null;
-    this.distortion = null;
+    this.vibrato = null;
+    this.volume = 1.0;
   }
 
   private updateFilters(): this {
     const {
+      distortion,
       equalizer,
       karaoke,
+      rotation,
       timescale,
       vibrato,
-      rotation,
       volume,
-      distortion,
     } = this;
 
     this.player.node.rest.updatePlayer({
-      guildId: this.player.guild,
       data: {
         filters: {
-          volume,
+          distortion,
           equalizer,
           karaoke,
+          rotation,
           timescale,
           vibrato,
-          rotation,
-          distortion,
+          volume,
         },
       },
+      guildId: this.player.guild,
     });
 
     return this;

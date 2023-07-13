@@ -1,8 +1,4 @@
 /* eslint-disable no-case-declarations */
-import WebSocket from "ws";
-import { Dispatcher, Pool } from "undici";
-import { Manager } from "./Manager";
-import { Player, Track, UnresolvedTrack } from "./Player";
 import {
   PlayerEvent,
   PlayerEvents,
@@ -13,55 +9,12 @@ import {
   TrackStuckEvent,
   WebSocketClosedEvent,
 } from "./Utils";
+import { Manager } from "./Manager";
+import { Player, Track, UnresolvedTrack } from "./Player";
+import { Pool } from "undici";
 import { Rest } from "./Rest";
-
-function check(options: NodeOptions) {
-  if (!options) throw new TypeError("NodeOptions must not be empty.");
-
-  if (typeof options.host !== "string" || !/.+/.test(options.host))
-    throw new TypeError(
-      'Node option "host" must be present and be a non-empty string.'
-    );
-
-  if (typeof options.port !== "undefined" && typeof options.port !== "number")
-    throw new TypeError('Node option "port" must be a number.');
-
-  if (
-    typeof options.password !== "undefined" &&
-    (typeof options.password !== "string" || !/.+/.test(options.password))
-  )
-    throw new TypeError('Node option "password" must be a non-empty string.');
-
-  if (
-    typeof options.secure !== "undefined" &&
-    typeof options.secure !== "boolean"
-  )
-    throw new TypeError('Node option "secure" must be a boolean.');
-
-  if (
-    typeof options.identifier !== "undefined" &&
-    typeof options.identifier !== "string"
-  )
-    throw new TypeError('Node option "identifier" must be a non-empty string.');
-
-  if (
-    typeof options.retryAmount !== "undefined" &&
-    typeof options.retryAmount !== "number"
-  )
-    throw new TypeError('Node option "retryAmount" must be a number.');
-
-  if (
-    typeof options.retryDelay !== "undefined" &&
-    typeof options.retryDelay !== "number"
-  )
-    throw new TypeError('Node option "retryDelay" must be a number.');
-
-  if (
-    typeof options.requestTimeout !== "undefined" &&
-    typeof options.requestTimeout !== "number"
-  )
-    throw new TypeError('Node option "requestTimeout" must be a number.');
-}
+import nodeCheck from "../utils/nodeCheck";
+import WebSocket from "ws";
 
 export class Node {
   /** The socket for the node. */
@@ -110,7 +63,7 @@ export class Node {
       return this.manager.nodes.get(options.identifier || options.host);
     }
 
-    check(options);
+    nodeCheck(options);
 
     this.options = {
       port: 2333,
