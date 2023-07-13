@@ -28,27 +28,29 @@ export class Rest {
   }
 
   /** Retrieves all the players that are currently running on the node. */
-  public getAllPlayers(): Promise<unknown> {
-    return this.get(`/v4/sessions/${this.sessionId}/players`);
+  public async getAllPlayers(): Promise<unknown> {
+    return await this.get(`/v4/sessions/${this.sessionId}/players`);
   }
 
   /** Sends a PATCH request to update player related data. */
-  public updatePlayer(options: playOptions): Promise<unknown> {
-    return this.patch(
+  public async updatePlayer(options: playOptions): Promise<unknown> {
+    return await this.patch(
       `/v4/sessions/${this.sessionId}/players/${options.guildId}?noReplace=false`,
       options.data
     );
   }
 
   /** Sends a DELETE request to the server to destroy the player. */
-  public destroyPlayer(guildId: string): Promise<unknown> {
-    return this.delete(`/v4/sessions/${this.sessionId}/players/${guildId}`);
+  public async destroyPlayer(guildId: string): Promise<unknown> {
+    return await this.delete(
+      `/v4/sessions/${this.sessionId}/players/${guildId}`
+    );
   }
 
   /* Sends a GET request to the specified endpoint and returns the response data. */
   private async request(
     method: string,
-    endpoint: RouteLike,
+    endpoint: string,
     body?: unknown
   ): Promise<unknown> {
     const config: AxiosRequestConfig = {
@@ -70,22 +72,22 @@ export class Rest {
   }
 
   /* Sends a GET request to the specified endpoint and returns the response data. */
-  public async get(endpoint: RouteLike): Promise<unknown> {
+  public async get(endpoint: string): Promise<unknown> {
     return await this.request("GET", endpoint);
   }
 
   /* Sends a PATCH request to the specified endpoint and returns the response data. */
-  public async patch(endpoint: RouteLike, body: unknown): Promise<unknown> {
+  public async patch(endpoint: string, body: unknown): Promise<unknown> {
     return await this.request("PATCH", endpoint, body);
   }
 
   /* Sends a POST request to the specified endpoint and returns the response data. */
-  public async post(endpoint: RouteLike, body: unknown): Promise<unknown> {
+  public async post(endpoint: string, body: unknown): Promise<unknown> {
     return await this.request("POST", endpoint, body);
   }
 
   /* Sends a DELETE request to the specified endpoint and returns the response data. */
-  public async delete(endpoint: RouteLike): Promise<unknown> {
+  public async delete(endpoint: string): Promise<unknown> {
     return await this.request("DELETE", endpoint);
   }
 }
@@ -110,10 +112,12 @@ interface playOptions {
     /** The audio effects. */
     filters?: object;
     /** voice payload. */
-    voice?: unknown;
+    voice?: {
+      token: string;
+      sessionId: string;
+      endpoint: string;
+    };
     /** Whether to not replace the track if a play payload is sent. */
     noReplace?: boolean;
   };
 }
-
-type RouteLike = `/${string}`;

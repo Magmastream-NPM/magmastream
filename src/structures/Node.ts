@@ -11,7 +11,6 @@ import {
 } from "./Utils";
 import { Manager } from "./Manager";
 import { Player, Track, UnresolvedTrack } from "./Player";
-import { Pool } from "undici";
 import { Rest } from "./Rest";
 import nodeCheck from "../utils/nodeCheck";
 import WebSocket from "ws";
@@ -19,8 +18,6 @@ import WebSocket from "ws";
 export class Node {
   /** The socket for the node. */
   public socket: WebSocket | null = null;
-  /** The HTTP pool used for rest calls. */
-  public http: Pool;
   /** The amount of rest calls the node has made. */
   public calls = 0;
   /** The stats for the node. */
@@ -77,11 +74,6 @@ export class Node {
     if (this.options.secure) {
       this.options.port = 443;
     }
-
-    this.http = new Pool(
-      `http${this.options.secure ? "s" : ""}://${this.address}`,
-      this.options.poolOptions
-    );
 
     this.options.identifier = options.identifier || options.host;
     this.stats = {
@@ -400,8 +392,6 @@ export interface NodeOptions {
   resumeTimeout?: number;
   /** The timeout used for api calls */
   requestTimeout?: number;
-  /** Options for the undici http pool used for http requests */
-  poolOptions?: Pool.Options;
 }
 
 export interface NodeStats {

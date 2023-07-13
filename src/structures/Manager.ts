@@ -287,35 +287,39 @@ export class Manager extends EventEmitter {
    * @param requester
    * @returns The search result.
    */
-  public search(
+  public async search(
     query: string | SearchQuery,
     requester?: unknown
   ): Promise<SearchResult> {
-    return new Promise(async (resolve, reject) => {
-      const node = this.leastUsedNodes.first();
-      if (!node) throw new Error("No available nodes.");
+    const node = this.leastUsedNodes.first();
+    if (!node) {
+      throw new Error("No available nodes.");
+    }
 
-      const _query: SearchQuery = typeof query === "string" ? { query } : query;
-      const _source =
-        Manager.DEFAULT_SOURCES[
-          _query.source ?? this.options.defaultSearchPlatform
-        ] ?? _query.source;
+    const _query: SearchQuery = typeof query === "string" ? { query } : query;
+    const _source =
+      Manager.DEFAULT_SOURCES[
+        _query.source ?? this.options.defaultSearchPlatform
+      ] ?? _query.source;
 
-      let search = _query.query;
-      if (!/^https?:\/\//.test(search)) {
-        search = `${_source}:${search}`;
-      }
+    let search = _query.query;
 
-      const res = (await node.rest
-        .get(`/v4/loadtracks?identifier=${encodeURIComponent(search)}`)
-        .catch((err) => reject(err))) as LavalinkResponse;
+    if (!/^https?:\/\//.test(search)) {
+      search = `${_source}:${search}`;
+    }
+
+    try {
+      const res = (await node.rest.get(
+        `/v4/loadtracks?identifier=${encodeURIComponent(search)}`
+      )) as LavalinkResponse;
 
       if (!res) {
-        return reject(new Error("Query not found."));
+        throw new Error("Query not found.");
       }
 
       let searchData = [];
-      let playlistData: PlaylistRawData;
+      let playlistData: PlaylistRawData | undefined;
+
       switch (res.loadType) {
         case "search":
           searchData = res.data as TrackData[];
@@ -324,32 +328,39 @@ export class Manager extends EventEmitter {
         case "track":
           searchData = [res.data as TrackData[]];
           break;
+
         case "playlist":
           playlistData = res.data as PlaylistRawData;
+          break;
       }
+
+      const tracks = searchData.map((track) =>
+        TrackUtils.build(track, requester)
+      );
+      const playlist =
+        res.loadType === "playlist"
+          ? {
+              name: playlistData!.info.name,
+              tracks: playlistData!.tracks.map((track) =>
+                TrackUtils.build(track, requester)
+              ),
+              duration: playlistData!.tracks.reduce(
+                (acc, cur) => acc + (cur.info.length || 0),
+                0
+              ),
+            }
+          : null;
 
       const result: SearchResult = {
         loadType: res.loadType,
-        tracks:
-          searchData.map((track) => TrackUtils.build(track, requester)) ?? [],
-        playlist:
-          res.loadType === "playlist"
-            ? {
-                name: playlistData.info.name,
-                tracks:
-                  playlistData.tracks.map((track) =>
-                    TrackUtils.build(track, requester)
-                  ) ?? [],
-                duration: playlistData.tracks.reduce(
-                  (acc: number, cur: TrackData) => acc + (cur.info.length || 0),
-                  0
-                ),
-              }
-            : null,
+        tracks,
+        playlist,
       };
 
-      return resolve(result);
-    });
+      return result;
+    } catch (err) {
+      throw new Error(err);
+    }
   }
 
   /**
@@ -437,18 +448,25 @@ export class Manager extends EventEmitter {
    * Sends voice data to the Lavalink server.
    * @param data
    */
-  public updateVoiceState(data: VoicePacket | VoiceServer | VoiceState): void {
+  public async updateVoiceState(
+    data: VoicePacket | VoiceServer | VoiceState
+  ): Promise<void> {
     if (
       "t" in data &&
       !["VOICE_STATE_UPDATE", "VOICE_SERVER_UPDATE"].includes(data.t)
-    )
+    ) {
       return;
+    }
 
     const update: VoiceServer | VoiceState = "d" in data ? data.d : data;
-    if (!update || (!("token" in update) && !("session_id" in update))) return;
+    if (!update || (!("token" in update) && !("session_id" in update))) {
+      return;
+    }
 
     const player = this.players.get(update.guild_id) as Player;
-    if (!player) return;
+    if (!player) {
+      return;
+    }
 
     if ("token" in update) {
       /* voice server update */
@@ -487,7 +505,7 @@ export class Manager extends EventEmitter {
         event: { token, endpoint },
       } = player.voiceState;
 
-      player.node.rest.updatePlayer({
+      await player.node.rest.updatePlayer({
         guildId: player.guild,
         data: { voice: { token, endpoint, sessionId } },
       });

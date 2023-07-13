@@ -319,7 +319,7 @@ export type Severity = "common" | "suspicious" | "fault";
 
 export interface TrackData {
   /** The track information. */
-  encoded?: string;
+  encoded: string;
   /** The detailed information of the track. */
   info: TrackDataInfo;
   /** Addition track info provided by plugins. */
