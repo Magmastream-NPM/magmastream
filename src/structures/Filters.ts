@@ -1,3 +1,11 @@
+import {
+  Band,
+  bassBoostEqualizer,
+  softEqualizer,
+  trebleBassEqualizer,
+  tvEqualizer,
+  vaporwaveEqualizer,
+} from "../utils/filtersEqualizers";
 import { Player } from "./Player";
 
 export class Filters {
@@ -10,6 +18,10 @@ export class Filters {
   public vibrato: vibratoOptions;
   public volume: number;
 
+  private filterStatus: {
+    [key: string]: boolean;
+  };
+
   constructor(player: Player) {
     this.distortion = null;
     this.equalizer = [];
@@ -19,9 +31,22 @@ export class Filters {
     this.timescale = null;
     this.vibrato = null;
     this.volume = 1.0;
+    // Initialize filter status
+    this.filterStatus = {
+      bassboost: false,
+      distort: false,
+      eightD: false,
+      karaoke: false,
+      nightcore: false,
+      slowmo: false,
+      soft: false,
+      trebleBass: false,
+      tv: false,
+      vaporwave: false,
+    };
   }
 
-  private updateFilters(): this {
+  private async updateFilters(): Promise<this> {
     const {
       distortion,
       equalizer,
@@ -32,7 +57,7 @@ export class Filters {
       volume,
     } = this;
 
-    this.player.node.rest.updatePlayer({
+    await this.player.node.rest.updatePlayer({
       data: {
         filters: {
           distortion,
@@ -64,6 +89,14 @@ export class Filters {
     return this;
   }
 
+  private setFilterStatus(
+    filter: keyof availableFilters,
+    status: boolean
+  ): this {
+    this.filterStatus[filter] = status;
+    return this;
+  }
+
   /**
    * Sets the equalizer bands and updates the filters.
    * @param bands - The equalizer bands.
@@ -74,12 +107,18 @@ export class Filters {
 
   /** Applies the eight dimension audio effect. */
   public eightD(): this {
-    return this.setRotation({ rotationHz: 0.2 });
+    return this.setRotation({ rotationHz: 0.2 }).setFilterStatus(
+      "eightD",
+      true
+    );
   }
 
   /** Applies the bass boost effect. */
   public bassBoost(): this {
-    return this.setEqualizer(bassBoostEqualizer);
+    return this.setEqualizer(bassBoostEqualizer).setFilterStatus(
+      "bassboost",
+      true
+    );
   }
 
   /** Applies the nightcore effect. */
@@ -88,7 +127,7 @@ export class Filters {
       speed: 1.1,
       pitch: 1.125,
       rate: 1.05,
-    });
+    }).setFilterStatus("nightcore", true);
   }
 
   /** Applies the slow motion audio effect. */
@@ -97,27 +136,32 @@ export class Filters {
       speed: 0.7,
       pitch: 1.0,
       rate: 0.8,
-    });
+    }).setFilterStatus("slowmo", true);
   }
 
   /** Applies the soft audio effect. */
   public soft(): this {
-    return this.setEqualizer(softEqualizer);
+    return this.setEqualizer(softEqualizer).setFilterStatus("soft", true);
   }
 
   /** Applies the television audio effect. */
   public tv(): this {
-    return this.setEqualizer(tvEqualizer);
+    return this.setEqualizer(tvEqualizer).setFilterStatus("tv", true);
   }
 
   /** Applies the treble bass effect. */
   public trebleBass(): this {
-    return this.setEqualizer(trebleBassEqualizer);
+    return this.setEqualizer(trebleBassEqualizer).setFilterStatus(
+      "trebleBass",
+      true
+    );
   }
 
   /** Applies the vaporwave effect. */
   public vaporwave(): this {
-    return this.setEqualizer(vaporwaveEqualizer).setTimescale({ pitch: 0.55 });
+    return this.setEqualizer(vaporwaveEqualizer)
+      .setTimescale({ pitch: 0.55 })
+      .setFilterStatus("vaporwave", true);
   }
 
   /** Applies the distortion audio effect. */
@@ -131,12 +175,15 @@ export class Filters {
       tanScale: 0.2,
       offset: 0,
       scale: 1.2,
-    });
+    }).setFilterStatus("distort", true);
   }
 
   /** Applies the karaoke options specified by the filter. */
   public setKaraoke(karaoke?: karaokeOptions): this {
-    return this.applyFilter({ property: "karaoke", value: karaoke });
+    return this.applyFilter({
+      property: "karaoke",
+      value: karaoke,
+    }).setFilterStatus("karaoke", true);
   }
 
   /** Applies the timescale options specified by the filter. */
@@ -159,11 +206,30 @@ export class Filters {
     return this.applyFilter({ property: "distortion", value: distortion });
   }
 
-  /** Removes the audio effects. */
-  public clearFilters(): this {
+  /** Removes the audio effects and resets the filter status. */
+  public async clearFilters(): Promise<this> {
     this.player.filters = new Filters(this.player);
-    this.updateFilters();
+    await this.updateFilters();
+    // Reset filter status
+    this.filterStatus = {
+      bassboost: false,
+      distort: false,
+      eightD: false,
+      karaoke: false,
+      nightcore: false,
+      slowmo: false,
+      soft: false,
+      trebleBass: false,
+      tv: false,
+      vaporwave: false,
+    };
+
     return this;
+  }
+
+  /** Returns the status of the specified filter . */
+  public getFilterStatus(filter: keyof availableFilters): boolean {
+    return this.filterStatus[filter];
   }
 }
 
@@ -214,96 +280,15 @@ interface distortionOptions {
   scale?: number;
 }
 
-/** Represents an equalizer band. */
-interface Band {
-  /** The index of the equalizer band. */
-  band: number;
-  /** The gain value of the equalizer band. */
-  gain: number;
+interface availableFilters {
+  bassboost: boolean;
+  distort: boolean;
+  eightD: boolean;
+  karaoke: boolean;
+  nightcore: boolean;
+  slowmo: boolean;
+  soft: boolean;
+  trebleBass: boolean;
+  tv: boolean;
+  vaporwave: boolean;
 }
-
-const bassBoostEqualizer: Band[] = [
-  { band: 0, gain: 0.2 },
-  { band: 1, gain: 0.15 },
-  { band: 2, gain: 0.1 },
-  { band: 3, gain: 0.05 },
-  { band: 4, gain: 0.0 },
-  { band: 5, gain: -0.05 },
-  { band: 6, gain: -0.1 },
-  { band: 7, gain: -0.1 },
-  { band: 8, gain: -0.1 },
-  { band: 9, gain: -0.1 },
-  { band: 10, gain: -0.1 },
-  { band: 11, gain: -0.1 },
-  { band: 12, gain: -0.1 },
-  { band: 13, gain: -0.1 },
-  { band: 14, gain: -0.1 },
-];
-
-const softEqualizer: Band[] = [
-  { band: 0, gain: 0 },
-  { band: 1, gain: 0 },
-  { band: 2, gain: 0 },
-  { band: 3, gain: 0 },
-  { band: 4, gain: 0 },
-  { band: 5, gain: 0 },
-  { band: 6, gain: 0 },
-  { band: 7, gain: 0 },
-  { band: 8, gain: -0.25 },
-  { band: 9, gain: -0.25 },
-  { band: 10, gain: -0.25 },
-  { band: 11, gain: -0.25 },
-  { band: 12, gain: -0.25 },
-  { band: 13, gain: -0.25 },
-];
-
-const tvEqualizer: Band[] = [
-  { band: 0, gain: 0 },
-  { band: 1, gain: 0 },
-  { band: 2, gain: 0 },
-  { band: 3, gain: 0 },
-  { band: 4, gain: 0 },
-  { band: 5, gain: 0 },
-  { band: 6, gain: 0 },
-  { band: 7, gain: 0.65 },
-  { band: 8, gain: 0.65 },
-  { band: 9, gain: 0.65 },
-  { band: 10, gain: 0.65 },
-  { band: 11, gain: 0.65 },
-  { band: 12, gain: 0.65 },
-  { band: 13, gain: 0.65 },
-];
-
-const trebleBassEqualizer: Band[] = [
-  { band: 0, gain: 0.6 },
-  { band: 1, gain: 0.67 },
-  { band: 2, gain: 0.67 },
-  { band: 3, gain: 0 },
-  { band: 4, gain: -0.5 },
-  { band: 5, gain: 0.15 },
-  { band: 6, gain: -0.45 },
-  { band: 7, gain: 0.23 },
-  { band: 8, gain: 0.35 },
-  { band: 9, gain: 0.45 },
-  { band: 10, gain: 0.55 },
-  { band: 11, gain: 0.6 },
-  { band: 12, gain: 0.55 },
-  { band: 13, gain: 0 },
-];
-
-const vaporwaveEqualizer: Band[] = [
-  { band: 0, gain: 0 },
-  { band: 1, gain: 0 },
-  { band: 2, gain: 0 },
-  { band: 3, gain: 0 },
-  { band: 4, gain: 0 },
-  { band: 5, gain: 0 },
-  { band: 6, gain: 0 },
-  { band: 7, gain: 0 },
-  { band: 8, gain: 0.15 },
-  { band: 9, gain: 0.15 },
-  { band: 10, gain: 0.15 },
-  { band: 11, gain: 0.15 },
-  { band: 12, gain: 0.15 },
-  { band: 13, gain: 0.15 },
-];
