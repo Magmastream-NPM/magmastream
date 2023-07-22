@@ -545,7 +545,5 @@ export interface NowPlayingMessage {
   /** The boolean indicating if the message has been deleted or not. */
   deleted?: boolean;
   /** The delete function. */
-  delete: () => Promise<void>;
-  /** The edit function. */
-  edit: () => Promise<void>;
+  delete: () => Promise<any>;
 }
