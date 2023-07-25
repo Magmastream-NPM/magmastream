@@ -33,6 +33,12 @@ If you have identified any bugs and have fixed them, we encourage you to [contri
 If you need any assistance or have questions, please open create an issue with your question.
 Also you can join the [Discord Support Server](https://discord.com/invite/HV59Z3zEjt).
 
+## Used By
+
+- [Lava Jukebox](https://discord.com/api/oauth2/authorize?client_id=887651843742793779&permissions=-1&redirect_uri=https%3A%2F%2Fdiscord.gg%2F4ZaXbbYSTZ&response_type=code&scope=guilds.join%20bot%20applications.commands)
+
+If you want to add your own bot create a pull request with your bot added.
+
 ## Contributors
 
 Special thanks to the all the contributors who have helped make Magmastream even better!
