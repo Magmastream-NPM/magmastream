@@ -311,6 +311,7 @@ export class Player {
       this.dynamicRepeat = false;
     }
 
+    this.manager.emit("playerStateUpdate", this);
     return this;
   }
 
@@ -332,6 +333,7 @@ export class Player {
       this.dynamicRepeat = false;
     }
 
+    this.manager.emit("playerStateUpdate", this);
     return this;
   }
 
@@ -369,6 +371,7 @@ export class Player {
       this.dynamicRepeat = false;
     }
 
+    this.manager.emit("playerStateUpdate", this);
     return this;
   }
 
@@ -426,6 +429,7 @@ export class Player {
       },
     });
 
+    this.manager.emit("playerStateUpdate", this);
     return this;
   }
 

@@ -81,17 +81,11 @@ export interface Manager {
   on(event: "playerDestroy", listener: (player: Player) => void): this;
 
   /**
-   * Emitted when a player queue ends.
-   * @event Manager#queueEnd
+   * Emitted when the state of the player has been changed.
+   * https://github.com/Blackfort-Hosting/magmastream/issues/16
+   * @event Manager#playerStateUpdate
    */
-  on(
-    event: "queueEnd",
-    listener: (
-      player: Player,
-      track: Track | UnresolvedTrack,
-      payload: TrackEndEvent
-    ) => void
-  ): this;
+  on(event: "playerStateUpdate", listener: (player: Player) => void): this;
 
   /**
    * Emitted when a player is moved to a new voice channel.
@@ -109,6 +103,28 @@ export interface Manager {
   on(
     event: "playerDisconnect",
     listener: (player: Player, oldChannel: string) => void
+  ): this;
+
+  /**
+   * Emitted when a player queue ends.
+   * @event Manager#queueEnd
+   */
+  on(
+    event: "queueEnd",
+    listener: (
+      player: Player,
+      track: Track | UnresolvedTrack,
+      payload: TrackEndEvent
+    ) => void
+  ): this;
+
+  /**
+   * Emitted when a voice connection is closed.
+   * @event Manager#socketClosed
+   */
+  on(
+    event: "socketClosed",
+    listener: (player: Player, payload: WebSocketClosedEvent) => void
   ): this;
 
   /**
@@ -149,15 +165,6 @@ export interface Manager {
       track: Track | UnresolvedTrack,
       payload: TrackExceptionEvent
     ) => void
-  ): this;
-
-  /**
-   * Emitted when a voice connection is closed.
-   * @event Manager#socketClosed
-   */
-  on(
-    event: "socketClosed",
-    listener: (player: Player, payload: WebSocketClosedEvent) => void
   ): this;
 }
 
