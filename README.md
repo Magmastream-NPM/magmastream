@@ -8,9 +8,10 @@
 
 **Magmastream** a lavalink wrapper for NodeJs. Magmastream only supports lavalink version 4.
 
-## Documentation
+## Useful Links
 
 - [Documentation](https://docs.blackforthosting.com)
+- [Example Bot](https://github.com/Blackfort-Hosting/Magmastream_Template_Bot)
 
 ## Contributing
 

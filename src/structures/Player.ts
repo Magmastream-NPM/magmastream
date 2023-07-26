@@ -301,6 +301,8 @@ export class Player {
     if (typeof repeat !== "boolean")
       throw new TypeError('Repeat can only be "true" or "false".');
 
+    const oldPlayer = { ...this };
+
     if (repeat) {
       this.trackRepeat = true;
       this.queueRepeat = false;
@@ -311,7 +313,7 @@ export class Player {
       this.dynamicRepeat = false;
     }
 
-    this.manager.emit("playerStateUpdate", this);
+    this.manager.emit("playerStateUpdate", oldPlayer, this);
     return this;
   }
 
@@ -323,6 +325,8 @@ export class Player {
     if (typeof repeat !== "boolean")
       throw new TypeError('Repeat can only be "true" or "false".');
 
+    const oldPlayer = { ...this };
+
     if (repeat) {
       this.trackRepeat = false;
       this.queueRepeat = true;
@@ -333,7 +337,7 @@ export class Player {
       this.dynamicRepeat = false;
     }
 
-    this.manager.emit("playerStateUpdate", this);
+    this.manager.emit("playerStateUpdate", oldPlayer, this);
     return this;
   }
 
@@ -350,6 +354,8 @@ export class Player {
     if (this.queue.size <= 1) {
       throw new RangeError("The queue size must be greater than 1.");
     }
+
+    const oldPlayer = { ...this };
 
     if (repeat) {
       this.trackRepeat = false;
@@ -371,7 +377,7 @@ export class Player {
       this.dynamicRepeat = false;
     }
 
-    this.manager.emit("playerStateUpdate", this);
+    this.manager.emit("playerStateUpdate", oldPlayer, this);
     return this;
   }
 
@@ -419,6 +425,8 @@ export class Player {
 
     if (this.paused === pause || !this.queue.totalSize) return this;
 
+    const oldPlayer = { ...this };
+
     this.playing = !pause;
     this.paused = pause;
 
@@ -429,7 +437,7 @@ export class Player {
       },
     });
 
-    this.manager.emit("playerStateUpdate", this);
+    this.manager.emit("playerStateUpdate", oldPlayer, this);
     return this;
   }
 

@@ -85,7 +85,10 @@ export interface Manager {
    * https://github.com/Blackfort-Hosting/magmastream/issues/16
    * @event Manager#playerStateUpdate
    */
-  on(event: "playerStateUpdate", listener: (player: Player) => void): this;
+  on(
+    event: "playerStateUpdate",
+    listener: (oldPlayer: Player, newPlayer: Player) => void
+  ): this;
 
   /**
    * Emitted when a player is moved to a new voice channel.
