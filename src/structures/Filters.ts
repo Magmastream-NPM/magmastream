@@ -208,9 +208,6 @@ export class Filters {
 
   /** Removes the audio effects and resets the filter status. */
   public async clearFilters(): Promise<this> {
-    this.player.filters = new Filters(this.player);
-    await this.updateFilters();
-    // Reset filter status
     this.filterStatus = {
       bassboost: false,
       distort: false,
@@ -224,6 +221,15 @@ export class Filters {
       vaporwave: false,
     };
 
+    this.player.filters = new Filters(this.player);
+    this.setEqualizer([]);
+    this.setDistortion(null);
+    this.setKaraoke(null);
+    this.setRotation(null);
+    this.setTimescale(null);
+    this.setVibrato(null);
+
+    await this.updateFilters();
     return this;
   }
 
