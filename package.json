@@ -16,18 +16,18 @@
   "devDependencies": {
     "@favware/rollup-type-bundler": "^2.0.0",
     "@types/lodash": "^4.14.197",
-    "@types/node": "^20.4.9",
+    "@types/node": "^20.5.7",
     "@types/ws": "^8.5.3",
-    "@typescript-eslint/eslint-plugin": "^6.3.0",
-    "@typescript-eslint/parser": "^6.3.0",
-    "eslint": "^8.46.0",
+    "@typescript-eslint/eslint-plugin": "^6.5.0",
+    "@typescript-eslint/parser": "^6.5.0",
+    "eslint": "^8.48.0",
     "npm-run-all": "^1.7.0",
     "typedoc": "^0.24.8",
     "typedoc-plugin-no-inherit": "^1.4.0",
     "typescript": "^5.1.6"
   },
   "dependencies": {
-    "@discordjs/collection": "^1.5.2",
+    "@discordjs/collection": "^1.5.3",
     "axios": "^1.4.0",
     "events": "^3.3.0",
     "lodash": "^4.17.21",
