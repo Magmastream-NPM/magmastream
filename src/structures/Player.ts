@@ -364,7 +364,7 @@ export class Player {
 
       this.dynamicLoopInterval = setInterval(() => {
         if (!this.dynamicRepeat) return;
-        let shuffled = _.shuffle(this.queue);
+        const shuffled = _.shuffle(this.queue);
         this.queue.clear();
         shuffled.forEach((track) => {
           this.queue.add(track);
