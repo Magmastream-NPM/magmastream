@@ -15,12 +15,12 @@
   },
   "devDependencies": {
     "@favware/rollup-type-bundler": "^2.0.0",
-    "@types/lodash": "^4.14.197",
+    "@types/lodash": "^4.14.199",
     "@types/node": "^20.6.0",
     "@types/ws": "^8.5.3",
-    "@typescript-eslint/eslint-plugin": "^6.5.0",
-    "@typescript-eslint/parser": "^6.5.0",
-    "eslint": "^8.48.0",
+    "@typescript-eslint/eslint-plugin": "^6.7.4",
+    "@typescript-eslint/parser": "^6.7.4",
+    "eslint": "^8.50.0",
     "npm-run-all": "^1.7.0",
     "typedoc": "^0.25.1",
     "typedoc-plugin-no-inherit": "^1.4.0",
@@ -32,7 +32,7 @@
     "events": "^3.3.0",
     "lodash": "^4.17.21",
     "tslib": "^2.6.2",
-    "ws": "^8.8.1"
+    "ws": "^8.14.2"
   },
   "engines": {
     "node": ">=16.0.0"
