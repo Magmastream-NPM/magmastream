@@ -3,6 +3,7 @@ import { Manager } from "./Manager";
 import { Node, NodeStats } from "./Node";
 import { Player, Track, UnresolvedTrack } from "./Player";
 import { Queue } from "./Queue";
+import { SequenceMatcher } from "difflib";
 
 /** @hidden */
 const TRACK_SYMBOL = Symbol("track"),
@@ -174,6 +175,30 @@ export abstract class TrackUtils {
     return unresolvedTrack as UnresolvedTrack;
   }
 
+  /**
+   * Formats the title of a track to remove the author and the identifier.
+   * @param title
+   * @param symbol
+   * @returns formatted title 
+  */
+
+  static formatTitle(title: string, symbol: string) {
+    const symbolIndex = title.indexOf(` ${symbol}`);
+    const dashIndex = title.indexOf(" - ");
+    const endIndex = Math.min(
+      symbolIndex >= 0 ? symbolIndex : title.length,
+      dashIndex >= 0 ? dashIndex : title.length
+    );
+    return title.slice(0, endIndex);
+  }
+
+  /**
+   * Modified version of the `getClosest` method for more accurate results.
+   * by Moumirrai
+   * @param unresolvedTrack 
+   * @returns track
+   */
+
   static async getClosestTrack(
     unresolvedTrack: UnresolvedTrack
   ): Promise<Track> {
@@ -183,45 +208,30 @@ export abstract class TrackUtils {
     if (!TrackUtils.isUnresolvedTrack(unresolvedTrack))
       throw new RangeError("Provided track is not a UnresolvedTrack.");
 
-    const query = [unresolvedTrack.author, unresolvedTrack.title]
-      .filter((str) => !!str)
-      .join(" - ");
+    const query = `${this.formatTitle(
+      this.formatTitle(unresolvedTrack.title, "("),
+      "["
+    )} ${unresolvedTrack.author}`;
     const res = await TrackUtils.manager.search(
       query,
       unresolvedTrack.requester
     );
 
-    if (unresolvedTrack.author) {
-      const channelNames = [
-        unresolvedTrack.author,
-        `${unresolvedTrack.author} - Topic`,
-      ];
-
-      const originalAudio = res.tracks.find((track) => {
-        return (
-          channelNames.some((name) =>
-            new RegExp(`^${escapeRegExp(name)}$`, "i").test(track.author)
-          ) ||
-          new RegExp(`^${escapeRegExp(unresolvedTrack.title)}$`, "i").test(
-            track.title
-          )
-        );
-      });
-
-      if (originalAudio) return originalAudio;
-    }
-
-    if (unresolvedTrack.duration) {
-      const sameDuration = res.tracks.find(
-        (track) =>
-          track.duration >= unresolvedTrack.duration - 1500 &&
-          track.duration <= unresolvedTrack.duration + 1500
-      );
-
-      if (sameDuration) return sameDuration;
-    }
-
-    return res.tracks[0];
+    if (res.loadType !== "search")
+      throw new RangeError("No tracks found with the current query.");
+    const titleWeight: number = 3;
+    const durationWeight: number = 5;
+    const titleMatcher = new SequenceMatcher(null, unresolvedTrack.title);
+    const matches = res.tracks.map((result) => {
+      const titleDiff = titleMatcher.ratio(result.title);
+      const durationDiff = Math.abs(unresolvedTrack.duration - result.duration);
+      return {
+        match: titleDiff * titleWeight - durationDiff * durationWeight,
+        result,
+      };
+    });
+    matches.sort((a, b) => b.match - a.match);
+    return matches[0].result;
   }
 }
 

@@ -29,6 +29,7 @@
   "dependencies": {
     "@discordjs/collection": "^2.0.0",
     "axios": "^1.6.2",
+    "difflib": "^0.2.4",
     "events": "^3.3.0",
     "lodash": "^4.17.21",
     "tslib": "^2.6.2",
