@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-empty-function, @typescript-eslint/no-unused-vars, @typescript-eslint/no-var-requires*/
 import { Manager } from "./Manager";
 import { Node, NodeStats } from "./Node";
-import { Player, Track, TrackPluginInfo, UnresolvedTrack } from "./Player";
+import { Player, Track, UnresolvedTrack } from "./Player";
 import { Queue } from "./Queue";
 
 /** @hidden */
