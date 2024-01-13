@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-empty-function, @typescript-eslint/no-unused-vars, @typescript-eslint/no-var-requires*/
 import { Manager } from "./Manager";
 import { Node, NodeStats } from "./Node";
-import { Player, Track, UnresolvedTrack } from "./Player";
+import { Player, Track, TrackPluginInfo, UnresolvedTrack } from "./Player";
 import { Queue } from "./Queue";
 
 /** @hidden */
@@ -118,6 +118,14 @@ export abstract class TrackUtils {
             : null;
         },
         requester,
+        pluginInfo: {
+          albumName: data.pluginInfo?.albumName,
+          albumUrl: data.pluginInfo?.albumUrl,
+          artistArtworkUrl: data.pluginInfo?.artistArtworkUrl,
+          artistUrl: data.pluginInfo?.artistUrl,
+          isPreview: data.pluginInfo?.isPreview,
+          previewUrl: data.pluginInfo?.previewUrl,
+        },
       };
 
       track.displayThumbnail = track.displayThumbnail.bind(track);
@@ -322,8 +330,8 @@ export interface TrackData {
   encoded: string;
   /** The detailed information of the track. */
   info: TrackDataInfo;
-  /** Addition track info provided by plugins. */
-  pluginInfo: object;
+  /** Additional track info provided by plugins. */
+  pluginInfo: Record<string, string>;
 }
 
 export interface TrackDataInfo {
