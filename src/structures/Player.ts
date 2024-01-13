@@ -521,6 +521,17 @@ export interface Track {
   readonly requester: unknown | null;
   /** Displays the track thumbnail with optional size or null if it's a unsupported source. */
   displayThumbnail(size?: Sizes): string;
+  /** Additional track info provided by plugins. */
+  pluginInfo: TrackPluginInfo;
+}
+
+export interface TrackPluginInfo {
+  albumName?: string;
+  albumUrl?: string;
+  artistArtworkUrl?: string;
+  artistUrl?: string;
+  isPreview?: string;
+  previewUrl?: string;
 }
 
 /** Unresolved tracks can't be played normally, they will resolve before playing into a Track. */
