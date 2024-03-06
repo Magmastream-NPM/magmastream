@@ -190,26 +190,11 @@ export class Manager extends EventEmitter {
   public readonly options: ManagerOptions;
   private initiated = false;
 
-  /** Returns the least used Nodes. */
-  public get leastUsedNodes(): Collection<string, Node> {
+  /** Returns the nodes that has the least amount of players. */
+  public get leastPlayersNodes(): Collection<string, Node> {
     return this.nodes
       .filter((node) => node.connected)
-      .sort((a, b) => b.calls - a.calls);
-  }
-
-  /** Returns the least system load Nodes. */
-  public get leastLoadNodes(): Collection<string, Node> {
-    return this.nodes
-      .filter((node) => node.connected)
-      .sort((a, b) => {
-        const aload = a.stats.cpu
-          ? (a.stats.cpu.systemLoad / a.stats.cpu.cores) * 100
-          : 0;
-        const bload = b.stats.cpu
-          ? (b.stats.cpu.systemLoad / b.stats.cpu.cores) * 100
-          : 0;
-        return aload - bload;
-      });
+      .sort((a, b) => a.stats.players - b.stats.players);
   }
 
   /**
@@ -301,7 +286,7 @@ export class Manager extends EventEmitter {
     query: string | SearchQuery,
     requester?: unknown
   ): Promise<SearchResult> {
-    const node = this.leastUsedNodes.first();
+    const node = this.leastPlayersNodes.first();
     if (!node) {
       throw new Error("No available nodes.");
     }

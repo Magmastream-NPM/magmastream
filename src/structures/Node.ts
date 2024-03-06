@@ -1,4 +1,3 @@
-/* eslint-disable no-case-declarations */
 import {
   PlayerEvent,
   PlayerEvents,
@@ -18,8 +17,6 @@ import WebSocket from "ws";
 export class Node {
   /** The socket for the node. */
   public socket: WebSocket | null = null;
-  /** The amount of rest calls the node has made. */
-  public calls = 0;
   /** The stats for the node. */
   public stats: NodeStats;
   public manager: Manager;

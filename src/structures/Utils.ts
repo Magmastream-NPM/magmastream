@@ -119,6 +119,14 @@ export abstract class TrackUtils {
             : null;
         },
         requester,
+        pluginInfo: {
+          albumName: data.pluginInfo?.albumName,
+          albumUrl: data.pluginInfo?.albumUrl,
+          artistArtworkUrl: data.pluginInfo?.artistArtworkUrl,
+          artistUrl: data.pluginInfo?.artistUrl,
+          isPreview: data.pluginInfo?.isPreview,
+          previewUrl: data.pluginInfo?.previewUrl,
+        },
       };
 
       track.displayThumbnail = track.displayThumbnail.bind(track);
@@ -332,8 +340,8 @@ export interface TrackData {
   encoded: string;
   /** The detailed information of the track. */
   info: TrackDataInfo;
-  /** Addition track info provided by plugins. */
-  pluginInfo: object;
+  /** Additional track info provided by plugins. */
+  pluginInfo: Record<string, string>;
 }
 
 export interface TrackDataInfo {
