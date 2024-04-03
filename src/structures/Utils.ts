@@ -191,7 +191,7 @@ export abstract class TrackUtils {
     if (!TrackUtils.isUnresolvedTrack(unresolvedTrack))
       throw new RangeError("Provided track is not a UnresolvedTrack.");
 
-    const query = [unresolvedTrack.author, unresolvedTrack.title]
+    const query = unresolvedTrack.uri || [unresolvedTrack.author, unresolvedTrack.title]
       .filter((str) => !!str)
       .join(" - ");
     const res = await TrackUtils.manager.search(
