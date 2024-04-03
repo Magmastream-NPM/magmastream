@@ -191,10 +191,10 @@ export class Manager extends EventEmitter {
   private initiated = false;
 
   /** Returns the nodes that has the least amount of players. */
-  private get leastPlayersNodes(): Collection<string, Node> {
+  private get leastPlayersNode(): Node {
     return this.nodes
       .filter((node) => node.connected)
-      .sort((a, b) => a.stats.players - b.stats.players);
+      .sort((a, b) => a.stats.players - b.stats.players)[0];
   }
 
   /** Returns a node based on priority. */
@@ -221,14 +221,12 @@ export class Manager extends EventEmitter {
       }
     }
 
-    return this.leastPlayersNodes.first();
+    return this.leastPlayersNode;
   }
 
-  /** Returns the nodes to use. */
+  /** Returns the node to use. */
   public get useableNodes(): Node {
-    return this.options.usePriority
-      ? this.priorityNode
-      : this.leastPlayersNodes.first();
+    return this.options.usePriority ? this.priorityNode : this.leastPlayersNode;
   }
 
   /**
