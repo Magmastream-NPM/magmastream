@@ -65,6 +65,7 @@ export class Node {
       secure: false,
       retryAmount: 5,
       retryDelay: 30e3,
+      priority: 0,
       ...options,
     };
 
@@ -387,8 +388,10 @@ export interface NodeOptions {
   resumeStatus?: boolean;
   /** The time the manager will wait before trying to resume the previous session. */
   resumeTimeout?: number;
-  /** The timeout used for api calls */
+  /** The timeout used for api calls. */
   requestTimeout?: number;
+  /** Priority of the node. */
+  priority?: number;
 }
 
 export interface NodeStats {

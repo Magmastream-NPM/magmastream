@@ -94,7 +94,7 @@ export class Player {
     if (options.textChannel) this.textChannel = options.textChannel;
 
     const node = this.manager.nodes.get(options.node);
-    this.node = node || this.manager.leastPlayersNodes.first();
+    this.node = node || this.manager.useableNodes;
 
     if (!this.node) throw new RangeError("No available nodes.");
 

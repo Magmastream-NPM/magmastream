@@ -191,10 +191,44 @@ export class Manager extends EventEmitter {
   private initiated = false;
 
   /** Returns the nodes that has the least amount of players. */
-  public get leastPlayersNodes(): Collection<string, Node> {
+  private get leastPlayersNodes(): Collection<string, Node> {
     return this.nodes
       .filter((node) => node.connected)
       .sort((a, b) => a.stats.players - b.stats.players);
+  }
+
+  /** Returns a node based on priority. */
+  private get priorityNode(): Node {
+    const filteredNodes = this.nodes.filter(
+      (node) => node.connected && node.options.priority > 0
+    );
+    const totalWeight = filteredNodes.reduce(
+      (total, node) => total + node.options.priority,
+      0
+    );
+    const weightedNodes = filteredNodes.map((node) => ({
+      node,
+      weight: node.options.priority / totalWeight,
+    }));
+    const randomNumber = Math.random();
+
+    let cumulativeWeight = 0;
+
+    for (const { node, weight } of weightedNodes) {
+      cumulativeWeight += weight;
+      if (randomNumber <= cumulativeWeight) {
+        return node;
+      }
+    }
+
+    return this.leastPlayersNodes.first();
+  }
+
+  /** Returns the nodes to use. */
+  public get useableNodes(): Node {
+    return this.options.usePriority
+      ? this.priorityNode
+      : this.leastPlayersNodes.first();
   }
 
   /**
@@ -286,7 +320,8 @@ export class Manager extends EventEmitter {
     query: string | SearchQuery,
     requester?: unknown
   ): Promise<SearchResult> {
-    const node = this.leastPlayersNodes.first();
+    const node = this.useableNodes;
+
     if (!node) {
       throw new Error("No available nodes.");
     }
@@ -520,6 +555,8 @@ export interface Payload {
 }
 
 export interface ManagerOptions {
+  /** Use priority mode over least amount of player? */
+  usePriority?: boolean;
   /** The array of nodes to connect to. */
   nodes?: NodeOptions[];
   /** The client ID to use. */
