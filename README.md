@@ -43,6 +43,7 @@ Also you can join the [Discord Support Server](https://discord.com/invite/HV59Z3
 | [Lava Jukebox](https://discord.com/api/oauth2/authorize?client_id=887651843742793779&permissions=-1&redirect_uri=https%3A%2F%2Fdiscord.gg%2F4ZaXbbYSTZ&response_type=code&scope=guilds.join%20bot%20applications.commands) | Abel Purnwasy |
 | [Stal](https://discord.com/oauth2/authorize?client_id=923938180263182356&scope=bot%20applications.commands&permissions=27648861246) | memte |
 | [Lunio](https://discord.com/api/oauth2/authorize?client_id=945030475779551415&permissions=61991952&scope=bot+applications.commands) | vexi |
+| [JukeDisc](https://discord.com/oauth2/authorize?client_id=1109751797549105176&permissions=968552214080&scope=bot+applications.commands) | Theo |
 
 If you want to add your own bot create a pull request with your bot added. Please add your full name.
 
