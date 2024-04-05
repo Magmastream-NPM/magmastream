@@ -199,10 +199,10 @@ export class Manager extends EventEmitter {
   private initiated = false;
 
   /** Returns the nodes that has the least amount of players. */
-  private get leastPlayersNode(): Node {
+  private get leastPlayersNode(): Collection<string, Node> {
     return this.nodes
       .filter((node) => node.connected)
-      .sort((a, b) => a.stats.players - b.stats.players)[0];
+      .sort((a, b) => a.stats.players - b.stats.players);
   }
 
   /** Returns a node based on priority. */
@@ -229,12 +229,14 @@ export class Manager extends EventEmitter {
       }
     }
 
-    return this.leastPlayersNode;
+    return this.leastPlayersNode.first();
   }
 
   /** Returns the node to use. */
   public get useableNodes(): Node {
-    return this.options.usePriority ? this.priorityNode : this.leastPlayersNode;
+    return this.options.usePriority
+      ? this.priorityNode
+      : this.leastPlayersNode.first();
   }
 
   /**
@@ -267,6 +269,7 @@ export class Manager extends EventEmitter {
       ],
       shards: 1,
       autoPlay: true,
+      usePriority: false,
       clientName: "Magmastream",
       defaultSearchPlatform: "youtube",
       ...options,
