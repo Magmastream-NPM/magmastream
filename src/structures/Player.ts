@@ -5,6 +5,7 @@ import { Queue } from "./Queue";
 import { Sizes, State, Structure, TrackUtils, VoiceState } from "./Utils";
 import * as _ from "lodash";
 import playerCheck from "../utils/playerCheck";
+import { Message } from "discord.js";
 
 export class Player {
   /** The Queue for the Player. */
@@ -43,6 +44,8 @@ export class Player {
   public voiceState: VoiceState;
   /** The Manager. */
   public manager: Manager;
+  /** The autoplay state of the player. */
+  public isAutoplay: boolean = false;
 
   private static _manager: Manager;
   private readonly data: Record<string, unknown> = {};
@@ -272,6 +275,25 @@ export class Player {
     });
 
     Object.assign(this, { position: 0, playing: true });
+  }
+
+  /**
+   * Sets the autoplay-state of the player.
+   * @param autoplayState
+   */
+  public setAutoplay(autoplayState: boolean, botUser: object) {
+    if (typeof autoplayState !== "boolean") {
+      throw new TypeError("autoplayState must be a boolean.");
+    }
+
+    if (typeof botUser !== "object") {
+      throw new TypeError("botUser must be a user-object.");
+    }
+
+    this.isAutoplay = autoplayState;
+    this.set("Internal_BotUser", botUser);
+
+    return this;
   }
 
   /**
@@ -568,5 +590,5 @@ export interface NowPlayingMessage {
   /** The boolean indicating if the message has been deleted or not. */
   deleted?: boolean;
   /** The delete function. */
-  delete: () => Promise<any>;
+  delete: () => Promise<Message>;
 }
