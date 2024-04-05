@@ -269,7 +269,7 @@ export class Node {
 
     const previousTrack = player.queue.previous;
 
-    if (!previousTrack) return;
+    if (!player.isAutoplay || !previousTrack) return;
 
     const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) =>
       previousTrack.uri.includes(url)
