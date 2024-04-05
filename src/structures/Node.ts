@@ -267,79 +267,67 @@ export class Node {
     this.manager.emit("trackStart", player, track, payload);
   }
 
-  protected trackEnd(
-    player: Player,
-    track: Track,
-    payload: TrackEndEvent
-  ): void {
-    // If a track had an error while starting
-    if (["loadFailed", "cleanup"].includes(payload.reason)) {
-      player.queue.previous = player.queue.current;
-      player.queue.current = player.queue.shift();
+  protected trackEnd(player: Player, track: Track, payload: TrackEndEvent): void {
+    const { reason } = payload;
 
-      if (!player.queue.current) return this.queueEnd(player, track, payload);
+    if (["loadFailed", "cleanup"].includes(reason)) {
+        this.handleFailedTrack(player, track, payload);
+    } else if (reason === "replaced") {
+        this.manager.emit("trackEnd", player, track, payload);
+    } else if (track && (player.trackRepeat || player.queueRepeat)) {
+        this.handleRepeatedTrack(player, track, payload);
+    } else if (player.queue.length) {
+        this.playNextTrack(player, track, payload);
+    } else {
+        this.queueEnd(player, track, payload);
+    }
+}
 
-      this.manager.emit("trackEnd", player, track, payload);
-      if (this.manager.options.autoPlay) player.play();
-      return;
+private handleFailedTrack(player: Player, track: Track, payload: TrackEndEvent): void {
+    player.queue.previous = player.queue.current;
+    player.queue.current = player.queue.shift();
+
+    if (!player.queue.current) {
+        this.queueEnd(player, track, payload);
+        return;
     }
 
-    // If a track was forcibly played
-    if (payload.reason === "replaced") {
-      this.manager.emit("trackEnd", player, track, payload);
-      return;
-    }
+    this.manager.emit("trackEnd", player, track, payload);
+    if (this.manager.options.autoPlay) player.play();
+}
 
-    // If a track ended and is track repeating
-    if (track && player.trackRepeat) {
-      if (payload.reason === "stopped") {
-        player.queue.previous = player.queue.current;
+private handleRepeatedTrack(player: Player, track: Track, payload: TrackEndEvent): void {
+    player.queue.previous = player.queue.current;
+
+    if (payload.reason === "stopped") {
         player.queue.current = player.queue.shift();
-      }
-
-      if (!player.queue.current) return this.queueEnd(player, track, payload);
-
-      this.manager.emit("trackEnd", player, track, payload);
-      if (this.manager.options.autoPlay) player.play();
-      return;
-    }
-
-    // If a track ended and is track repeating
-    if (track && player.queueRepeat) {
-      player.queue.previous = player.queue.current;
-
-      if (payload.reason === "stopped") {
-        player.queue.current = player.queue.shift();
-        if (!player.queue.current) return this.queueEnd(player, track, payload);
-      } else {
+        if (!player.queue.current) {
+            this.queueEnd(player, track, payload);
+            return;
+        }
+    } else {
         player.queue.add(player.queue.current);
         player.queue.current = player.queue.shift();
-      }
-
-      this.manager.emit("trackEnd", player, track, payload);
-      if (this.manager.options.autoPlay) player.play();
-      return;
     }
 
-    // If there is another song in the queue
-    if (player.queue.length) {
-      player.queue.previous = player.queue.current;
-      player.queue.current = player.queue.shift();
+    this.manager.emit("trackEnd", player, track, payload);
+    if (this.manager.options.autoPlay) player.play();
+}
 
-      this.manager.emit("trackEnd", player, track, payload);
-      if (this.manager.options.autoPlay) player.play();
-      return;
-    }
+private playNextTrack(player: Player, track: Track, payload: TrackEndEvent): void {
+    player.queue.previous = player.queue.current;
+    player.queue.current = player.queue.shift();
 
-    // If there are no songs in the queue
-    if (!player.queue.length) return this.queueEnd(player, track, payload);
-  }
+    this.manager.emit("trackEnd", player, track, payload);
+    if (this.manager.options.autoPlay) player.play();
+}
 
   protected queueEnd(
     player: Player,
     track: Track,
     payload: TrackEndEvent
   ): void {
+    player.queue.previous = player.queue.current;
     player.queue.current = null;
     player.playing = false;
     this.manager.emit("queueEnd", player, track, payload);
