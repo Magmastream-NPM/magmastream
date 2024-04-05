@@ -280,6 +280,7 @@ export class Player {
   /**
    * Sets the autoplay-state of the player.
    * @param autoplayState
+   * @param botUser
    */
   public setAutoplay(autoplayState: boolean, botUser: object) {
     if (typeof autoplayState !== "boolean") {
