@@ -14,6 +14,7 @@ export default function nodeCheck(options: NodeOptions) {
     retryAmount,
     retryDelay,
     secure,
+    priority,
   } = options;
 
   if (typeof host !== "string" || !/.+/.test(host)) {
@@ -68,5 +69,9 @@ export default function nodeCheck(options: NodeOptions) {
 
   if (typeof secure !== "undefined" && typeof secure !== "boolean") {
     throw new TypeError('Node option "secure" must be a boolean.');
+  }
+
+  if (typeof priority !== "undefined" && typeof priority !== "number") {
+    throw new TypeError('Node option "priority" must be a number.');
   }
 }
