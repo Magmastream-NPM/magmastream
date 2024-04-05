@@ -13,6 +13,7 @@ export default function managerCheck(options: ManagerOptions) {
     send,
     shards,
     trackPartial,
+    usePriority,
   } = options;
 
   if (typeof autoPlay !== "undefined" && typeof autoPlay !== "boolean") {
@@ -60,5 +61,19 @@ export default function managerCheck(options: ManagerOptions) {
     throw new TypeError(
       'Manager option "trackPartial" must be a string array.'
     );
+  }
+
+  if (typeof usePriority !== "undefined" && typeof usePriority !== "boolean") {
+    throw new TypeError('Manager option "usePriority" must be a boolean.');
+  }
+
+  if (usePriority) {
+    for (let index = 0; index < nodes.length; index++) {
+      if (!nodes[index].priority) {
+        throw new TypeError(
+          `Missing node option "priority" at position ${index}`
+        );
+      }
+    }
   }
 }
