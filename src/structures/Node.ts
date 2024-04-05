@@ -261,11 +261,11 @@ export class Node {
     }
   }
 
-  protected async trackStart(
+  protected trackStart(
     player: Player,
     track: Track,
     payload: TrackStartEvent
-  ): Promise<void> {
+  ): void {
     player.playing = true;
     player.paused = false;
     this.manager.emit("trackStart", player, track, payload);
@@ -297,58 +297,57 @@ export class Node {
     }
     // If there are no more tracks in the queue
     else {
-      this.queueEnd(player, track, payload);
-      const previousTrack = player.queue.previous;
+      await this.queueEnd(player, track, payload);
+    }
+  }
 
-      if (!player.isAutoplay || !previousTrack) return;
+  // Handle autoplay
+  private async handleAutoplay(player: Player, track: Track) {
+    const previousTrack = player.queue.previous;
 
-      const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) =>
-        previousTrack.uri.includes(url)
-      );
+    if (!player.isAutoplay || !previousTrack) return;
 
-      let videoID = previousTrack.uri.substring(
-        previousTrack.uri.indexOf("=") + 1
-      );
+    const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) =>
+      previousTrack.uri.includes(url)
+    );
 
-      if (!hasYouTubeURL) {
-        const res = await player.search(
-          `${previousTrack.author} - ${previousTrack.title}`
-        );
+    let videoID = previousTrack.uri.substring(
+      previousTrack.uri.indexOf("=") + 1
+    );
 
-        videoID = res.tracks[0].uri.substring(
-          res.tracks[0].uri.indexOf("=") + 1
-        );
-      }
-
-      let randomIndex: number;
-      let searchURI: string;
-
-      do {
-        randomIndex = Math.floor(Math.random() * 23) + 2;
-        searchURI = `https://www.youtube.com/watch?v=${videoID}&list=RD${videoID}&index=${randomIndex}`;
-      } while (track.uri.includes(searchURI));
-
+    if (!hasYouTubeURL) {
       const res = await player.search(
-        searchURI,
-        player.get("Internal_BotUser")
+        `${previousTrack.author} - ${previousTrack.title}`
       );
 
-      if (res.loadType === "empty" || res.loadType === "error") return;
+      videoID = res.tracks[0].uri.substring(res.tracks[0].uri.indexOf("=") + 1);
+    }
 
-      let tracks = res.tracks;
+    let randomIndex: number;
+    let searchURI: string;
 
-      if (res.loadType === "playlist") {
-        tracks = res.playlist.tracks;
-      }
+    do {
+      randomIndex = Math.floor(Math.random() * 23) + 2;
+      searchURI = `https://www.youtube.com/watch?v=${videoID}&list=RD${videoID}&index=${randomIndex}`;
+    } while (track.uri.includes(searchURI));
 
-      const foundTrack = tracks
-        .sort(() => Math.random() - 0.5)
-        .find((shuffledTrack) => shuffledTrack.uri !== track.uri);
+    const res = await player.search(searchURI, player.get("Internal_BotUser"));
 
-      if (foundTrack) {
-        player.queue.add(foundTrack);
-        player.play();
-      }
+    if (res.loadType === "empty" || res.loadType === "error") return;
+
+    let tracks = res.tracks;
+
+    if (res.loadType === "playlist") {
+      tracks = res.playlist.tracks;
+    }
+
+    const foundTrack = tracks
+      .sort(() => Math.random() - 0.5)
+      .find((shuffledTrack) => shuffledTrack.uri !== track.uri);
+
+    if (foundTrack) {
+      player.queue.add(foundTrack);
+      player.play();
     }
   }
 
@@ -406,15 +405,66 @@ export class Node {
     if (this.manager.options.autoPlay) player.play();
   }
 
-  protected queueEnd(
+  protected async queueEnd(
     player: Player,
     track: Track,
     payload: TrackEndEvent
-  ): void {
+  ): Promise<void> {
     player.queue.previous = player.queue.current;
     player.queue.current = null;
-    player.playing = false;
-    this.manager.emit("queueEnd", player, track, payload);
+
+    const previousTrack = player.queue.previous;
+
+    if (!player.isAutoplay) {
+      player.queue.previous = player.queue.current;
+      player.queue.current = null;
+      player.playing = false;
+      this.manager.emit("queueEnd", player, track, payload);
+      return;
+    }
+
+    const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) =>
+      previousTrack.uri.includes(url)
+    );
+
+    let videoID = previousTrack.uri.substring(
+      previousTrack.uri.indexOf("=") + 1
+    );
+
+    if (!hasYouTubeURL) {
+      const res = await player.search(
+        `${previousTrack.author} - ${previousTrack.title}`
+      );
+
+      videoID = res.tracks[0].uri.substring(res.tracks[0].uri.indexOf("=") + 1);
+    }
+
+    let randomIndex: number;
+    let searchURI: string;
+
+    do {
+      randomIndex = Math.floor(Math.random() * 23) + 2;
+      searchURI = `https://www.youtube.com/watch?v=${videoID}&list=RD${videoID}&index=${randomIndex}`;
+    } while (track.uri.includes(searchURI));
+
+    const res = await player.search(searchURI, player.get("Internal_BotUser"));
+
+    if (res.loadType === "empty" || res.loadType === "error") return;
+
+    let tracks = res.tracks;
+
+    if (res.loadType === "playlist") {
+      tracks = res.playlist.tracks;
+    }
+
+    const foundTrack = tracks
+      .sort(() => Math.random() - 0.5)
+      .find((shuffledTrack) => shuffledTrack.uri !== track.uri);
+
+    if (foundTrack) {
+      player.queue.add(foundTrack);
+      player.play();
+    }
   }
 
   protected trackStuck(
