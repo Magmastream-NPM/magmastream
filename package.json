@@ -30,10 +30,8 @@
     "@discordjs/collection": "^2.0.0",
     "axios": "^1.6.7",
     "events": "^3.3.0",
-    "jsdom": "^24.0.0",
     "lodash": "^4.17.21",
     "tslib": "^2.6.2",
-    "undici": "^6.11.0",
     "ws": "^8.16.0"
   },
   "engines": {
