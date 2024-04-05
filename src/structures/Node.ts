@@ -182,13 +182,15 @@ export class Node {
     if (!payload.op) return;
     this.manager.emit("nodeRaw", payload);
 
+    let player: Player;
+
     switch (payload.op) {
       case "stats":
         delete payload.op;
         this.stats = { ...payload } as unknown as NodeStats;
         break;
       case "playerUpdate":
-        const player = this.manager.players.get(payload.guildId);
+        player = this.manager.players.get(payload.guildId);
         if (player) player.position = payload.state.position || 0;
         break;
       case "event":
@@ -226,6 +228,7 @@ export class Node {
     const track = player.queue.current;
     const type = payload.type;
 
+    let error: Error;
     switch (type) {
       case "TrackStartEvent":
         this.trackStart(player, track as Track, payload);
@@ -252,7 +255,7 @@ export class Node {
         break;
 
       default:
-        const error = new Error(`Node#event unknown event '${type}'.`);
+        error = new Error(`Node#event unknown event '${type}'.`);
         this.manager.emit("nodeError", this, error);
         break;
     }

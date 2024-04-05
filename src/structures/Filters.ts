@@ -9,13 +9,13 @@ import {
 import { Player } from "./Player";
 
 export class Filters {
-  public distortion: distortionOptions;
+  public distortion: distortionOptions | null;
   public equalizer: Band[];
-  public karaoke: karaokeOptions;
+  public karaoke: karaokeOptions | null;
   public player: Player;
-  public rotation: rotationOptions;
-  public timescale: timescaleOptions;
-  public vibrato: vibratoOptions;
+  public rotation: rotationOptions | null;
+  public timescale: timescaleOptions | null;
+  public vibrato: vibratoOptions | null;
   public volume: number;
 
   private filterStatus: {
@@ -75,14 +75,11 @@ export class Filters {
     return this;
   }
 
-  private applyFilter(
-    filter: {
-      property: keyof Filters;
-      value: any;
-    },
+  private applyFilter<T extends keyof Filters>(
+    filter: { property: T; value: Filters[T] },
     updateFilters: boolean = true
   ): this {
-    this[filter.property] = filter.value;
+    this[filter.property] = filter.value as this[T];
     if (updateFilters) {
       this.updateFilters();
     }
