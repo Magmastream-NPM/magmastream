@@ -281,12 +281,17 @@ export class Player {
    * @param autoplayState
    */
   public setAutoplay(autoplayState: boolean, botUsername: string) {
-    if (typeof autoplayState !== "boolean")
+    if (typeof autoplayState !== "boolean") {
       throw new TypeError("autoplayState must be a boolean.");
+    }
+
+    if (typeof botUsername !== "string") {
+      throw new TypeError("botUsername must be a string.");
+    }
 
     this.isAutoplay = autoplayState;
-
     this.set("Internal_BotUsername", botUsername);
+
     return this;
   }
 
