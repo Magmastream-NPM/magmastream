@@ -194,7 +194,7 @@ export abstract class TrackUtils {
     const query = unresolvedTrack.uri
       ? unresolvedTrack.uri
       : [unresolvedTrack.author, unresolvedTrack.title]
-          .filter((str) => !!str)
+          .filter(Boolean)
           .join(" - ");
     const res = await TrackUtils.manager.search(
       query,
