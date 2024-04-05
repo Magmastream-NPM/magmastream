@@ -258,83 +258,141 @@ export class Node {
     }
   }
 
-  protected trackStart(
+  protected async trackStart(
     player: Player,
     track: Track,
     payload: TrackStartEvent
-  ): void {
+  ): Promise<void> {
     player.playing = true;
     player.paused = false;
     this.manager.emit("trackStart", player, track, payload);
+
+    const previousTrack = player.queue.previous;
+
+    if (!previousTrack) return;
+
+    const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) =>
+      previousTrack.uri.includes(url)
+    );
+
+    let videoID = previousTrack.uri.substring(
+      previousTrack.uri.indexOf("=") + 1
+    );
+
+    if (!hasYouTubeURL) {
+      const res = await player.search(
+        `${previousTrack.author} - ${previousTrack.title}`
+      );
+
+      videoID = res.tracks[0].uri.substring(res.tracks[0].uri.indexOf("=") + 1);
+    }
+
+    let randomIndex: number;
+    let searchURI: string;
+
+    do {
+      randomIndex = Math.floor(Math.random() * 23) + 2;
+      searchURI = `https://www.youtube.com/watch?v=${videoID}&list=RD${videoID}&index=${randomIndex}`;
+    } while (track.uri.includes(searchURI));
+
+    const res = await player.search(
+      searchURI,
+      player.get("Internal_BotUsername")
+    );
+
+    let tracks = res.tracks;
+
+    if (!res.tracks && res.playlist.tracks) tracks = res.playlist.tracks;
+
+    const foundTrack = tracks
+      .sort(() => Math.random() - 0.5)
+      .find((shuffledTrack) => shuffledTrack.uri !== track.uri);
+
+    if (foundTrack) player.queue.add(foundTrack);
   }
 
-  protected trackEnd(player: Player, track: Track, payload: TrackEndEvent): void {
+  protected trackEnd(
+    player: Player,
+    track: Track,
+    payload: TrackEndEvent
+  ): void {
     const { reason } = payload;
 
     // If the track failed to load or was cleaned up
     if (["loadFailed", "cleanup"].includes(reason)) {
-        this.handleFailedTrack(player, track, payload);
-    } 
+      this.handleFailedTrack(player, track, payload);
+    }
     // If the track was forcibly replaced
     else if (reason === "replaced") {
-        this.manager.emit("trackEnd", player, track, payload);
-    } 
+      this.manager.emit("trackEnd", player, track, payload);
+    }
     // If the track ended and it's set to repeat (track or queue)
     else if (track && (player.trackRepeat || player.queueRepeat)) {
-        this.handleRepeatedTrack(player, track, payload);
-    } 
+      this.handleRepeatedTrack(player, track, payload);
+    }
     // If there's another track in the queue
     else if (player.queue.length) {
-        this.playNextTrack(player, track, payload);
-    } 
+      this.playNextTrack(player, track, payload);
+    }
     // If there are no more tracks in the queue
     else {
-        this.queueEnd(player, track, payload);
+      this.queueEnd(player, track, payload);
     }
-}
+  }
 
   // Handle the case when a track failed to load or was cleaned up
-  private handleFailedTrack(player: Player, track: Track, payload: TrackEndEvent): void {
-      player.queue.previous = player.queue.current;
-      player.queue.current = player.queue.shift();
+  private handleFailedTrack(
+    player: Player,
+    track: Track,
+    payload: TrackEndEvent
+  ): void {
+    player.queue.previous = player.queue.current;
+    player.queue.current = player.queue.shift();
 
-      if (!player.queue.current) {
-          this.queueEnd(player, track, payload);
-          return;
-      }
+    if (!player.queue.current) {
+      this.queueEnd(player, track, payload);
+      return;
+    }
 
-      this.manager.emit("trackEnd", player, track, payload);
-      if (this.manager.options.autoPlay) player.play();
+    this.manager.emit("trackEnd", player, track, payload);
+    if (this.manager.options.autoPlay) player.play();
   }
 
   // Handle the case when a track ended and it's set to repeat (track or queue)
-  private handleRepeatedTrack(player: Player, track: Track, payload: TrackEndEvent): void {
-      player.queue.previous = player.queue.current;
+  private handleRepeatedTrack(
+    player: Player,
+    track: Track,
+    payload: TrackEndEvent
+  ): void {
+    player.queue.previous = player.queue.current;
 
-      if (payload.reason === "stopped") {
-          player.queue.current = player.queue.shift();
-          if (!player.queue.current) {
-              this.queueEnd(player, track, payload);
-              return;
-          }
-      } else {
-          player.queue.add(player.queue.current);
-          player.queue.current = player.queue.shift();
+    if (payload.reason === "stopped") {
+      player.queue.current = player.queue.shift();
+      if (!player.queue.current) {
+        this.queueEnd(player, track, payload);
+        return;
       }
+    } else {
+      player.queue.add(player.queue.current);
+      player.queue.current = player.queue.shift();
+    }
 
-      this.manager.emit("trackEnd", player, track, payload);
-      if (this.manager.options.autoPlay) player.play();
+    this.manager.emit("trackEnd", player, track, payload);
+    if (this.manager.options.autoPlay) player.play();
   }
 
   // Handle the case when there's another track in the queue
-  private playNextTrack(player: Player, track: Track, payload: TrackEndEvent): void {
-      player.queue.previous = player.queue.current;
-      player.queue.current = player.queue.shift();
+  private playNextTrack(
+    player: Player,
+    track: Track,
+    payload: TrackEndEvent
+  ): void {
+    player.queue.previous = player.queue.current;
+    player.queue.current = player.queue.shift();
 
-      this.manager.emit("trackEnd", player, track, payload);
-      if (this.manager.options.autoPlay) player.play();
+    this.manager.emit("trackEnd", player, track, payload);
+    if (this.manager.options.autoPlay) player.play();
   }
-
 
   protected queueEnd(
     player: Player,

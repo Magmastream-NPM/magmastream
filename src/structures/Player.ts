@@ -275,61 +275,21 @@ export class Player {
 
     Object.assign(this, { position: 0, playing: true });
   }
-  /**
-   * Plays recommended tracks based on the previous song.
-   * @param isAutoplay
-   */
-  public async autoplay() {
-   if (!this.queue.previous) return;
-
-   const track = this.queue.previous;
-   const youtubeURLs = ['youtube.com', 'youtu.be'];
-   const hasYouTubeURL = youtubeURLs.some(url => track.uri.includes(url));
-
-   let videoID = track.uri.substring(track.uri.indexOf('=') + 1);
-   if (!hasYouTubeURL) {
-    const newRes = await this.manager.search(`${track.author} - ${track.title}`)
-    videoID = newRes.tracks[0].uri.substring(newRes.tracks[0].uri.indexOf('=') + 1);
-   }
-
-    let randomIndex;
-	  let searchURI;
-
-    do {
-      randomIndex = Math.floor(Math.random() * 23) + 2;
-      searchURI = `https://www.youtube.com/watch?v=${videoID}&list=RD${videoID}&index=${randomIndex}`;
-    } while (track.uri.includes(searchURI));
-
-    const res = await this.manager.search(searchURI, track.requester)
-
-    try {
-      if (res.loadType === 'playlist') res.tracks = res.playlist.tracks;
-
-      if (res.loadType === 'empty') throw new Error("Empty search result on autoplay");
-      if (res.loadType === 'error') throw new Error("Error in search result on autoplay");
-
-      const shuffledTracks = res.tracks.sort(() => Math.random() - 0.5);
-      const foundTrack = shuffledTracks.find((shuffledTrack) => shuffledTrack.uri !== track.uri);
-
-      this.queue.add(foundTrack);
-
-    } catch (error) {
-      return this.manager.emit('trackError', this, res.tracks[0] || track, error)
-    }
-  }
 
   /**
    * Sets the autoplay-state of the player.
    * @param autoplayState
    */
-  public setAutoplay(autoplayState: boolean) {
+  public setAutoplay(autoplayState: boolean, botUsername: string) {
     if (typeof autoplayState !== "boolean")
-      throw new TypeError('autoplayState must be a boolean.');
-  
+      throw new TypeError("autoplayState must be a boolean.");
+
     this.isAutoplay = autoplayState;
+
+    this.set("Internal_BotUsername", botUsername);
     return this;
   }
-  
+
   /**
    * Sets the player volume.
    * @param volume
