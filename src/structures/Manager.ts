@@ -211,6 +211,13 @@ export class Manager extends EventEmitter {
       });
   }
 
+  /** Returns the nodes that has the least amount of players. */
+  private get leastPlayersNode(): Collection<string, Node> {
+    return this.nodes
+      .filter((node) => node.connected)
+      .sort((a, b) => a.stats.players - b.stats.players);
+  }
+
   /** Returns a node based on priority. */
   private get priorityNode(): Node {
     const filteredNodes = this.nodes.filter(
@@ -235,14 +242,18 @@ export class Manager extends EventEmitter {
       }
     }
 
-    return this.leastLoadNode.first();
+    return this.options.useNode === "leastLoad"
+      ? this.leastLoadNode.first()
+      : this.leastPlayersNode.first();
   }
 
   /** Returns the node to use. */
   public get useableNodes(): Node {
     return this.options.usePriority
       ? this.priorityNode
-      : this.leastLoadNode.first();
+      : this.options.useNode === "leastLoad"
+      ? this.leastLoadNode.first()
+      : this.leastPlayersNode.first();
   }
 
   /**
@@ -278,6 +289,7 @@ export class Manager extends EventEmitter {
       usePriority: false,
       clientName: "Magmastream",
       defaultSearchPlatform: "youtube",
+      useNode: "leastLoad",
       ...options,
     };
 
@@ -558,8 +570,10 @@ export interface Payload {
 }
 
 export interface ManagerOptions {
-  /** Use priority mode over least amount of player? */
+  /** Use priority mode over least amount of player or load? */
   usePriority?: boolean;
+  /** Use the least amount of players or least load? */
+  useNode?: "leastLoad" | "leastPlayers";
   /** The array of nodes to connect to. */
   nodes?: NodeOptions[];
   /** The client ID to use. */
