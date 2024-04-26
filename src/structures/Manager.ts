@@ -289,7 +289,7 @@ export class Manager extends EventEmitter {
       usePriority: false,
       clientName: "Magmastream",
       defaultSearchPlatform: "youtube",
-      useNode: "leastLoad",
+      useNode: "leastPlayers",
       ...options,
     };
 
