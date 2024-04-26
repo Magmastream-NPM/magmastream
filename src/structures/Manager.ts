@@ -201,13 +201,13 @@ export class Manager extends EventEmitter {
     return this.nodes
       .filter((node) => node.connected)
       .sort((a, b) => {
-        const aLoad = a.stats.cpu
-          ? (a.stats.players / a.stats.cpu.lavalinkLoad) * 100
+        const aload = a.stats.cpu
+          ? (a.stats.cpu.lavalinkLoad / a.stats.cpu.cores) * 100
           : 0;
-        const bLoad = b.stats.cpu
-          ? (b.stats.players / b.stats.cpu.lavalinkLoad) * 100
+        const bload = b.stats.cpu
+          ? (b.stats.cpu.lavalinkLoad / b.stats.cpu.cores) * 100
           : 0;
-        return aLoad - bLoad;
+        return aload - bload;
       });
   }
 
