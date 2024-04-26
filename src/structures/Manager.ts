@@ -245,6 +245,9 @@ export class Manager extends EventEmitter {
     return this.options.useNode === "leastLoad"
       ? this.leastLoadNode.first()
       : this.leastPlayersNode.first();
+    return this.options.useNode === "leastLoad"
+      ? this.leastLoadNode.first()
+      : this.leastPlayersNode.first();
   }
 
   /** Returns the node to use. */
