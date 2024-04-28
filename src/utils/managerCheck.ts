@@ -14,6 +14,7 @@ export default function managerCheck(options: ManagerOptions) {
     shards,
     trackPartial,
     usePriority,
+    useNode,
   } = options;
 
   if (typeof autoPlay !== "undefined" && typeof autoPlay !== "boolean") {
@@ -75,5 +76,17 @@ export default function managerCheck(options: ManagerOptions) {
         );
       }
     }
+  }
+
+  if (typeof useNode !== "string") {
+    throw new TypeError(
+      'Manager option "useNode" must be a string "leastLoad" or "leastPlayers".'
+    );
+  }
+
+  if (useNode !== "leastLoad" || useNode !== "leastLoad") {
+    throw new TypeError(
+      'Manager option must be either "leastLoad" or "leastPlayers".'
+    );
   }
 }
