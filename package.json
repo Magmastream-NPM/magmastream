@@ -1,6 +1,6 @@
 {
   "name": "magmastream",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "description": "A user-friendly Lavalink client designed for NodeJS.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -16,15 +16,15 @@
   "devDependencies": {
     "@favware/rollup-type-bundler": "^3.3.0",
     "@types/lodash": "^4.17.0",
-    "@types/node": "^20.12.4",
+    "@types/node": "^20.12.7",
     "@types/ws": "^8.5.10",
-    "@typescript-eslint/eslint-plugin": "^7.5.0",
-    "@typescript-eslint/parser": "^7.5.0",
+    "@typescript-eslint/eslint-plugin": "^7.7.1",
+    "@typescript-eslint/parser": "^7.7.1",
     "eslint": "^8.57.0",
     "npm-run-all": "^4.1.5",
-    "typedoc": "^0.25.12",
+    "typedoc": "^0.25.13",
     "typedoc-plugin-no-inherit": "^1.4.0",
-    "typescript": "^5.4.4"
+    "typescript": "^5.4.5"
   },
   "dependencies": {
     "@discordjs/collection": "^2.0.0",
@@ -32,7 +32,7 @@
     "events": "^3.3.0",
     "lodash": "^4.17.21",
     "tslib": "^2.6.2",
-    "ws": "^8.16.0"
+    "ws": "^8.17.0"
   },
   "peerDependencies": {
     "discord.js": ">=13.0.0 <15.0.0"

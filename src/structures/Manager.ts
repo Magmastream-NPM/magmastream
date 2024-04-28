@@ -20,8 +20,6 @@ import { Player, PlayerOptions, Track, UnresolvedTrack } from "./Player";
 import { VoiceState } from "..";
 import managerCheck from "../utils/managerCheck";
 
-const REQUIRED_KEYS = ["event", "guild_id", "op", "sessionId"];
-
 /**
  * The main hub for interacting with Lavalink and using Magmastream,
  */
@@ -198,6 +196,21 @@ export class Manager extends EventEmitter {
   public readonly options: ManagerOptions;
   private initiated = false;
 
+  /** Returns the nodes that has the least load. */
+  private get leastLoadNode(): Collection<string, Node> {
+    return this.nodes
+      .filter((node) => node.connected)
+      .sort((a, b) => {
+        const aload = a.stats.cpu
+          ? (a.stats.cpu.lavalinkLoad / a.stats.cpu.cores) * 100
+          : 0;
+        const bload = b.stats.cpu
+          ? (b.stats.cpu.lavalinkLoad / b.stats.cpu.cores) * 100
+          : 0;
+        return aload - bload;
+      });
+  }
+
   /** Returns the nodes that has the least amount of players. */
   private get leastPlayersNode(): Collection<string, Node> {
     return this.nodes
@@ -229,13 +242,17 @@ export class Manager extends EventEmitter {
       }
     }
 
-    return this.leastPlayersNode.first();
+    return this.options.useNode === "leastLoad"
+      ? this.leastLoadNode.first()
+      : this.leastPlayersNode.first();
   }
 
   /** Returns the node to use. */
   public get useableNodes(): Node {
     return this.options.usePriority
       ? this.priorityNode
+      : this.options.useNode === "leastLoad"
+      ? this.leastLoadNode.first()
       : this.leastPlayersNode.first();
   }
 
@@ -272,6 +289,7 @@ export class Manager extends EventEmitter {
       usePriority: false,
       clientName: "Magmastream",
       defaultSearchPlatform: "youtube",
+      useNode: "leastPlayers",
       ...options,
     };
 
@@ -493,52 +511,19 @@ export class Manager extends EventEmitter {
     if (
       "t" in data &&
       !["VOICE_STATE_UPDATE", "VOICE_SERVER_UPDATE"].includes(data.t)
-    ) {
+    )
       return;
-    }
 
-    const update: VoiceServer | VoiceState = "d" in data ? data.d : data;
-    if (!update || (!("token" in update) && !("session_id" in update))) {
-      return;
-    }
+    const update = "d" in data ? data.d : data;
 
-    const player = this.players.get(update.guild_id) as Player;
-    if (!player) {
-      return;
-    }
+    if (!update || (!("token" in update) && !("session_id" in update))) return;
 
+    const player = this.players.get(update.guild_id);
+
+    if (!player) return;
     if ("token" in update) {
-      /* voice server update */
       player.voiceState.event = update;
-    } else {
-      /* voice state update */
-      if (update.user_id !== this.options.clientId) {
-        return;
-      }
 
-      if (update.channel_id) {
-        if (player.voiceChannel !== update.channel_id) {
-          /* we moved voice channels. */
-          this.emit(
-            "playerMove",
-            player,
-            player.voiceChannel,
-            update.channel_id
-          );
-        }
-
-        player.voiceState.sessionId = update.session_id;
-        player.voiceChannel = update.channel_id;
-      } else {
-        /* player got disconnected. */
-        this.emit("playerDisconnect", player, player.voiceChannel);
-        player.voiceChannel = null;
-        player.voiceState = Object.assign({});
-        player.pause(true);
-      }
-    }
-
-    if (REQUIRED_KEYS.every((key) => key in player.voiceState)) {
       const {
         sessionId,
         event: { token, endpoint },
@@ -548,7 +533,26 @@ export class Manager extends EventEmitter {
         guildId: player.guild,
         data: { voice: { token, endpoint, sessionId } },
       });
+
+      return;
     }
+
+    if (update.user_id !== this.options.clientId) return;
+    if (update.channel_id) {
+      if (player.voiceChannel !== update.channel_id) {
+        this.emit("playerMove", player, player.voiceChannel, update.channel_id);
+      }
+
+      player.voiceState.sessionId = update.session_id;
+      player.voiceChannel = update.channel_id;
+      return;
+    }
+
+    this.emit("playerDisconnect", player, player.voiceChannel);
+    player.voiceChannel = null;
+    player.voiceState = Object.assign({});
+    player.destroy();
+    return;
   }
 }
 
@@ -564,8 +568,10 @@ export interface Payload {
 }
 
 export interface ManagerOptions {
-  /** Use priority mode over least amount of player? */
+  /** Use priority mode over least amount of player or load? */
   usePriority?: boolean;
+  /** Use the least amount of players or least load? */
+  useNode?: "leastLoad" | "leastPlayers";
   /** The array of nodes to connect to. */
   nodes?: NodeOptions[];
   /** The client ID to use. */
