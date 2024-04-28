@@ -511,17 +511,16 @@ export class Manager extends EventEmitter {
     if (
       "t" in data &&
       !["VOICE_STATE_UPDATE", "VOICE_SERVER_UPDATE"].includes(data.t)
-    ) {
+    )
       return;
-    }
+
     const update = "d" in data ? data.d : data;
-    if (!update || (!("token" in update) && !("session_id" in update))) {
-      return;
-    }
+
+    if (!update || (!("token" in update) && !("session_id" in update))) return;
+
     const player = this.players.get(update.guild_id);
-    if (!player) {
-      return;
-    }
+
+    if (!player) return;
     if ("token" in update) {
       player.voiceState.event = update;
 
@@ -529,32 +528,31 @@ export class Manager extends EventEmitter {
         sessionId,
         event: { token, endpoint },
       } = player.voiceState;
+
       await player.node.rest.updatePlayer({
         guildId: player.guild,
         data: { voice: { token, endpoint, sessionId } },
       });
-    } else {
-      if (update.user_id !== this.options.clientId) {
-        return;
-      }
-      if (update.channel_id) {
-        if (player.voiceChannel !== update.channel_id) {
-          this.emit(
-            "playerMove",
-            player,
-            player.voiceChannel,
-            update.channel_id
-          );
-        }
-        player.voiceState.sessionId = update.session_id;
-        player.voiceChannel = update.channel_id;
-      } else {
-        this.emit("playerDisconnect", player, player.voiceChannel);
-        player.voiceChannel = null;
-        player.voiceState = Object.assign({});
-        player.destroy();
-      }
+
+      return;
     }
+
+    if (update.user_id !== this.options.clientId) return;
+    if (update.channel_id) {
+      if (player.voiceChannel !== update.channel_id) {
+        this.emit("playerMove", player, player.voiceChannel, update.channel_id);
+      }
+
+      player.voiceState.sessionId = update.session_id;
+      player.voiceChannel = update.channel_id;
+      return;
+    }
+
+    this.emit("playerDisconnect", player, player.voiceChannel);
+    player.voiceChannel = null;
+    player.voiceState = Object.assign({});
+    player.destroy();
+    return;
   }
 }
 
