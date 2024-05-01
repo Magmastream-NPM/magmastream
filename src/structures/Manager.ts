@@ -644,7 +644,7 @@ export interface PlaylistData {
   tracks: Track[];
 }
 
-interface ManagerEvents {
+export interface ManagerEvents {
   nodeCreate: (node: Node) => void;
   nodeDestroy: (node: Node) => void;
   nodeConnect: (node: Node) => void;
