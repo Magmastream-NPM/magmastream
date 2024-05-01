@@ -25,160 +25,7 @@ import { ClientUser, User } from "discord.js";
  * The main hub for interacting with Lavalink and using Magmastream,
  */
 export class Manager extends EventEmitter {
-  /**
-   * Emitted when a Node is created.
-   * @event Manager#nodeCreate
-   */
-  public on(event: "nodeCreate", listener: (node: Node) => void): this;
-
-  /**
-   * Emitted when a Node is destroyed.
-   * @event Manager#nodeDestroy
-   */
-  public on(event: "nodeDestroy", listener: (node: Node) => void): this;
-
-  /**
-   * Emitted when a Node connects.
-   * @event Manager#nodeConnect
-   */
-  public on(event: "nodeConnect", listener: (node: Node) => void): this;
-
-  /**
-   * Emitted when a Node reconnects.
-   * @event Manager#nodeReconnect
-   */
-  public on(event: "nodeReconnect", listener: (node: Node) => void): this;
-
-  /**
-   * Emitted when a Node disconnects.
-   * @event Manager#nodeDisconnect
-   */
-  public on(
-    event: "nodeDisconnect",
-    listener: (node: Node, reason: { code?: number; reason?: string }) => void
-  ): this;
-
-  /**
-   * Emitted when a Node has an error.
-   * @event Manager#nodeError
-   */
-  public on(
-    event: "nodeError",
-    listener: (node: Node, error: Error) => void
-  ): this;
-
-  /**
-   * Emitted whenever any Lavalink event is received.
-   * @event Manager#nodeRaw
-   */
-  public on(event: "nodeRaw", listener: (payload: unknown) => void): this;
-
-  /**
-   * Emitted when a player is created.
-   * @event Manager#playerCreate
-   */
-  public on(event: "playerCreate", listener: (player: Player) => void): this;
-
-  /**
-   * Emitted when a player is destroyed.
-   * @event Manager#playerDestroy
-   */
-  public on(event: "playerDestroy", listener: (player: Player) => void): this;
-
-  /**
-   * Emitted when the state of the player has been changed.
-   * https://github.com/Blackfort-Hosting/magmastream/issues/16
-   * @event Manager#playerStateUpdate
-   */
-  public on(
-    event: "playerStateUpdate",
-    listener: (oldPlayer: Player, newPlayer: Player) => void
-  ): this;
-
-  /**
-   * Emitted when a player is moved to a new voice channel.
-   * @event Manager#playerMove
-   */
-  public on(
-    event: "playerMove",
-    listener: (player: Player, initChannel: string, newChannel: string) => void
-  ): this;
-
-  /**
-   * Emitted when a player is disconnected from it's current voice channel.
-   * @event Manager#playerDisconnect
-   */
-  public on(
-    event: "playerDisconnect",
-    listener: (player: Player, oldChannel: string) => void
-  ): this;
-
-  /**
-   * Emitted when a player queue ends.
-   * @event Manager#queueEnd
-   */
-  public on(
-    event: "queueEnd",
-    listener: (
-      player: Player,
-      track: Track | UnresolvedTrack,
-      payload: TrackEndEvent
-    ) => void
-  ): this;
-
-  /**
-   * Emitted when a voice connection is closed.
-   * @event Manager#socketClosed
-   */
-  public on(
-    event: "socketClosed",
-    listener: (player: Player, payload: WebSocketClosedEvent) => void
-  ): this;
-
-  /**
-   * Emitted when a track starts.
-   * @event Manager#trackStart
-   */
-  public on(
-    event: "trackStart",
-    listener: (player: Player, track: Track, payload: TrackStartEvent) => void
-  ): this;
-
-  /**
-   * Emitted when a track ends.
-   * @event Manager#trackEnd
-   */
-  public on(
-    event: "trackEnd",
-    listener: (player: Player, track: Track, payload: TrackEndEvent) => void
-  ): this;
-
-  /**
-   * Emitted when a track gets stuck during playback.
-   * @event Manager#trackStuck
-   */
-  public on(
-    event: "trackStuck",
-    listener: (player: Player, track: Track, payload: TrackStuckEvent) => void
-  ): this;
-
-  /**
-   * Emitted when a track has an error during playback.
-   * @event Manager#trackError
-   */
-  public on(
-    event: "trackError",
-    listener: (
-      player: Player,
-      track: Track | UnresolvedTrack,
-      payload: TrackExceptionEvent
-    ) => void
-  ): this;
-
-  public on<T extends keyof ManagerEvents>(
-    event: T,
-    listener: ManagerEvents[T]
-  ): this {
+   public on<T extends keyof ManagerEvents>(event: T, listener: (...args: ManagerEvents[T]) => void): this {
     return super.on(event, listener);
   }
 
@@ -645,33 +492,31 @@ export interface PlaylistData {
 }
 
 export interface ManagerEvents {
-  nodeCreate: (node: Node) => void;
-  nodeDestroy: (node: Node) => void;
-  nodeConnect: (node: Node) => void;
-  nodeReconnect: (node: Node) => void;
-  nodeDisconnect: (
-    node: Node,
-    reason: { code?: number; reason?: string }
-  ) => void;
-  nodeError: (node: Node, error: Error) => void;
-  nodeRaw: (payload: unknown) => void;
-  playerCreate: (player: Player) => void;
-  playerDestroy: (player: Player) => void;
-  playerStateUpdate: (oldPlayer: Player, newPlayer: Player) => void;
-  playerMove: (player: Player, initChannel: string, newChannel: string) => void;
-  playerDisconnect: (player: Player, oldChannel: string) => void;
-  queueEnd: (
+  nodeCreate: [node: Node];
+  nodeDestroy: [node: Node];
+  nodeConnect: [node: Node];
+  nodeReconnect: [node: Node];
+  nodeDisconnect: [node: Node, reason: { code?: number; reason?: string }];
+  nodeError: [node: Node, error: Error];
+  nodeRaw: [payload: unknown];
+  playerCreate: [player: Player];
+  playerDestroy: [player: Player];
+  playerStateUpdate: [oldPlayer: Player, newPlayer: Player];
+  playerMove: [player: Player, initChannel: string, newChannel: string];
+  playerDisconnect: [player: Player, oldChannel: string];
+  queueEnd: [
     player: Player,
     track: Track | UnresolvedTrack,
     payload: TrackEndEvent
-  ) => void;
-  socketClosed: (player: Player, payload: WebSocketClosedEvent) => void;
-  trackStart: (player: Player, track: Track, payload: TrackStartEvent) => void;
-  trackEnd: (player: Player, track: Track, payload: TrackEndEvent) => void;
-  trackStuck: (player: Player, track: Track, payload: TrackStuckEvent) => void;
-  trackError: (
+  ];
+  socketClosed: [player: Player, payload: WebSocketClosedEvent];
+  trackStart: [player: Player, track: Track, payload: TrackStartEvent];
+  trackEnd: [player: Player, track: Track, payload: TrackEndEvent];
+  trackStuck: [player: Player, track: Track, payload: TrackStuckEvent];
+  trackError: [
     player: Player,
     track: Track | UnresolvedTrack,
     payload: TrackExceptionEvent
-  ) => void;
+  ];
 }
+
