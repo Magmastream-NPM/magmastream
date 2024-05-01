@@ -19,6 +19,7 @@ import { Node, NodeOptions } from "./Node";
 import { Player, PlayerOptions, Track, UnresolvedTrack } from "./Player";
 import { VoiceState } from "..";
 import managerCheck from "../utils/managerCheck";
+import { ClientUser, User } from "discord.js";
 
 /**
  * The main hub for interacting with Lavalink and using Magmastream,
@@ -345,7 +346,7 @@ export class Manager extends EventEmitter {
    */
   public async search(
     query: string | SearchQuery,
-    requester?: unknown
+    requester?: User | ClientUser
   ): Promise<SearchResult> {
     const node = this.useableNodes;
 
