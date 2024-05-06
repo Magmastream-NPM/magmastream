@@ -85,7 +85,7 @@ export default function managerCheck(options: ManagerOptions) {
       );
     }
 
-    if (useNode !== "leastLoad" || useNode !== "leastLoad") {
+    if (useNode !== "leastLoad" && useNode !== "leastPlayers") {
       throw new TypeError(
         'Manager option must be either "leastLoad" or "leastPlayers".'
       );
