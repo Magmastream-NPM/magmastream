@@ -455,4 +455,3 @@ export interface FrameStats {
 	/** The amount of deficit frames. */
 	deficit?: number;
 }
-
