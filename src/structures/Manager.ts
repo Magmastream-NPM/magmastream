@@ -19,167 +19,13 @@ import { Node, NodeOptions } from "./Node";
 import { Player, PlayerOptions, Track, UnresolvedTrack } from "./Player";
 import { VoiceState } from "..";
 import managerCheck from "../utils/managerCheck";
-
-const REQUIRED_KEYS = ["event", "guild_id", "op", "sessionId"];
+import { ClientUser, User } from "discord.js";
 
 /**
  * The main hub for interacting with Lavalink and using Magmastream,
  */
 export class Manager extends EventEmitter {
-  /**
-   * Emitted when a Node is created.
-   * @event Manager#nodeCreate
-   */
-  public on(event: "nodeCreate", listener: (node: Node) => void): this;
-
-  /**
-   * Emitted when a Node is destroyed.
-   * @event Manager#nodeDestroy
-   */
-  public on(event: "nodeDestroy", listener: (node: Node) => void): this;
-
-  /**
-   * Emitted when a Node connects.
-   * @event Manager#nodeConnect
-   */
-  public on(event: "nodeConnect", listener: (node: Node) => void): this;
-
-  /**
-   * Emitted when a Node reconnects.
-   * @event Manager#nodeReconnect
-   */
-  public on(event: "nodeReconnect", listener: (node: Node) => void): this;
-
-  /**
-   * Emitted when a Node disconnects.
-   * @event Manager#nodeDisconnect
-   */
-  public on(
-    event: "nodeDisconnect",
-    listener: (node: Node, reason: { code?: number; reason?: string }) => void
-  ): this;
-
-  /**
-   * Emitted when a Node has an error.
-   * @event Manager#nodeError
-   */
-  public on(
-    event: "nodeError",
-    listener: (node: Node, error: Error) => void
-  ): this;
-
-  /**
-   * Emitted whenever any Lavalink event is received.
-   * @event Manager#nodeRaw
-   */
-  public on(event: "nodeRaw", listener: (payload: unknown) => void): this;
-
-  /**
-   * Emitted when a player is created.
-   * @event Manager#playerCreate
-   */
-  public on(event: "playerCreate", listener: (player: Player) => void): this;
-
-  /**
-   * Emitted when a player is destroyed.
-   * @event Manager#playerDestroy
-   */
-  public on(event: "playerDestroy", listener: (player: Player) => void): this;
-
-  /**
-   * Emitted when the state of the player has been changed.
-   * https://github.com/Blackfort-Hosting/magmastream/issues/16
-   * @event Manager#playerStateUpdate
-   */
-  public on(
-    event: "playerStateUpdate",
-    listener: (oldPlayer: Player, newPlayer: Player) => void
-  ): this;
-
-  /**
-   * Emitted when a player is moved to a new voice channel.
-   * @event Manager#playerMove
-   */
-  public on(
-    event: "playerMove",
-    listener: (player: Player, initChannel: string, newChannel: string) => void
-  ): this;
-
-  /**
-   * Emitted when a player is disconnected from it's current voice channel.
-   * @event Manager#playerDisconnect
-   */
-  public on(
-    event: "playerDisconnect",
-    listener: (player: Player, oldChannel: string) => void
-  ): this;
-
-  /**
-   * Emitted when a player queue ends.
-   * @event Manager#queueEnd
-   */
-  public on(
-    event: "queueEnd",
-    listener: (
-      player: Player,
-      track: Track | UnresolvedTrack,
-      payload: TrackEndEvent
-    ) => void
-  ): this;
-
-  /**
-   * Emitted when a voice connection is closed.
-   * @event Manager#socketClosed
-   */
-  public on(
-    event: "socketClosed",
-    listener: (player: Player, payload: WebSocketClosedEvent) => void
-  ): this;
-
-  /**
-   * Emitted when a track starts.
-   * @event Manager#trackStart
-   */
-  public on(
-    event: "trackStart",
-    listener: (player: Player, track: Track, payload: TrackStartEvent) => void
-  ): this;
-
-  /**
-   * Emitted when a track ends.
-   * @event Manager#trackEnd
-   */
-  public on(
-    event: "trackEnd",
-    listener: (player: Player, track: Track, payload: TrackEndEvent) => void
-  ): this;
-
-  /**
-   * Emitted when a track gets stuck during playback.
-   * @event Manager#trackStuck
-   */
-  public on(
-    event: "trackStuck",
-    listener: (player: Player, track: Track, payload: TrackStuckEvent) => void
-  ): this;
-
-  /**
-   * Emitted when a track has an error during playback.
-   * @event Manager#trackError
-   */
-  public on(
-    event: "trackError",
-    listener: (
-      player: Player,
-      track: Track | UnresolvedTrack,
-      payload: TrackExceptionEvent
-    ) => void
-  ): this;
-
-  public on<T extends keyof ManagerEvents>(
-    event: T,
-    listener: ManagerEvents[T]
-  ): this {
+   public on<T extends keyof ManagerEvents>(event: T, listener: (...args: ManagerEvents[T]) => void): this {
     return super.on(event, listener);
   }
 
@@ -197,6 +43,21 @@ export class Manager extends EventEmitter {
   /** The options that were set. */
   public readonly options: ManagerOptions;
   private initiated = false;
+
+  /** Returns the nodes that has the least load. */
+  private get leastLoadNode(): Collection<string, Node> {
+    return this.nodes
+      .filter((node) => node.connected)
+      .sort((a, b) => {
+        const aload = a.stats.cpu
+          ? (a.stats.cpu.lavalinkLoad / a.stats.cpu.cores) * 100
+          : 0;
+        const bload = b.stats.cpu
+          ? (b.stats.cpu.lavalinkLoad / b.stats.cpu.cores) * 100
+          : 0;
+        return aload - bload;
+      });
+  }
 
   /** Returns the nodes that has the least amount of players. */
   private get leastPlayersNode(): Collection<string, Node> {
@@ -229,13 +90,17 @@ export class Manager extends EventEmitter {
       }
     }
 
-    return this.leastPlayersNode.first();
+    return this.options.useNode === "leastLoad"
+      ? this.leastLoadNode.first()
+      : this.leastPlayersNode.first();
   }
 
   /** Returns the node to use. */
   public get useableNodes(): Node {
     return this.options.usePriority
       ? this.priorityNode
+      : this.options.useNode === "leastLoad"
+      ? this.leastLoadNode.first()
       : this.leastPlayersNode.first();
   }
 
@@ -272,6 +137,7 @@ export class Manager extends EventEmitter {
       usePriority: false,
       clientName: "Magmastream",
       defaultSearchPlatform: "youtube",
+      useNode: "leastPlayers",
       ...options,
     };
 
@@ -327,7 +193,7 @@ export class Manager extends EventEmitter {
    */
   public async search(
     query: string | SearchQuery,
-    requester?: unknown
+    requester?: User | ClientUser
   ): Promise<SearchResult> {
     const node = this.useableNodes;
 
@@ -493,52 +359,19 @@ export class Manager extends EventEmitter {
     if (
       "t" in data &&
       !["VOICE_STATE_UPDATE", "VOICE_SERVER_UPDATE"].includes(data.t)
-    ) {
+    )
       return;
-    }
 
-    const update: VoiceServer | VoiceState = "d" in data ? data.d : data;
-    if (!update || (!("token" in update) && !("session_id" in update))) {
-      return;
-    }
+    const update = "d" in data ? data.d : data;
 
-    const player = this.players.get(update.guild_id) as Player;
-    if (!player) {
-      return;
-    }
+    if (!update || (!("token" in update) && !("session_id" in update))) return;
 
+    const player = this.players.get(update.guild_id);
+
+    if (!player) return;
     if ("token" in update) {
-      /* voice server update */
       player.voiceState.event = update;
-    } else {
-      /* voice state update */
-      if (update.user_id !== this.options.clientId) {
-        return;
-      }
 
-      if (update.channel_id) {
-        if (player.voiceChannel !== update.channel_id) {
-          /* we moved voice channels. */
-          this.emit(
-            "playerMove",
-            player,
-            player.voiceChannel,
-            update.channel_id
-          );
-        }
-
-        player.voiceState.sessionId = update.session_id;
-        player.voiceChannel = update.channel_id;
-      } else {
-        /* player got disconnected. */
-        this.emit("playerDisconnect", player, player.voiceChannel);
-        player.voiceChannel = null;
-        player.voiceState = Object.assign({});
-        player.pause(true);
-      }
-    }
-
-    if (REQUIRED_KEYS.every((key) => key in player.voiceState)) {
       const {
         sessionId,
         event: { token, endpoint },
@@ -548,7 +381,26 @@ export class Manager extends EventEmitter {
         guildId: player.guild,
         data: { voice: { token, endpoint, sessionId } },
       });
+
+      return;
     }
+
+    if (update.user_id !== this.options.clientId) return;
+    if (update.channel_id) {
+      if (player.voiceChannel !== update.channel_id) {
+        this.emit("playerMove", player, player.voiceChannel, update.channel_id);
+      }
+
+      player.voiceState.sessionId = update.session_id;
+      player.voiceChannel = update.channel_id;
+      return;
+    }
+
+    this.emit("playerDisconnect", player, player.voiceChannel);
+    player.voiceChannel = null;
+    player.voiceState = Object.assign({});
+    player.destroy();
+    return;
   }
 }
 
@@ -564,8 +416,10 @@ export interface Payload {
 }
 
 export interface ManagerOptions {
-  /** Use priority mode over least amount of player? */
+  /** Use priority mode over least amount of player or load? */
   usePriority?: boolean;
+  /** Use the least amount of players or least load? */
+  useNode?: "leastLoad" | "leastPlayers";
   /** The array of nodes to connect to. */
   nodes?: NodeOptions[];
   /** The client ID to use. */
@@ -637,34 +491,32 @@ export interface PlaylistData {
   tracks: Track[];
 }
 
-interface ManagerEvents {
-  nodeCreate: (node: Node) => void;
-  nodeDestroy: (node: Node) => void;
-  nodeConnect: (node: Node) => void;
-  nodeReconnect: (node: Node) => void;
-  nodeDisconnect: (
-    node: Node,
-    reason: { code?: number; reason?: string }
-  ) => void;
-  nodeError: (node: Node, error: Error) => void;
-  nodeRaw: (payload: unknown) => void;
-  playerCreate: (player: Player) => void;
-  playerDestroy: (player: Player) => void;
-  playerStateUpdate: (oldPlayer: Player, newPlayer: Player) => void;
-  playerMove: (player: Player, initChannel: string, newChannel: string) => void;
-  playerDisconnect: (player: Player, oldChannel: string) => void;
-  queueEnd: (
+export interface ManagerEvents {
+  nodeCreate: [node: Node];
+  nodeDestroy: [node: Node];
+  nodeConnect: [node: Node];
+  nodeReconnect: [node: Node];
+  nodeDisconnect: [node: Node, reason: { code?: number; reason?: string }];
+  nodeError: [node: Node, error: Error];
+  nodeRaw: [payload: unknown];
+  playerCreate: [player: Player];
+  playerDestroy: [player: Player];
+  playerStateUpdate: [oldPlayer: Player, newPlayer: Player];
+  playerMove: [player: Player, initChannel: string, newChannel: string];
+  playerDisconnect: [player: Player, oldChannel: string];
+  queueEnd: [
     player: Player,
     track: Track | UnresolvedTrack,
     payload: TrackEndEvent
-  ) => void;
-  socketClosed: (player: Player, payload: WebSocketClosedEvent) => void;
-  trackStart: (player: Player, track: Track, payload: TrackStartEvent) => void;
-  trackEnd: (player: Player, track: Track, payload: TrackEndEvent) => void;
-  trackStuck: (player: Player, track: Track, payload: TrackStuckEvent) => void;
-  trackError: (
+  ];
+  socketClosed: [player: Player, payload: WebSocketClosedEvent];
+  trackStart: [player: Player, track: Track, payload: TrackStartEvent];
+  trackEnd: [player: Player, track: Track, payload: TrackEndEvent];
+  trackStuck: [player: Player, track: Track, payload: TrackStuckEvent];
+  trackError: [
     player: Player,
     track: Track | UnresolvedTrack,
     payload: TrackExceptionEvent
-  ) => void;
+  ];
 }
+
