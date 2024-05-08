@@ -2,10 +2,17 @@ import { Filters } from "./Filters";
 import { Manager, SearchQuery, SearchResult } from "./Manager";
 import { Node } from "./Node";
 import { Queue } from "./Queue";
-import { Sizes, State, Structure, TrackUtils, VoiceState } from "./Utils";
+import {
+  Sizes,
+  State,
+  Structure,
+  TrackSourceName,
+  TrackUtils,
+  VoiceState,
+} from "./Utils";
 import * as _ from "lodash";
 import playerCheck from "../utils/playerCheck";
-import { Message } from "discord.js";
+import { ClientUser, Message, User } from "discord.js";
 
 export class Player {
   /** The Queue for the Player. */
@@ -35,7 +42,7 @@ export class Player {
   /** The text channel for the player. */
   public textChannel: string | null = null;
   /**The now playing message. */
-  public nowPlayingMessage?: NowPlayingMessage;
+  public nowPlayingMessage?: Message;
   /** The current state of the player. */
   public state: State = "DISCONNECTED";
   /** The equalizer bands array. */
@@ -114,7 +121,7 @@ export class Player {
    */
   public search(
     query: string | SearchQuery,
-    requester?: unknown
+    requester?: User | ClientUser
   ): Promise<SearchResult> {
     return this.manager.search(query, requester);
   }
@@ -199,7 +206,7 @@ export class Player {
   }
 
   /** Sets the now playing message. */
-  public setNowPlayingMessage(message: NowPlayingMessage): NowPlayingMessage {
+  public setNowPlayingMessage(message: Message): Message {
     if (!message) {
       throw new TypeError(
         "You must provide the message of the now playing message."
@@ -523,7 +530,7 @@ export interface Track {
   /** The artwork url of the track. */
   readonly artworkUrl: string;
   /** The track source name. */
-  readonly sourceName: string;
+  readonly sourceName: TrackSourceName;
   /** The title of the track. */
   readonly title: string;
   /** The identifier of the track. */
@@ -541,7 +548,7 @@ export interface Track {
   /** The thumbnail of the track or null if it's a unsupported source. */
   readonly thumbnail: string | null;
   /** The user that requested the track. */
-  readonly requester: unknown | null;
+  readonly requester: User | ClientUser | null;
   /** Displays the track thumbnail with optional size or null if it's a unsupported source. */
   displayThumbnail(size?: Sizes): string;
   /** Additional track info provided by plugins. */
@@ -583,13 +590,4 @@ export interface EqualizerBand {
   band: number;
   /** The gain amount being -0.25 to 1.00, 0.25 being double. */
   gain: number;
-}
-
-export interface NowPlayingMessage {
-  /** The ID of the channel. */
-  channelId: string;
-  /** The boolean indicating if the message has been deleted or not. */
-  deleted?: boolean;
-  /** The delete function. */
-  delete: () => Promise<Message>;
 }

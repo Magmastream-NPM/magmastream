@@ -63,8 +63,8 @@ export class Node {
       port: 2333,
       password: "youshallnotpass",
       secure: false,
-      retryAmount: 5,
-      retryDelay: 30e3,
+      retryAmount: 30,
+      retryDelay: 60000,
       priority: 0,
       ...options,
     };
@@ -219,7 +219,9 @@ export class Node {
     }
   }
 
-  protected handleEvent(payload: PlayerEvent & PlayerEvents): void {
+  protected async handleEvent(
+    payload: PlayerEvent & PlayerEvents
+  ): Promise<void> {
     if (!payload.guildId) return;
 
     const player = this.manager.players.get(payload.guildId);
@@ -235,8 +237,8 @@ export class Node {
         break;
 
       case "TrackEndEvent":
-        if (player?.nowPlayingMessage && !player?.nowPlayingMessage?.deleted) {
-          player?.nowPlayingMessage?.delete().catch(() => {});
+        if (player?.nowPlayingMessage && player?.nowPlayingMessage.deletable) {
+          await player?.nowPlayingMessage?.delete().catch(() => {});
         }
 
         this.trackEnd(player, track as Track, payload);

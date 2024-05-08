@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-empty-function, @typescript-eslint/no-unused-vars, @typescript-eslint/no-var-requires*/
+import { ClientUser, User } from "discord.js";
 import { Manager } from "./Manager";
 import { Node, NodeStats } from "./Node";
 import { Player, Track, UnresolvedTrack } from "./Player";
@@ -92,7 +93,7 @@ export abstract class TrackUtils {
    * @param data
    * @param requester
    */
-  static build(data: TrackData, requester?: unknown): Track {
+  static build(data: TrackData, requester?: User | ClientUser): Track {
     if (typeof data === "undefined")
       throw new RangeError('Argument "data" must be present.');
 
@@ -157,7 +158,7 @@ export abstract class TrackUtils {
    */
   static buildUnresolved(
     query: string | UnresolvedQuery,
-    requester?: unknown
+    requester?: User | ClientUser
   ): UnresolvedTrack {
     if (typeof query === "undefined")
       throw new RangeError('Argument "query" must be present.');
@@ -345,8 +346,10 @@ export interface TrackDataInfo {
   title: string;
   uri?: string;
   artworkUrl?: string;
-  sourceName?: string;
+  sourceName?: TrackSourceName;
 }
+
+export type TrackSourceName = "deezer" | "spotify" | "soundcloud" | "youtube";
 
 export interface Extendable {
   Player: typeof Player;
