@@ -12,14 +12,14 @@ import {
 	VoicePacket,
 	VoiceServer,
 	WebSocketClosedEvent,
-} from './Utils';
-import { Collection } from '@discordjs/collection';
-import { EventEmitter } from 'events';
-import { Node, NodeOptions } from './Node';
-import { Player, PlayerOptions, Track, UnresolvedTrack } from './Player';
-import { VoiceState } from '..';
-import managerCheck from '../utils/managerCheck';
-import { ClientUser, User } from 'discord.js';
+} from "./Utils";
+import { Collection } from "@discordjs/collection";
+import { EventEmitter } from "events";
+import { Node, NodeOptions } from "./Node";
+import { Player, PlayerOptions, Track, UnresolvedTrack } from "./Player";
+import { VoiceState } from "..";
+import managerCheck from "../utils/managerCheck";
+import { ClientUser, User } from "discord.js";
 
 /**
  * The main hub for interacting with Lavalink and using Magmastream,
@@ -30,10 +30,10 @@ export class Manager extends EventEmitter {
 	}
 
 	public static readonly DEFAULT_SOURCES: Record<SearchPlatform, string> = {
-		'youtube music': 'ytmsearch',
-		youtube: 'ytsearch',
-		soundcloud: 'scsearch',
-		deezer: 'dzsearch',
+		"youtube music": "ytmsearch",
+		youtube: "ytsearch",
+		soundcloud: "scsearch",
+		deezer: "dzsearch",
 	};
 
 	/** The map of players. */
@@ -79,12 +79,12 @@ export class Manager extends EventEmitter {
 			}
 		}
 
-		return this.options.useNode === 'leastLoad' ? this.leastLoadNode.first() : this.leastPlayersNode.first();
+		return this.options.useNode === "leastLoad" ? this.leastLoadNode.first() : this.leastPlayersNode.first();
 	}
 
 	/** Returns the node to use. */
 	public get useableNodes(): Node {
-		return this.options.usePriority ? this.priorityNode : this.options.useNode === 'leastLoad' ? this.leastLoadNode.first() : this.leastPlayersNode.first();
+		return this.options.usePriority ? this.priorityNode : this.options.useNode === "leastLoad" ? this.leastLoadNode.first() : this.leastPlayersNode.first();
 	}
 
 	/**
@@ -96,8 +96,8 @@ export class Manager extends EventEmitter {
 
 		managerCheck(options);
 
-		Structure.get('Player').init(this);
-		Structure.get('Node').init(this);
+		Structure.get("Player").init(this);
+		Structure.get("Node").init(this);
 		TrackUtils.init(this);
 
 		if (options.trackPartial) {
@@ -109,8 +109,8 @@ export class Manager extends EventEmitter {
 			plugins: [],
 			nodes: [
 				{
-					identifier: 'default',
-					host: 'localhost',
+					identifier: "default",
+					host: "localhost",
 					resumeStatus: false,
 					resumeTimeout: 1000,
 				},
@@ -118,9 +118,9 @@ export class Manager extends EventEmitter {
 			shards: 1,
 			autoPlay: true,
 			usePriority: false,
-			clientName: 'Magmastream',
-			defaultSearchPlatform: 'youtube',
-			useNode: 'leastPlayers',
+			clientName: "Magmastream",
+			defaultSearchPlatform: "youtube",
+			useNode: "leastPlayers",
 			...options,
 		};
 
@@ -132,7 +132,7 @@ export class Manager extends EventEmitter {
 		}
 
 		if (this.options.nodes) {
-			for (const nodeOptions of this.options.nodes) new (Structure.get('Node'))(nodeOptions);
+			for (const nodeOptions of this.options.nodes) new (Structure.get("Node"))(nodeOptions);
 		}
 	}
 
@@ -142,9 +142,9 @@ export class Manager extends EventEmitter {
 	 */
 	public init(clientId?: string): this {
 		if (this.initiated) return this;
-		if (typeof clientId !== 'undefined') this.options.clientId = clientId;
+		if (typeof clientId !== "undefined") this.options.clientId = clientId;
 
-		if (typeof this.options.clientId !== 'string') throw new Error('"clientId" set is not type of "string"');
+		if (typeof this.options.clientId !== "string") throw new Error('"clientId" set is not type of "string"');
 
 		if (!this.options.clientId) throw new Error('"clientId" is not set. Pass it in Manager#init() or as a option in the constructor.');
 
@@ -152,7 +152,7 @@ export class Manager extends EventEmitter {
 			try {
 				node.connect();
 			} catch (err) {
-				this.emit('nodeError', node, err);
+				this.emit("nodeError", node, err);
 			}
 		}
 
@@ -170,10 +170,10 @@ export class Manager extends EventEmitter {
 		const node = this.useableNodes;
 
 		if (!node) {
-			throw new Error('No available nodes.');
+			throw new Error("No available nodes.");
 		}
 
-		const _query: SearchQuery = typeof query === 'string' ? { query } : query;
+		const _query: SearchQuery = typeof query === "string" ? { query } : query;
 		const _source = Manager.DEFAULT_SOURCES[_query.source ?? this.options.defaultSearchPlatform] ?? _query.source;
 
 		let search = _query.query;
@@ -186,33 +186,36 @@ export class Manager extends EventEmitter {
 			const res = (await node.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(search)}`)) as LavalinkResponse;
 
 			if (!res) {
-				throw new Error('Query not found.');
+				throw new Error("Query not found.");
 			}
 
 			let searchData = [];
 			let playlistData: PlaylistRawData | undefined;
 
 			switch (res.loadType) {
-				case 'search':
+				case "search":
 					searchData = res.data as TrackData[];
 					break;
 
-				case 'track':
+				case "track":
 					searchData = [res.data as TrackData[]];
 					break;
 
-				case 'playlist':
+				case "playlist":
 					playlistData = res.data as PlaylistRawData;
 					break;
 			}
 
 			const tracks = searchData.map((track) => TrackUtils.build(track, requester));
-			const playlist =
-				res.loadType === 'playlist' ? {
-							name: playlistData!.info.name,
-							tracks: playlistData!.tracks.map((track) => TrackUtils.build(track, requester)),
-							duration: playlistData!.tracks.reduce((acc, cur) => acc + (cur.info.length || 0), 0), }
-					: null;
+			let playlist = null;
+
+			if (res.loadType === "playlist") {
+				playlist = {
+					name: playlistData!.info.name,
+					tracks: playlistData!.tracks.map((track) => TrackUtils.build(track, requester)),
+					duration: playlistData!.tracks.reduce((acc, cur) => acc + (cur.info.length || 0), 0),
+				};
+			}
 
 			const result: SearchResult = {
 				loadType: res.loadType,
@@ -222,29 +225,28 @@ export class Manager extends EventEmitter {
 
 			if (this.options.replaceYouTubeCredentials) {
 				let tracksToReplace = [];
-				if (result.loadType === 'playlist') {
+				if (result.loadType === "playlist") {
 					tracksToReplace = result.playlist.tracks;
 				} else {
 					tracksToReplace = result.tracks;
 				}
 
 				for (const track of tracksToReplace) {
-					if (isYouTubeURL(track.uri) && track.title.includes('-')) {
-						const [author, title] = track.title.split('-').map((str: string) => str.trim());
+					if (isYouTubeURL(track.uri) && track.title.includes("-")) {
+						const [author, title] = track.title.split("-").map((str: string) => str.trim());
 						track.author = author;
-						track.title = title.replace('Topic -', '');
+						track.title = title.replace("Topic -", "");
 					}
 				}
-
 			}
-			
+
 			return result;
 		} catch (err) {
 			throw new Error(err);
 		}
-		
+
 		function isYouTubeURL(uri: string): boolean {
-			return uri.includes('youtube.com') || uri.includes('youtu.be');
+			return uri.includes("youtube.com") || uri.includes("youtu.be");
 		}
 	}
 
@@ -255,12 +257,12 @@ export class Manager extends EventEmitter {
 	public decodeTracks(tracks: string[]): Promise<TrackData[]> {
 		return new Promise(async (resolve, reject) => {
 			const node = this.nodes.first();
-			if (!node) throw new Error('No available nodes.');
+			if (!node) throw new Error("No available nodes.");
 
-			const res = (await node.rest.post('/v4/decodetracks', JSON.stringify(tracks)).catch((err) => reject(err))) as TrackData[];
+			const res = (await node.rest.post("/v4/decodetracks", JSON.stringify(tracks)).catch((err) => reject(err))) as TrackData[];
 
 			if (!res) {
-				return reject(new Error('No data returned from query.'));
+				return reject(new Error("No data returned from query."));
 			}
 
 			return resolve(res);
@@ -285,7 +287,7 @@ export class Manager extends EventEmitter {
 			return this.players.get(options.guild);
 		}
 
-		return new (Structure.get('Player'))(options);
+		return new (Structure.get("Player"))(options);
 	}
 
 	/**
@@ -313,7 +315,7 @@ export class Manager extends EventEmitter {
 			return this.nodes.get(options.identifier || options.host);
 		}
 
-		return new (Structure.get('Node'))(options);
+		return new (Structure.get("Node"))(options);
 	}
 
 	/**
@@ -332,16 +334,16 @@ export class Manager extends EventEmitter {
 	 * @param data
 	 */
 	public async updateVoiceState(data: VoicePacket | VoiceServer | VoiceState): Promise<void> {
-		if ('t' in data && !['VOICE_STATE_UPDATE', 'VOICE_SERVER_UPDATE'].includes(data.t)) return;
+		if ("t" in data && !["VOICE_STATE_UPDATE", "VOICE_SERVER_UPDATE"].includes(data.t)) return;
 
-		const update = 'd' in data ? data.d : data;
+		const update = "d" in data ? data.d : data;
 
-		if (!update || (!('token' in update) && !('session_id' in update))) return;
+		if (!update || (!("token" in update) && !("session_id" in update))) return;
 
 		const player = this.players.get(update.guild_id);
 
 		if (!player) return;
-		if ('token' in update) {
+		if ("token" in update) {
 			player.voiceState.event = update;
 
 			const {
@@ -360,7 +362,7 @@ export class Manager extends EventEmitter {
 		if (update.user_id !== this.options.clientId) return;
 		if (update.channel_id) {
 			if (player.voiceChannel !== update.channel_id) {
-				this.emit('playerMove', player, player.voiceChannel, update.channel_id);
+				this.emit("playerMove", player, player.voiceChannel, update.channel_id);
 			}
 
 			player.voiceState.sessionId = update.session_id;
@@ -368,7 +370,7 @@ export class Manager extends EventEmitter {
 			return;
 		}
 
-		this.emit('playerDisconnect', player, player.voiceChannel);
+		this.emit("playerDisconnect", player, player.voiceChannel);
 		player.voiceChannel = null;
 		player.voiceState = Object.assign({});
 		player.destroy();
@@ -391,7 +393,7 @@ export interface ManagerOptions {
 	/** Use priority mode over least amount of player or load? */
 	usePriority?: boolean;
 	/** Use the least amount of players or least load? */
-	useNode?: 'leastLoad' | 'leastPlayers';
+	useNode?: "leastLoad" | "leastPlayers";
 	/** The array of nodes to connect to. */
 	nodes?: NodeOptions[];
 	/** The client ID to use. */
@@ -418,7 +420,7 @@ export interface ManagerOptions {
 	send(id: string, payload: Payload): void;
 }
 
-export type SearchPlatform = 'deezer' | 'soundcloud' | 'youtube music' | 'youtube';
+export type SearchPlatform = "deezer" | "soundcloud" | "youtube music" | "youtube";
 
 export interface SearchQuery {
 	/** The source to search from. */

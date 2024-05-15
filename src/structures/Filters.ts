@@ -1,5 +1,5 @@
-import { Band, bassBoostEqualizer, softEqualizer, trebleBassEqualizer, tvEqualizer, vaporwaveEqualizer } from '../utils/filtersEqualizers';
-import { Player } from './Player';
+import { Band, bassBoostEqualizer, softEqualizer, trebleBassEqualizer, tvEqualizer, vaporwaveEqualizer } from "../utils/filtersEqualizers";
+import { Player } from "./Player";
 
 export class Filters {
 	public distortion: distortionOptions | null;
@@ -78,17 +78,17 @@ export class Filters {
 	 * @param bands - The equalizer bands.
 	 */
 	public setEqualizer(bands?: Band[]): this {
-		return this.applyFilter({ property: 'equalizer', value: bands });
+		return this.applyFilter({ property: "equalizer", value: bands });
 	}
 
 	/** Applies the eight dimension audio effect. */
 	public eightD(): this {
-		return this.setRotation({ rotationHz: 0.2 }).setFilterStatus('eightD', true);
+		return this.setRotation({ rotationHz: 0.2 }).setFilterStatus("eightD", true);
 	}
 
 	/** Applies the bass boost effect. */
 	public bassBoost(): this {
-		return this.setEqualizer(bassBoostEqualizer).setFilterStatus('bassboost', true);
+		return this.setEqualizer(bassBoostEqualizer).setFilterStatus("bassboost", true);
 	}
 
 	/** Applies the nightcore effect. */
@@ -97,7 +97,7 @@ export class Filters {
 			speed: 1.1,
 			pitch: 1.125,
 			rate: 1.05,
-		}).setFilterStatus('nightcore', true);
+		}).setFilterStatus("nightcore", true);
 	}
 
 	/** Applies the slow motion audio effect. */
@@ -106,27 +106,27 @@ export class Filters {
 			speed: 0.7,
 			pitch: 1.0,
 			rate: 0.8,
-		}).setFilterStatus('slowmo', true);
+		}).setFilterStatus("slowmo", true);
 	}
 
 	/** Applies the soft audio effect. */
 	public soft(): this {
-		return this.setEqualizer(softEqualizer).setFilterStatus('soft', true);
+		return this.setEqualizer(softEqualizer).setFilterStatus("soft", true);
 	}
 
 	/** Applies the television audio effect. */
 	public tv(): this {
-		return this.setEqualizer(tvEqualizer).setFilterStatus('tv', true);
+		return this.setEqualizer(tvEqualizer).setFilterStatus("tv", true);
 	}
 
 	/** Applies the treble bass effect. */
 	public trebleBass(): this {
-		return this.setEqualizer(trebleBassEqualizer).setFilterStatus('trebleBass', true);
+		return this.setEqualizer(trebleBassEqualizer).setFilterStatus("trebleBass", true);
 	}
 
 	/** Applies the vaporwave effect. */
 	public vaporwave(): this {
-		return this.setEqualizer(vaporwaveEqualizer).setTimescale({ pitch: 0.55 }).setFilterStatus('vaporwave', true);
+		return this.setEqualizer(vaporwaveEqualizer).setTimescale({ pitch: 0.55 }).setFilterStatus("vaporwave", true);
 	}
 
 	/** Applies the distortion audio effect. */
@@ -140,35 +140,35 @@ export class Filters {
 			tanScale: 0.2,
 			offset: 0,
 			scale: 1.2,
-		}).setFilterStatus('distort', true);
+		}).setFilterStatus("distort", true);
 	}
 
 	/** Applies the karaoke options specified by the filter. */
 	public setKaraoke(karaoke?: karaokeOptions): this {
 		return this.applyFilter({
-			property: 'karaoke',
+			property: "karaoke",
 			value: karaoke,
-		}).setFilterStatus('karaoke', true);
+		}).setFilterStatus("karaoke", true);
 	}
 
 	/** Applies the timescale options specified by the filter. */
 	public setTimescale(timescale?: timescaleOptions): this {
-		return this.applyFilter({ property: 'timescale', value: timescale });
+		return this.applyFilter({ property: "timescale", value: timescale });
 	}
 
 	/** Applies the vibrato options specified by the filter. */
 	public setVibrato(vibrato?: vibratoOptions): this {
-		return this.applyFilter({ property: 'vibrato', value: vibrato });
+		return this.applyFilter({ property: "vibrato", value: vibrato });
 	}
 
 	/** Applies the rotation options specified by the filter. */
 	public setRotation(rotation?: rotationOptions): this {
-		return this.applyFilter({ property: 'rotation', value: rotation });
+		return this.applyFilter({ property: "rotation", value: rotation });
 	}
 
 	/** Applies the distortion options specified by the filter. */
 	public setDistortion(distortion?: distortionOptions): this {
-		return this.applyFilter({ property: 'distortion', value: distortion });
+		return this.applyFilter({ property: "distortion", value: distortion });
 	}
 
 	/** Removes the audio effects and resets the filter status. */
