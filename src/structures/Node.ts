@@ -1,9 +1,9 @@
-import { PlayerEvent, PlayerEvents, Structure, TrackEndEvent, TrackExceptionEvent, TrackStartEvent, TrackStuckEvent, WebSocketClosedEvent } from './Utils';
-import { Manager } from './Manager';
-import { Player, Track, UnresolvedTrack } from './Player';
-import { Rest } from './Rest';
-import nodeCheck from '../utils/nodeCheck';
-import WebSocket from 'ws';
+import { PlayerEvent, PlayerEvents, Structure, TrackEndEvent, TrackExceptionEvent, TrackStartEvent, TrackStuckEvent, WebSocketClosedEvent } from "./Utils";
+import { Manager } from "./Manager";
+import { Player, Track, UnresolvedTrack } from "./Player";
+import { Rest } from "./Rest";
+import nodeCheck from "../utils/nodeCheck";
+import WebSocket from "ws";
 
 export class Node {
 	/** The socket for the node. */
@@ -41,8 +41,8 @@ export class Node {
 	 * @param options
 	 */
 	constructor(public options: NodeOptions) {
-		if (!this.manager) this.manager = Structure.get('Node')._manager;
-		if (!this.manager) throw new RangeError('Manager has not been initiated.');
+		if (!this.manager) this.manager = Structure.get("Node")._manager;
+		if (!this.manager) throw new RangeError("Manager has not been initiated.");
 
 		if (this.manager.nodes.has(options.identifier || options.host)) {
 			return this.manager.nodes.get(options.identifier || options.host);
@@ -52,7 +52,7 @@ export class Node {
 
 		this.options = {
 			port: 2333,
-			password: 'youshallnotpass',
+			password: "youshallnotpass",
 			secure: false,
 			retryAmount: 30,
 			retryDelay: 60000,
@@ -88,7 +88,7 @@ export class Node {
 		};
 
 		this.manager.nodes.set(this.options.identifier, this);
-		this.manager.emit('nodeCreate', this);
+		this.manager.emit("nodeCreate", this);
 		this.rest = new Rest(this);
 	}
 
@@ -98,16 +98,16 @@ export class Node {
 
 		const headers = Object.assign({
 			Authorization: this.options.password,
-			'Num-Shards': String(this.manager.options.shards),
-			'User-Id': this.manager.options.clientId,
-			'Client-Name': this.manager.options.clientName,
+			"Num-Shards": String(this.manager.options.shards),
+			"User-Id": this.manager.options.clientId,
+			"Client-Name": this.manager.options.clientName,
 		});
 
-		this.socket = new WebSocket(`ws${this.options.secure ? 's' : ''}://${this.address}/v4/websocket`, { headers });
-		this.socket.on('open', this.open.bind(this));
-		this.socket.on('close', this.close.bind(this));
-		this.socket.on('message', this.message.bind(this));
-		this.socket.on('error', this.error.bind(this));
+		this.socket = new WebSocket(`ws${this.options.secure ? "s" : ""}://${this.address}/v4/websocket`, { headers });
+		this.socket.on("open", this.open.bind(this));
+		this.socket.on("close", this.close.bind(this));
+		this.socket.on("message", this.message.bind(this));
+		this.socket.on("error", this.error.bind(this));
 	}
 
 	/** Destroys the Node and all players connected with it. */
@@ -117,14 +117,14 @@ export class Node {
 		const players = this.manager.players.filter((p) => p.node == this);
 		if (players.size) players.forEach((p) => p.destroy());
 
-		this.socket.close(1000, 'destroy');
+		this.socket.close(1000, "destroy");
 		this.socket.removeAllListeners();
 		this.socket = null;
 
 		this.reconnectAttempts = 1;
 		clearTimeout(this.reconnectTimeout);
 
-		this.manager.emit('nodeDestroy', this);
+		this.manager.emit("nodeDestroy", this);
 		this.manager.destroyNode(this.options.identifier);
 	}
 
@@ -133,12 +133,12 @@ export class Node {
 			if (this.reconnectAttempts >= this.options.retryAmount) {
 				const error = new Error(`Unable to connect after ${this.options.retryAmount} attempts.`);
 
-				this.manager.emit('nodeError', this, error);
+				this.manager.emit("nodeError", this, error);
 				return this.destroy();
 			}
 			this.socket?.removeAllListeners();
 			this.socket = null;
-			this.manager.emit('nodeReconnect', this);
+			this.manager.emit("nodeReconnect", this);
 			this.connect();
 			this.reconnectAttempts++;
 		}, this.options.retryDelay);
@@ -146,17 +146,17 @@ export class Node {
 
 	protected open(): void {
 		if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
-		this.manager.emit('nodeConnect', this);
+		this.manager.emit("nodeConnect", this);
 	}
 
 	protected close(code: number, reason: string): void {
-		this.manager.emit('nodeDisconnect', this, { code, reason });
-		if (code !== 1000 || reason !== 'destroy') this.reconnect();
+		this.manager.emit("nodeDisconnect", this, { code, reason });
+		if (code !== 1000 || reason !== "destroy") this.reconnect();
 	}
 
 	protected error(error: Error): void {
 		if (!error) return;
-		this.manager.emit('nodeError', this, error);
+		this.manager.emit("nodeError", this, error);
 	}
 
 	protected message(d: Buffer | string): void {
@@ -166,23 +166,23 @@ export class Node {
 		const payload = JSON.parse(d.toString());
 
 		if (!payload.op) return;
-		this.manager.emit('nodeRaw', payload);
+		this.manager.emit("nodeRaw", payload);
 
 		let player: Player;
 
 		switch (payload.op) {
-			case 'stats':
+			case "stats":
 				delete payload.op;
 				this.stats = { ...payload } as unknown as NodeStats;
 				break;
-			case 'playerUpdate':
+			case "playerUpdate":
 				player = this.manager.players.get(payload.guildId);
 				if (player) player.position = payload.state.position || 0;
 				break;
-			case 'event':
+			case "event":
 				this.handleEvent(payload);
 				break;
-			case 'ready':
+			case "ready":
 				this.rest.setSessionId(payload.sessionId);
 				this.sessionId = payload.sessionId;
 
@@ -194,7 +194,7 @@ export class Node {
 				}
 				break;
 			default:
-				this.manager.emit('nodeError', this, new Error(`Unexpected op "${payload.op}" with data: ${payload.message}`));
+				this.manager.emit("nodeError", this, new Error(`Unexpected op "${payload.op}" with data: ${payload.message}`));
 				return;
 		}
 	}
@@ -210,11 +210,11 @@ export class Node {
 
 		let error: Error;
 		switch (type) {
-			case 'TrackStartEvent':
+			case "TrackStartEvent":
 				this.trackStart(player, track as Track, payload);
 				break;
 
-			case 'TrackEndEvent':
+			case "TrackEndEvent":
 				if (player?.nowPlayingMessage && player?.nowPlayingMessage.deletable) {
 					await player?.nowPlayingMessage?.delete().catch(() => {});
 				}
@@ -222,21 +222,21 @@ export class Node {
 				this.trackEnd(player, track as Track, payload);
 				break;
 
-			case 'TrackStuckEvent':
+			case "TrackStuckEvent":
 				this.trackStuck(player, track as Track, payload);
 				break;
 
-			case 'TrackExceptionEvent':
+			case "TrackExceptionEvent":
 				this.trackError(player, track, payload);
 				break;
 
-			case 'WebSocketClosedEvent':
+			case "WebSocketClosedEvent":
 				this.socketClosed(player, payload);
 				break;
 
 			default:
 				error = new Error(`Node#event unknown event '${type}'.`);
-				this.manager.emit('nodeError', this, error);
+				this.manager.emit("nodeError", this, error);
 				break;
 		}
 	}
@@ -244,19 +244,19 @@ export class Node {
 	protected trackStart(player: Player, track: Track, payload: TrackStartEvent): void {
 		player.playing = true;
 		player.paused = false;
-		this.manager.emit('trackStart', player, track, payload);
+		this.manager.emit("trackStart", player, track, payload);
 	}
 
 	protected async trackEnd(player: Player, track: Track, payload: TrackEndEvent): Promise<void> {
 		const { reason } = payload;
 
 		// If the track failed to load or was cleaned up
-		if (['loadFailed', 'cleanup'].includes(reason)) {
+		if (["loadFailed", "cleanup"].includes(reason)) {
 			this.handleFailedTrack(player, track, payload);
 		}
 		// If the track was forcibly replaced
-		else if (reason === 'replaced') {
-			this.manager.emit('trackEnd', player, track, payload);
+		else if (reason === "replaced") {
+			this.manager.emit("trackEnd", player, track, payload);
 			player.queue.previous = player.queue.current;
 		}
 		// If the track ended and it's set to repeat (track or queue)
@@ -279,14 +279,14 @@ export class Node {
 
 		if (!player.isAutoplay || !previousTrack) return;
 
-		const hasYouTubeURL = ['youtube.com', 'youtu.be'].some((url) => previousTrack.uri.includes(url));
+		const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) => previousTrack.uri.includes(url));
 
-		let videoID = previousTrack.uri.substring(previousTrack.uri.indexOf('=') + 1);
+		let videoID = previousTrack.uri.substring(previousTrack.uri.indexOf("=") + 1);
 
 		if (!hasYouTubeURL) {
 			const res = await player.search(`${previousTrack.author} - ${previousTrack.title}`);
 
-			videoID = res.tracks[0].uri.substring(res.tracks[0].uri.indexOf('=') + 1);
+			videoID = res.tracks[0].uri.substring(res.tracks[0].uri.indexOf("=") + 1);
 		}
 
 		let randomIndex: number;
@@ -297,13 +297,13 @@ export class Node {
 			searchURI = `https://www.youtube.com/watch?v=${videoID}&list=RD${videoID}&index=${randomIndex}`;
 		} while (track.uri.includes(searchURI));
 
-		const res = await player.search(searchURI, player.get('Internal_BotUser'));
+		const res = await player.search(searchURI, player.get("Internal_BotUser"));
 
-		if (res.loadType === 'empty' || res.loadType === 'error') return;
+		if (res.loadType === "empty" || res.loadType === "error") return;
 
 		let tracks = res.tracks;
 
-		if (res.loadType === 'playlist') {
+		if (res.loadType === "playlist") {
 			tracks = res.playlist.tracks;
 		}
 
@@ -325,7 +325,7 @@ export class Node {
 			return;
 		}
 
-		this.manager.emit('trackEnd', player, track, payload);
+		this.manager.emit("trackEnd", player, track, payload);
 		if (this.manager.options.autoPlay) player.play();
 	}
 
@@ -333,7 +333,7 @@ export class Node {
 	private handleRepeatedTrack(player: Player, track: Track, payload: TrackEndEvent): void {
 		player.queue.previous = player.queue.current;
 
-		if (payload.reason === 'stopped') {
+		if (payload.reason === "stopped") {
 			player.queue.current = player.queue.shift();
 			if (!player.queue.current) {
 				this.queueEnd(player, track, payload);
@@ -344,7 +344,7 @@ export class Node {
 			player.queue.current = player.queue.shift();
 		}
 
-		this.manager.emit('trackEnd', player, track, payload);
+		this.manager.emit("trackEnd", player, track, payload);
 		if (this.manager.options.autoPlay) player.play();
 	}
 
@@ -353,7 +353,7 @@ export class Node {
 		player.queue.previous = player.queue.current;
 		player.queue.current = player.queue.shift();
 
-		this.manager.emit('trackEnd', player, track, payload);
+		this.manager.emit("trackEnd", player, track, payload);
 		if (this.manager.options.autoPlay) player.play();
 	}
 
@@ -365,7 +365,7 @@ export class Node {
 			player.queue.previous = player.queue.current;
 			player.queue.current = null;
 			player.playing = false;
-			this.manager.emit('queueEnd', player, track, payload);
+			this.manager.emit("queueEnd", player, track, payload);
 			return;
 		}
 
@@ -374,16 +374,16 @@ export class Node {
 
 	protected trackStuck(player: Player, track: Track, payload: TrackStuckEvent): void {
 		player.stop();
-		this.manager.emit('trackStuck', player, track, payload);
+		this.manager.emit("trackStuck", player, track, payload);
 	}
 
 	protected trackError(player: Player, track: Track | UnresolvedTrack, payload: TrackExceptionEvent): void {
 		player.stop();
-		this.manager.emit('trackError', player, track, payload);
+		this.manager.emit("trackError", player, track, payload);
 	}
 
 	protected socketClosed(player: Player, payload: WebSocketClosedEvent): void {
-		this.manager.emit('socketClosed', player, payload);
+		this.manager.emit("socketClosed", player, payload);
 	}
 }
 

@@ -1,5 +1,5 @@
-import { Node } from './Node';
-import axios, { AxiosRequestConfig } from 'axios';
+import { Node } from "./Node";
+import axios, { AxiosRequestConfig } from "axios";
 
 /** Handles the requests sent to the Lavalink REST API. */
 export class Rest {
@@ -11,7 +11,7 @@ export class Rest {
 	private readonly url: string;
 
 	constructor(node: Node) {
-		this.url = `http${node.options.secure ? 's' : ''}://${node.options.host}:${node.options.port}`;
+		this.url = `http${node.options.secure ? "s" : ""}://${node.options.host}:${node.options.port}`;
 		this.sessionId = node.sessionId;
 		this.password = node.options.password;
 	}
@@ -46,7 +46,7 @@ export class Rest {
 			method,
 			url: this.url + endpoint,
 			headers: {
-				'Content-Type': 'application/json',
+				"Content-Type": "application/json",
 				Authorization: this.password,
 			},
 			data: body,
@@ -62,22 +62,22 @@ export class Rest {
 
 	/* Sends a GET request to the specified endpoint and returns the response data. */
 	public async get(endpoint: string): Promise<unknown> {
-		return await this.request('GET', endpoint);
+		return await this.request("GET", endpoint);
 	}
 
 	/* Sends a PATCH request to the specified endpoint and returns the response data. */
 	public async patch(endpoint: string, body: unknown): Promise<unknown> {
-		return await this.request('PATCH', endpoint, body);
+		return await this.request("PATCH", endpoint, body);
 	}
 
 	/* Sends a POST request to the specified endpoint and returns the response data. */
 	public async post(endpoint: string, body: unknown): Promise<unknown> {
-		return await this.request('POST', endpoint, body);
+		return await this.request("POST", endpoint, body);
 	}
 
 	/* Sends a DELETE request to the specified endpoint and returns the response data. */
 	public async delete(endpoint: string): Promise<unknown> {
-		return await this.request('DELETE', endpoint);
+		return await this.request("DELETE", endpoint);
 	}
 }
 

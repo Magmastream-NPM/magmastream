@@ -1,18 +1,18 @@
 /* eslint-disable @typescript-eslint/no-empty-function, @typescript-eslint/no-unused-vars, @typescript-eslint/no-var-requires*/
-import { ClientUser, User } from 'discord.js';
-import { Manager } from './Manager';
-import { Node, NodeStats } from './Node';
-import { Player, Track, UnresolvedTrack } from './Player';
-import { Queue } from './Queue';
+import { ClientUser, User } from "discord.js";
+import { Manager } from "./Manager";
+import { Node, NodeStats } from "./Node";
+import { Player, Track, UnresolvedTrack } from "./Player";
+import { Queue } from "./Queue";
 
 /** @hidden */
-const TRACK_SYMBOL = Symbol('track'),
+const TRACK_SYMBOL = Symbol("track"),
 	/** @hidden */
-	UNRESOLVED_TRACK_SYMBOL = Symbol('unresolved'),
-	SIZES = ['0', '1', '2', '3', 'default', 'mqdefault', 'hqdefault', 'maxresdefault'];
+	UNRESOLVED_TRACK_SYMBOL = Symbol("unresolved"),
+	SIZES = ["0", "1", "2", "3", "default", "mqdefault", "hqdefault", "maxresdefault"];
 
 /** @hidden */
-const escapeRegExp = (str: string): string => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapeRegExp = (str: string): string => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 export abstract class TrackUtils {
 	static trackPartial: string[] | null = null;
@@ -24,9 +24,8 @@ export abstract class TrackUtils {
 	}
 
 	static setTrackPartial(partial: string[]): void {
-		if (!Array.isArray(partial) || !partial.every((str) => typeof str === 'string'))
-			throw new Error('Provided partial is not an array or not a string array.');
-		if (!partial.includes('track')) partial.unshift('track');
+		if (!Array.isArray(partial) || !partial.every((str) => typeof str === "string")) throw new Error("Provided partial is not an array or not a string array.");
+		if (!partial.includes("track")) partial.unshift("track");
 
 		this.trackPartial = partial;
 	}
@@ -36,7 +35,7 @@ export abstract class TrackUtils {
 	 * @param trackOrTracks
 	 */
 	static validate(trackOrTracks: unknown): boolean {
-		if (typeof trackOrTracks === 'undefined') throw new RangeError('Provided argument must be present.');
+		if (typeof trackOrTracks === "undefined") throw new RangeError("Provided argument must be present.");
 
 		if (Array.isArray(trackOrTracks) && trackOrTracks.length) {
 			for (const track of trackOrTracks) {
@@ -53,7 +52,7 @@ export abstract class TrackUtils {
 	 * @param track
 	 */
 	static isUnresolvedTrack(track: unknown): boolean {
-		if (typeof track === 'undefined') throw new RangeError('Provided argument must be present.');
+		if (typeof track === "undefined") throw new RangeError("Provided argument must be present.");
 		return track[UNRESOLVED_TRACK_SYMBOL] === true;
 	}
 
@@ -62,7 +61,7 @@ export abstract class TrackUtils {
 	 * @param track
 	 */
 	static isTrack(track: unknown): boolean {
-		if (typeof track === 'undefined') throw new RangeError('Provided argument must be present.');
+		if (typeof track === "undefined") throw new RangeError("Provided argument must be present.");
 		return track[TRACK_SYMBOL] === true;
 	}
 
@@ -72,7 +71,7 @@ export abstract class TrackUtils {
 	 * @param requester
 	 */
 	static build(data: TrackData, requester?: User | ClientUser): Track {
-		if (typeof data === 'undefined') throw new RangeError('Argument "data" must be present.');
+		if (typeof data === "undefined") throw new RangeError('Argument "data" must be present.');
 
 		try {
 			const track: Track = {
@@ -86,10 +85,10 @@ export abstract class TrackUtils {
 				uri: data.info.uri,
 				artworkUrl: data.info?.artworkUrl,
 				sourceName: data.info?.sourceName,
-				thumbnail: data.info.uri.includes('youtube') ? `https://img.youtube.com/vi/${data.info.identifier}/default.jpg` : null,
-				displayThumbnail(size = 'default'): string | null {
-					const finalSize = SIZES.find((s) => s === size) ?? 'default';
-					return this.uri.includes('youtube') ? `https://img.youtube.com/vi/${data.info.identifier}/${finalSize}.jpg` : null;
+				thumbnail: data.info.uri.includes("youtube") ? `https://img.youtube.com/vi/${data.info.identifier}/default.jpg` : null,
+				displayThumbnail(size = "default"): string | null {
+					const finalSize = SIZES.find((s) => s === size) ?? "default";
+					return this.uri.includes("youtube") ? `https://img.youtube.com/vi/${data.info.identifier}/${finalSize}.jpg` : null;
 				},
 				requester,
 				pluginInfo: {
@@ -128,7 +127,7 @@ export abstract class TrackUtils {
 	 * @param requester
 	 */
 	static buildUnresolved(query: string | UnresolvedQuery, requester?: User | ClientUser): UnresolvedTrack {
-		if (typeof query === 'undefined') throw new RangeError('Argument "query" must be present.');
+		if (typeof query === "undefined") throw new RangeError('Argument "query" must be present.');
 
 		let unresolvedTrack: Partial<UnresolvedTrack> = {
 			requester,
@@ -139,7 +138,7 @@ export abstract class TrackUtils {
 			},
 		};
 
-		if (typeof query === 'string') unresolvedTrack.title = query;
+		if (typeof query === "string") unresolvedTrack.title = query;
 		else unresolvedTrack = { ...unresolvedTrack, ...query };
 
 		Object.defineProperty(unresolvedTrack, UNRESOLVED_TRACK_SYMBOL, {
@@ -151,11 +150,11 @@ export abstract class TrackUtils {
 	}
 
 	static async getClosestTrack(unresolvedTrack: UnresolvedTrack): Promise<Track> {
-		if (!TrackUtils.manager) throw new RangeError('Manager has not been initiated.');
+		if (!TrackUtils.manager) throw new RangeError("Manager has not been initiated.");
 
-		if (!TrackUtils.isUnresolvedTrack(unresolvedTrack)) throw new RangeError('Provided track is not a UnresolvedTrack.');
+		if (!TrackUtils.isUnresolvedTrack(unresolvedTrack)) throw new RangeError("Provided track is not a UnresolvedTrack.");
 
-		const query = unresolvedTrack.uri ? unresolvedTrack.uri : [unresolvedTrack.author, unresolvedTrack.title].filter(Boolean).join(' - ');
+		const query = unresolvedTrack.uri ? unresolvedTrack.uri : [unresolvedTrack.author, unresolvedTrack.title].filter(Boolean).join(" - ");
 		const res = await TrackUtils.manager.search(query, unresolvedTrack.requester);
 
 		if (unresolvedTrack.author) {
@@ -163,8 +162,8 @@ export abstract class TrackUtils {
 
 			const originalAudio = res.tracks.find((track) => {
 				return (
-					channelNames.some((name) => new RegExp(`^${escapeRegExp(name)}$`, 'i').test(track.author)) ||
-					new RegExp(`^${escapeRegExp(unresolvedTrack.title)}$`, 'i').test(track.title)
+					channelNames.some((name) => new RegExp(`^${escapeRegExp(name)}$`, "i").test(track.author)) ||
+					new RegExp(`^${escapeRegExp(unresolvedTrack.title)}$`, "i").test(track.title)
 				);
 			});
 
@@ -172,9 +171,7 @@ export abstract class TrackUtils {
 		}
 
 		if (unresolvedTrack.duration) {
-			const sameDuration = res.tracks.find(
-				(track) => track.duration >= unresolvedTrack.duration - 1500 && track.duration <= unresolvedTrack.duration + 1500
-			);
+			const sameDuration = res.tracks.find((track) => track.duration >= unresolvedTrack.duration - 1500 && track.duration <= unresolvedTrack.duration + 1500);
 
 			if (sameDuration) return sameDuration;
 		}
@@ -215,9 +212,9 @@ export class Plugin {
 }
 
 const structures = {
-	Player: require('./Player').Player,
-	Queue: require('./Queue').Queue,
-	Node: require('./Node').Node,
+	Player: require("./Player").Player,
+	Queue: require("./Queue").Queue,
+	Node: require("./Node").Node,
 };
 
 export interface UnresolvedQuery {
@@ -229,19 +226,19 @@ export interface UnresolvedQuery {
 	duration?: number;
 }
 
-export type Sizes = '0' | '1' | '2' | '3' | 'default' | 'mqdefault' | 'hqdefault' | 'maxresdefault';
+export type Sizes = "0" | "1" | "2" | "3" | "default" | "mqdefault" | "hqdefault" | "maxresdefault";
 
-export type LoadType = 'track' | 'playlist' | 'search' | 'empty' | 'error';
+export type LoadType = "track" | "playlist" | "search" | "empty" | "error";
 
-export type State = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'DISCONNECTING' | 'DESTROYING';
+export type State = "CONNECTED" | "CONNECTING" | "DISCONNECTED" | "DISCONNECTING" | "DESTROYING";
 
 export type PlayerEvents = TrackStartEvent | TrackEndEvent | TrackStuckEvent | TrackExceptionEvent | WebSocketClosedEvent;
 
-export type PlayerEventType = 'TrackStartEvent' | 'TrackEndEvent' | 'TrackExceptionEvent' | 'TrackStuckEvent' | 'WebSocketClosedEvent';
+export type PlayerEventType = "TrackStartEvent" | "TrackEndEvent" | "TrackExceptionEvent" | "TrackStuckEvent" | "WebSocketClosedEvent";
 
-export type TrackEndReason = 'finished' | 'loadFailed' | 'stopped' | 'replaced' | 'cleanup';
+export type TrackEndReason = "finished" | "loadFailed" | "stopped" | "replaced" | "cleanup";
 
-export type Severity = 'common' | 'suspicious' | 'fault';
+export type Severity = "common" | "suspicious" | "fault";
 
 export interface TrackData {
 	/** The track information. */
@@ -264,7 +261,7 @@ export interface TrackDataInfo {
 	sourceName?: TrackSourceName;
 }
 
-export type TrackSourceName = 'deezer' | 'spotify' | 'soundcloud' | 'youtube';
+export type TrackSourceName = "deezer" | "spotify" | "soundcloud" | "youtube";
 
 export interface Extendable {
 	Player: typeof Player;
@@ -273,7 +270,7 @@ export interface Extendable {
 }
 
 export interface VoiceState {
-	op: 'voiceUpdate';
+	op: "voiceUpdate";
 	guildId: string;
 	event: VoiceServer;
 	sessionId?: string;
@@ -293,18 +290,18 @@ export interface VoiceState {
 }
 
 export interface VoicePacket {
-	t?: 'VOICE_SERVER_UPDATE' | 'VOICE_STATE_UPDATE';
+	t?: "VOICE_SERVER_UPDATE" | "VOICE_STATE_UPDATE";
 	d: VoiceState | VoiceServer;
 }
 
 export interface NodeMessage extends NodeStats {
 	type: PlayerEventType;
-	op: 'stats' | 'playerUpdate' | 'event';
+	op: "stats" | "playerUpdate" | "event";
 	guildId: string;
 }
 
 export interface PlayerEvent {
-	op: 'event';
+	op: "event";
 	type: PlayerEventType;
 	guildId: string;
 }
@@ -316,12 +313,12 @@ export interface Exception {
 }
 
 export interface TrackStartEvent extends PlayerEvent {
-	type: 'TrackStartEvent';
+	type: "TrackStartEvent";
 	track: TrackData;
 }
 
 export interface TrackEndEvent extends PlayerEvent {
-	type: 'TrackEndEvent';
+	type: "TrackEndEvent";
 	track: TrackData;
 	reason: TrackEndReason;
 }
@@ -329,23 +326,23 @@ export interface TrackEndEvent extends PlayerEvent {
 export interface TrackExceptionEvent extends PlayerEvent {
 	exception?: Exception;
 	guildId: string;
-	type: 'TrackExceptionEvent';
+	type: "TrackExceptionEvent";
 }
 
 export interface TrackStuckEvent extends PlayerEvent {
-	type: 'TrackStuckEvent';
+	type: "TrackStuckEvent";
 	thresholdMs: number;
 }
 
 export interface WebSocketClosedEvent extends PlayerEvent {
-	type: 'WebSocketClosedEvent';
+	type: "WebSocketClosedEvent";
 	code: number;
 	reason: string;
 	byRemote: boolean;
 }
 
 export interface PlayerUpdate {
-	op: 'playerUpdate';
+	op: "playerUpdate";
 	/** The guild id of the player. */
 	guildId: string;
 	state: {
