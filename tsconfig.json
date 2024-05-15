@@ -1,17 +1,17 @@
 {
-  "compilerOptions": {
-    /* Basic Options */
-    "target": "ES2022",
-    "module": "CommonJS",
-    "declaration": true,
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "skipLibCheck": true,
-    "importHelpers": true,
+	"compilerOptions": {
+		/* Basic Options */
+		"target": "ES2022",
+		"module": "CommonJS",
+		"declaration": true,
+		"outDir": "./dist",
+		"rootDir": "./src",
+		"skipLibCheck": true,
+		"importHelpers": true,
 
-    /* Module Resolution Options */
-    "moduleResolution": "node",
-    "esModuleInterop": true
-  },
-  "exclude": ["node_modules", "dist"]
+		/* Module Resolution Options */
+		"moduleResolution": "node",
+		"esModuleInterop": true
+	},
+	"exclude": ["node_modules", "dist"]
 }
