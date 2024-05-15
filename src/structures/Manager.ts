@@ -208,12 +208,10 @@ export class Manager extends EventEmitter {
 
 			const tracks = searchData.map((track) => TrackUtils.build(track, requester));
 			const playlist =
-				res.loadType === 'playlist'
-					? {
+				res.loadType === 'playlist' ? {
 							name: playlistData!.info.name,
 							tracks: playlistData!.tracks.map((track) => TrackUtils.build(track, requester)),
-							duration: playlistData!.tracks.reduce((acc, cur) => acc + (cur.info.length || 0), 0),
-					  }
+							duration: playlistData!.tracks.reduce((acc, cur) => acc + (cur.info.length || 0), 0), }
 					: null;
 
 			const result: SearchResult = {
@@ -238,14 +236,15 @@ export class Manager extends EventEmitter {
 					}
 				}
 
-				function isYouTubeURL(uri: string): boolean {
-					return uri.includes('youtube.com') || uri.includes('youtu.be');
-				}
 			}
-
+			
 			return result;
 		} catch (err) {
 			throw new Error(err);
+		}
+		
+		function isYouTubeURL(uri: string): boolean {
+			return uri.includes('youtube.com') || uri.includes('youtu.be');
 		}
 	}
 
