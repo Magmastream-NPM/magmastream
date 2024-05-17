@@ -224,7 +224,7 @@ export class Manager extends EventEmitter {
 			};
 
 			if (this.options.replaceYouTubeCredentials) {
-				let tracksToReplace = [];
+				let tracksToReplace: Track[] = [];
 				if (result.loadType === "playlist") {
 					tracksToReplace = result.playlist.tracks;
 				} else {
