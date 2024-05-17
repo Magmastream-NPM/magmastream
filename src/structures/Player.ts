@@ -499,11 +499,11 @@ export interface Track {
 	/** The track source name. */
 	readonly sourceName: TrackSourceName;
 	/** The title of the track. */
-	readonly title: string;
+	title: string;
 	/** The identifier of the track. */
 	readonly identifier: string;
 	/** The author of the track. */
-	readonly author: string;
+	author: string;
 	/** The duration of the track. */
 	readonly duration: number;
 	/** If the track is seekable. */
