@@ -99,6 +99,7 @@ export abstract class TrackUtils {
 					isPreview: data.pluginInfo?.isPreview,
 					previewUrl: data.pluginInfo?.previewUrl,
 				},
+				customData: {},
 			};
 
 			track.displayThumbnail = track.displayThumbnail.bind(track);

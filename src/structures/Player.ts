@@ -520,6 +520,8 @@ export interface Track {
 	displayThumbnail(size?: Sizes): string;
 	/** Additional track info provided by plugins. */
 	pluginInfo: TrackPluginInfo;
+	/** Add your own data to the track. */
+	customData: Record<string, unknown>;
 }
 
 export interface TrackPluginInfo {
