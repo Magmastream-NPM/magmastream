@@ -331,21 +331,26 @@ export class Node {
 
 	// Handle the case when a track ended and it's set to repeat (track or queue)
 	private handleRepeatedTrack(player: Player, track: Track, payload: TrackEndEvent): void {
-		player.queue.previous = player.queue.current;
+		const { queue, trackRepeat, queueRepeat } = player;
+		const { autoPlay } = this.manager.options;
 
-		if (payload.reason === "stopped") {
-			player.queue.current = player.queue.shift();
-			if (!player.queue.current) {
-				this.queueEnd(player, track, payload);
-				return;
-			}
-		} else {
-			player.queue.add(player.queue.current);
-			player.queue.current = player.queue.shift();
+		if (trackRepeat) {
+			queue.unshift(queue.current);
+		} else if (queueRepeat) {
+			queue.add(queue.current);
 		}
 
+		queue.previous = queue.current;
+		queue.current = queue.shift();
+
 		this.manager.emit("trackEnd", player, track, payload);
-		if (this.manager.options.autoPlay) player.play();
+
+		if (payload.reason === "stopped" && !(queue.current = queue.shift())) {
+			this.queueEnd(player, track, payload);
+			return;
+		}
+
+		if (autoPlay) player.play();
 	}
 
 	// Handle the case when there's another track in the queue
