@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-empty-function, @typescript-eslint/no-unused-vars, @typescript-eslint/no-var-requires*/
-import { ClientUser, User } from "discord.js";
+import { User } from "discord.js";
 import { Manager } from "./Manager";
 import { Node, NodeStats } from "./Node";
 import { Player, Track, UnresolvedTrack } from "./Player";
@@ -70,7 +70,7 @@ export abstract class TrackUtils {
 	 * @param data
 	 * @param requester
 	 */
-	static build(data: TrackData, requester?: User | ClientUser): Track {
+	static build(data: TrackData, requester?: User): Track {
 		if (typeof data === "undefined") throw new RangeError('Argument "data" must be present.');
 
 		try {
@@ -127,7 +127,7 @@ export abstract class TrackUtils {
 	 * @param query
 	 * @param requester
 	 */
-	static buildUnresolved(query: string | UnresolvedQuery, requester?: User | ClientUser): UnresolvedTrack {
+	static buildUnresolved(query: string | UnresolvedQuery, requester?: User): UnresolvedTrack {
 		if (typeof query === "undefined") throw new RangeError('Argument "query" must be present.');
 
 		let unresolvedTrack: Partial<UnresolvedTrack> = {

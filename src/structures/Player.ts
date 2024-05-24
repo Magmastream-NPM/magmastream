@@ -5,7 +5,7 @@ import { Queue } from "./Queue";
 import { Sizes, State, Structure, TrackSourceName, TrackUtils, VoiceState } from "./Utils";
 import * as _ from "lodash";
 import playerCheck from "../utils/playerCheck";
-import { ClientUser, Message, User } from "discord.js";
+import { Message, User } from "discord.js";
 
 export class Player {
 	/** The Queue for the Player. */
@@ -112,7 +112,7 @@ export class Player {
 	 * @param query
 	 * @param requester
 	 */
-	public search(query: string | SearchQuery, requester?: User | ClientUser): Promise<SearchResult> {
+	public search(query: string | SearchQuery, requester?: User): Promise<SearchResult> {
 		return this.manager.search(query, requester);
 	}
 
@@ -515,7 +515,7 @@ export interface Track {
 	/** The thumbnail of the track or null if it's a unsupported source. */
 	readonly thumbnail: string | null;
 	/** The user that requested the track. */
-	readonly requester: User | ClientUser | null;
+	readonly requester: User | null;
 	/** Displays the track thumbnail with optional size or null if it's a unsupported source. */
 	displayThumbnail(size?: Sizes): string;
 	/** Additional track info provided by plugins. */
