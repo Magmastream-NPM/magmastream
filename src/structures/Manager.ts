@@ -232,10 +232,14 @@ export class Manager extends EventEmitter {
 				}
 
 				for (const track of tracksToReplace) {
-					if (isYouTubeURL(track.uri) && track.title.includes("-")) {
+					if (isYouTubeURL(track.uri)) {
+						track.author = track.author.replace("- Topic", "");
+						track.title = track.title.replace("Topic -", "");
+					}
+					if (track.title.includes("-")) {
 						const [author, title] = track.title.split("-").map((str: string) => str.trim());
 						track.author = author;
-						track.title = title.replace("Topic -", "");
+						track.title = title;
 					}
 				}
 			}
