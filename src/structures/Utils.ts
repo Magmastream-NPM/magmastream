@@ -256,6 +256,7 @@ export interface TrackDataInfo {
 	isSeekable: boolean;
 	author: string;
 	length: number;
+	isrc: string;
 	isStream: boolean;
 	title: string;
 	uri?: string;
