@@ -79,6 +79,7 @@ export abstract class TrackUtils {
 				title: data.info.title,
 				identifier: data.info.identifier,
 				author: data.info.author,
+				isrc: data.info.isrc,
 				duration: data.info.length,
 				isSeekable: data.info.isSeekable,
 				isStream: data.info.isStream,
