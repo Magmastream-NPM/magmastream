@@ -62,7 +62,7 @@ export class Rest {
 			if (error?.response?.status === 404) {
 				this.node.destroy();
 				this.node.manager.createNode(this.node.options).connect();
-			};
+			}
 
 			return null;
 		}
