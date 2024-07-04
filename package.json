@@ -1,6 +1,6 @@
 {
 	"name": "magmastream",
-	"version": "2.5.6",
+	"version": "2.5.7",
 	"description": "A user-friendly Lavalink client designed for NodeJS.",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
@@ -35,7 +35,7 @@
 		"ws": "^8.18.0"
 	},
 	"peerDependencies": {
-		"discord.js": "^14.15.3"
+		"discord.js": ">=13.0.0 <15.0.0"
 	},
 	"engines": {
 		"node": ">=16.0.0"
