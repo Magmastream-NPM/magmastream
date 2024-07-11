@@ -3,6 +3,8 @@ import axios, { AxiosRequestConfig } from "axios";
 
 /** Handles the requests sent to the Lavalink REST API. */
 export class Rest {
+	/** The Node that this Rest instance is connected to. */
+	private node: Node;
 	/** The ID of the current session. */
 	private sessionId: string;
 	/** The password for the Node. */
@@ -11,6 +13,7 @@ export class Rest {
 	private readonly url: string;
 
 	constructor(node: Node) {
+		this.node = node;
 		this.url = `http${node.options.secure ? "s" : ""}://${node.options.host}:${node.options.port}`;
 		this.sessionId = node.sessionId;
 		this.password = node.options.password;
@@ -55,7 +58,12 @@ export class Rest {
 		try {
 			const response = await axios(config);
 			return response.data;
-		} catch {
+		} catch(error) {
+			if (error?.response?.status === 404) {
+				this.node.destroy();
+				this.node.manager.createNode(this.node.options).connect();
+			}
+
 			return null;
 		}
 	}

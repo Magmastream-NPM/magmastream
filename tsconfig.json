@@ -2,7 +2,7 @@
 	"compilerOptions": {
 		/* Basic Options */
 		"target": "ES2022",
-		"module": "CommonJS",
+		"module": "NodeNext",
 		"declaration": true,
 		"outDir": "./dist",
 		"rootDir": "./src",
@@ -10,7 +10,7 @@
 		"importHelpers": true,
 
 		/* Module Resolution Options */
-		"moduleResolution": "node",
+		"moduleResolution": "NodeNext",
 		"esModuleInterop": true
 	},
 	"exclude": ["node_modules", "dist"]

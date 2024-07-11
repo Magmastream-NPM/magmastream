@@ -80,6 +80,7 @@ export abstract class TrackUtils {
 				identifier: data.info.identifier,
 				author: data.info.author,
 				duration: data.info.length,
+				isrc: data.info?.isrc,
 				isSeekable: data.info.isSeekable,
 				isStream: data.info.isStream,
 				uri: data.info.uri,
@@ -255,6 +256,7 @@ export interface TrackDataInfo {
 	isSeekable: boolean;
 	author: string;
 	length: number;
+	isrc?: string;
 	isStream: boolean;
 	title: string;
 	uri?: string;

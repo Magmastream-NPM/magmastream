@@ -506,6 +506,8 @@ export interface Track {
 	author: string;
 	/** The duration of the track. */
 	readonly duration: number;
+	/** The ISRC of the track. */
+	readonly isrc: string;
 	/** If the track is seekable. */
 	readonly isSeekable: boolean;
 	/** If the track is a stream.. */
