@@ -178,7 +178,9 @@ export abstract class TrackUtils {
 			if (sameDuration) return sameDuration;
 		}
 
-		return res.tracks[0];
+		const finalTrack = res.tracks[0];
+		finalTrack.customData = unresolvedTrack.customData;
+		return finalTrack;
 	}
 }
 
