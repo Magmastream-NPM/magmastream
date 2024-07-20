@@ -1,90 +1,90 @@
 {
-  "name": "magmastream",
-  "version": "2.5.1",
-  "description": "A user-friendly Lavalink client designed for NodeJS.",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "files": [
-    "dist"
-  ],
-  "scripts": {
-    "build": "tsc",
-    "types": "rtb --dist dist",
-    "lint": "eslint --ext .ts ./src",
-    "ci": "run-s lint build types"
-  },
-  "devDependencies": {
-    "@favware/rollup-type-bundler": "^3.3.0",
-    "@types/lodash": "^4.17.0",
-    "@types/node": "^20.12.7",
-    "@types/ws": "^8.5.10",
-    "@typescript-eslint/eslint-plugin": "^7.7.1",
-    "@typescript-eslint/parser": "^7.7.1",
-    "eslint": "^8.57.0",
-    "npm-run-all": "^4.1.5",
-    "typedoc": "^0.25.13",
-    "typedoc-plugin-no-inherit": "^1.4.0",
-    "typescript": "^5.4.5"
-  },
-  "dependencies": {
-    "@discordjs/collection": "^2.0.0",
-    "axios": "^1.6.8",
-    "events": "^3.3.0",
-    "lodash": "^4.17.21",
-    "tslib": "^2.6.2",
-    "ws": "^8.17.0"
-  },
-  "peerDependencies": {
-    "discord.js": ">=13.0.0 <15.0.0"
-  },
-  "engines": {
-    "node": ">=16.0.0"
-  },
-  "eslintConfig": {
-    "root": true,
-    "parser": "@typescript-eslint/parser",
-    "plugins": [
-      "@typescript-eslint"
-    ],
-    "rules": {
-      "object-curly-spacing": [
-        "error",
-        "always"
-      ]
-    },
-    "extends": [
-      "eslint:recommended",
-      "plugin:@typescript-eslint/recommended"
-    ]
-  },
-  "keywords": [
-    "lavalink client",
-    "wrapper",
-    "typescript",
-    "discord.js",
-    "node.js",
-    "java",
-    "javascript",
-    "audio streaming",
-    "music bot",
-    "voice chat",
-    "discord integration",
-    "high performance",
-    "scalable",
-    "easy-to-use",
-    "feature-rich",
-    "cross-platform",
-    "seamless integration",
-    "community support",
-    "documentation",
-    "open-source",
-    "lavalink",
-    "magmastream"
-  ],
-  "repository": {
-    "url": "https://github.com/Blackfort-Hosting/magmastream/tree/main"
-  },
-  "homepage": "https://docs.blackforthosting.com",
-  "author": "Abel Purnwasy",
-  "license": "Apache-2.0"
+	"name": "magmastream",
+	"version": "2.5.9",
+	"description": "A user-friendly Lavalink client designed for NodeJS.",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "tsc",
+		"types": "rtb --dist dist",
+		"lint": "eslint --ext .ts ./src",
+		"ci": "run-s lint build types"
+	},
+	"devDependencies": {
+		"@favware/rollup-type-bundler": "^3.3.0",
+		"@types/lodash": "^4.17.7",
+		"@types/node": "^20.14.11",
+		"@types/ws": "^8.5.11",
+		"@typescript-eslint/eslint-plugin": "^7.16.1",
+		"@typescript-eslint/parser": "^7.16.1",
+		"eslint": "^8.57.0",
+		"npm-run-all": "^4.1.5",
+		"typedoc": "^0.25.13",
+		"typedoc-plugin-no-inherit": "^1.4.0",
+		"typescript": "^5.4.5"
+	},
+	"dependencies": {
+		"@discordjs/collection": "^2.1.0",
+		"axios": "^1.7.2",
+		"events": "^3.3.0",
+		"lodash": "^4.17.21",
+		"tslib": "^2.6.3",
+		"ws": "^8.18.0"
+	},
+	"peerDependencies": {
+		"discord.js": ">=13.0.0 <15.0.0"
+	},
+	"engines": {
+		"node": ">=16.0.0"
+	},
+	"eslintConfig": {
+		"root": true,
+		"parser": "@typescript-eslint/parser",
+		"plugins": [
+			"@typescript-eslint"
+		],
+		"rules": {
+			"object-curly-spacing": [
+				"error",
+				"always"
+			]
+		},
+		"extends": [
+			"eslint:recommended",
+			"plugin:@typescript-eslint/recommended"
+		]
+	},
+	"keywords": [
+		"lavalink client",
+		"wrapper",
+		"typescript",
+		"discord.js",
+		"node.js",
+		"java",
+		"javascript",
+		"audio streaming",
+		"music bot",
+		"voice chat",
+		"discord integration",
+		"high performance",
+		"scalable",
+		"easy-to-use",
+		"feature-rich",
+		"cross-platform",
+		"seamless integration",
+		"community support",
+		"documentation",
+		"open-source",
+		"lavalink",
+		"magmastream"
+	],
+	"repository": {
+		"url": "https://github.com/Blackfort-Hosting/magmastream/tree/main"
+	},
+	"homepage": "https://docs.blackforthosting.com",
+	"author": "Abel Purnwasy",
+	"license": "Apache-2.0"
 }

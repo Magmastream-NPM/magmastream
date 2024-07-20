@@ -1,0 +1,10 @@
+LICENSE
+package.json
+package-lock.json
+NOTICE.md
+CODE_OF_CONDUCT.md
+.npmignore
+.gitignore
+.gitattributes
+node_modules
+dist
