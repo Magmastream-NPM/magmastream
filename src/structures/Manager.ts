@@ -32,8 +32,13 @@ export class Manager extends EventEmitter {
 	public static readonly DEFAULT_SOURCES: Record<SearchPlatform, string> = {
 		"youtube music": "ytmsearch",
 		youtube: "ytsearch",
-		soundcloud: "scsearch",
-		deezer: "dzsearch",
+		spotify: "spsearch",
+                jiosaavn: "jssearch",
+                soundcloud: "scsearch",
+                deezer: "dzsearch",
+                tidal: "tdsearch",
+                applemusic: "amsearch",
+                bandcamp: "bcsearch",
 	};
 
 	/** The map of players. */
