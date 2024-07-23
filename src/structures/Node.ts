@@ -1,5 +1,15 @@
-import { PlayerEvent, PlayerEvents, Structure, TrackEndEvent, TrackExceptionEvent, TrackStartEvent, TrackStuckEvent, WebSocketClosedEvent } from "./Utils";
-import { Manager } from "./Manager";
+import {
+	PlayerEvent,
+	PlayerEvents,
+	Structure,
+	TrackEndEvent,
+	TrackExceptionEvent,
+	TrackStartEvent,
+	TrackStuckEvent,
+	TrackUtils,
+	WebSocketClosedEvent,
+} from "./Utils";
+import { LavalinkResponse, Manager, PlaylistRawData } from "./Manager";
 import { Player, Track, UnresolvedTrack } from "./Player";
 import { Rest } from "./Rest";
 import nodeCheck from "../utils/nodeCheck";
@@ -273,11 +283,55 @@ export class Node {
 		}
 	}
 
+	private extractSpotifyTrackID(url: string): string | null {
+		const regex = /https:\/\/open\.spotify\.com\/track\/([a-zA-Z0-9]+)/;
+		const match = url.match(regex);
+		return match ? match[1] : null;
+	}
+
+	private extractSpotifyArtistID(url: string): string | null {
+		const regex = /https:\/\/open\.spotify\.com\/artist\/([a-zA-Z0-9]+)/;
+		const match = url.match(regex);
+		return match ? match[1] : null;
+	}
+
 	// Handle autoplay
 	private async handleAutoplay(player: Player, track: Track) {
 		const previousTrack = player.queue.previous;
 
 		if (!player.isAutoplay || !previousTrack) return;
+
+		const hasSpotifyURL = ["spotify.com", "open.spotify.com"].some((url) => previousTrack.uri.includes(url));
+
+		if (hasSpotifyURL) {
+			const node = this.manager.useableNodes;
+
+			const res = await node.rest.get(`/v4/info`);
+			const info = res as LavalinkInfo;
+
+			const isSpotifyPluginEnabled = info.plugins.some((plugin: { name: string }) => plugin.name === "lavasrc-plugin");
+			const isSpotifySourceManagerEnabled = info.sourceManagers.includes("spotify");
+
+			if (isSpotifyPluginEnabled && isSpotifySourceManagerEnabled) {
+				const trackID = this.extractSpotifyTrackID(previousTrack.uri);
+				const artistID = this.extractSpotifyArtistID(previousTrack.pluginInfo.artistUrl);
+
+				const recommendedResult = (await node.rest.get(
+					`/v4/loadtracks?identifier=${encodeURIComponent(`sprec:seed_artists=${artistID}&seed_tracks=${trackID}`)}`
+				)) as LavalinkResponse;
+
+				if (recommendedResult.loadType === "playlist") {
+					const playlistData = recommendedResult.data as PlaylistRawData;
+					const recommendedTrack = playlistData.tracks[0];
+
+					if (recommendedTrack) {
+						player.queue.add(TrackUtils.build(recommendedTrack, player.get("Internal_BotUser")));
+						player.play();
+						return;
+					}
+				}
+			}
+		}
 
 		const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) => previousTrack.uri.includes(url));
 
@@ -459,4 +513,15 @@ export interface FrameStats {
 	nulled?: number;
 	/** The amount of deficit frames. */
 	deficit?: number;
+}
+
+export interface LavalinkInfo {
+	version: { semver: string; major: number; minor: number; patch: number; preRelease: string };
+	buildTime: number;
+	git: { branch: string; commit: string; commitTime: number };
+	jvm: string;
+	lavaplayer: string;
+	sourceManagers: string[];
+	filters: string[];
+	plugins: { name: string; version: string }[];
 }
