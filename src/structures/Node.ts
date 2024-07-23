@@ -283,13 +283,13 @@ export class Node {
 		}
 	}
 
-	private extractSpotifyTrackID(url: string): string | null {
+	public extractSpotifyTrackID(url: string): string | null {
 		const regex = /https:\/\/open\.spotify\.com\/track\/([a-zA-Z0-9]+)/;
 		const match = url.match(regex);
 		return match ? match[1] : null;
 	}
 
-	private extractSpotifyArtistID(url: string): string | null {
+	public extractSpotifyArtistID(url: string): string | null {
 		const regex = /https:\/\/open\.spotify\.com\/artist\/([a-zA-Z0-9]+)/;
 		const match = url.match(regex);
 		return match ? match[1] : null;
@@ -316,18 +316,27 @@ export class Node {
 				const trackID = this.extractSpotifyTrackID(previousTrack.uri);
 				const artistID = this.extractSpotifyArtistID(previousTrack.pluginInfo.artistUrl);
 
-				const recommendedResult = (await node.rest.get(
-					`/v4/loadtracks?identifier=${encodeURIComponent(`sprec:seed_artists=${artistID}&seed_tracks=${trackID}`)}`
-				)) as LavalinkResponse;
+				let identifier = "";
+				if (trackID && artistID) {
+					identifier = `sprec:seed_artists=${artistID}&seed_tracks=${trackID}`;
+				} else if (trackID) {
+					identifier = `sprec:seed_tracks=${trackID}`;
+				} else if (artistID) {
+					identifier = `sprec:seed_artists=${artistID}`;
+				}
 
-				if (recommendedResult.loadType === "playlist") {
-					const playlistData = recommendedResult.data as PlaylistRawData;
-					const recommendedTrack = playlistData.tracks[0];
+				if (identifier) {
+					const recommendedResult = (await node.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(identifier)}`)) as LavalinkResponse;
 
-					if (recommendedTrack) {
-						player.queue.add(TrackUtils.build(recommendedTrack, player.get("Internal_BotUser")));
-						player.play();
-						return;
+					if (recommendedResult.loadType === "playlist") {
+						const playlistData = recommendedResult.data as PlaylistRawData;
+						const recommendedTrack = playlistData.tracks[0];
+
+						if (recommendedTrack) {
+							player.queue.add(TrackUtils.build(recommendedTrack, player.get("Internal_BotUser")));
+							player.play();
+							return;
+						}
 					}
 				}
 			}
@@ -338,7 +347,7 @@ export class Node {
 		let videoID = previousTrack.uri.substring(previousTrack.uri.indexOf("=") + 1);
 
 		if (!hasYouTubeURL) {
-			const res = await player.search(`${previousTrack.author} - ${previousTrack.title}`);
+			const res = await player.search(`${previousTrack.author} - ${previousTrack.title}`, player.get("Internal_BotUser"));
 
 			videoID = res.tracks[0].uri.substring(res.tracks[0].uri.indexOf("=") + 1);
 		}
@@ -364,6 +373,16 @@ export class Node {
 		const foundTrack = tracks.sort(() => Math.random() - 0.5).find((shuffledTrack) => shuffledTrack.uri !== track.uri);
 
 		if (foundTrack) {
+			if (this.manager.options.replaceYouTubeCredentials) {
+				foundTrack.author = foundTrack.author.replace("- Topic", "");
+				foundTrack.title = foundTrack.title.replace("Topic -", "");
+
+				if (foundTrack.title.includes("-")) {
+					const [author, title] = foundTrack.title.split("-").map((str: string) => str.trim());
+					foundTrack.author = author;
+					foundTrack.title = title;
+				}
+			}
 			player.queue.add(foundTrack);
 			player.play();
 		}
