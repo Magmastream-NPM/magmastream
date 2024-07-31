@@ -1,6 +1,6 @@
 import { Filters } from "./Filters";
-import { Manager, SearchQuery, SearchResult } from "./Manager";
-import { Node } from "./Node";
+import { LavalinkResponse, Manager, PlaylistRawData, SearchQuery, SearchResult } from "./Manager";
+import { LavalinkInfo, Node } from "./Node";
 import { Queue } from "./Queue";
 import { Sizes, State, Structure, TrackSourceName, TrackUtils, VoiceState } from "./Utils";
 import * as _ from "lodash";
@@ -274,6 +274,111 @@ export class Player {
 		this.set("Internal_BotUser", botUser);
 
 		return this;
+	}
+
+	/**
+	 * Gets recommended tracks and returns an array of tracks.
+	 * @param track
+	 */
+	public async getRecommended(track: Track) {
+		const node = this.manager.useableNodes;
+
+		if (!node) {
+			throw new Error("No available nodes.");
+		}
+
+		const hasSpotifyURL = ["spotify.com", "open.spotify.com"].some((url) => track.uri.includes(url));
+		const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) => track.uri.includes(url));
+
+		if (hasSpotifyURL) {
+			const res = await node.rest.get(`/v4/info`);
+			const info = res as LavalinkInfo;
+
+			const isSpotifyPluginEnabled = info.plugins.some((plugin: { name: string }) => plugin.name === "lavasrc-plugin");
+			const isSpotifySourceManagerEnabled = info.sourceManagers.includes("spotify");
+
+			if (isSpotifyPluginEnabled && isSpotifySourceManagerEnabled) {
+				const trackID = node.extractSpotifyTrackID(track.uri);
+				const artistID = node.extractSpotifyArtistID(track.pluginInfo.artistUrl);
+
+				let identifier = "";
+				if (trackID && artistID) {
+					identifier = `sprec:seed_artists=${artistID}&seed_tracks=${trackID}`;
+				} else if (trackID) {
+					identifier = `sprec:seed_tracks=${trackID}`;
+				} else if (artistID) {
+					identifier = `sprec:seed_artists=${artistID}`;
+				}
+
+				if (identifier) {
+					const recommendedResult = (await node.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(identifier)}`)) as LavalinkResponse;
+
+					if (recommendedResult.loadType === "playlist") {
+						const playlistData = recommendedResult.data as PlaylistRawData;
+						const recommendedTracks = playlistData.tracks;
+
+						if (recommendedTracks) {
+							const spotifyArray = [];
+							recommendedTracks.forEach((song) => {
+								const track = {
+									track: song.encoded,
+									title: song.info.title,
+									identifier: song.info.title,
+									author: song.info.author,
+									duration: song.info.length,
+									uri: song.info.uri,
+									artworkUrl: song.info.artworkUrl,
+									sourceName: song.info.sourceName,
+									requester: undefined,
+									plugininfo: song.pluginInfo,
+								};
+
+								spotifyArray.push(track);
+							});
+
+							return spotifyArray;
+						}
+					}
+				}
+			}
+		}
+
+		let videoID = track.uri.substring(track.uri.indexOf("=") + 1);
+
+		if (!hasYouTubeURL) {
+			const res = await this.manager.search(`${track.author} - ${track.title}`);
+
+			videoID = res.tracks[0].uri.substring(res.tracks[0].uri.indexOf("=") + 1);
+		}
+
+		const searchURI = `https://www.youtube.com/watch?v=${videoID}&list=RD${videoID}`;
+
+		const res = await this.manager.search(searchURI);
+
+		if (res.loadType === "empty" || res.loadType === "error") return;
+
+		let tracks = res.tracks;
+
+		if (res.loadType === "playlist") {
+			tracks = res.playlist.tracks;
+		}
+
+		const filteredTracks = tracks.filter((track) => track.uri !== `https://www.youtube.com/watch?v=${videoID}`);
+
+		if (this.manager.options.replaceYouTubeCredentials) {
+			for (const track of filteredTracks) {
+				track.author = track.author.replace("- Topic", "");
+				track.title = track.title.replace("Topic -", "");
+
+				if (track.title.includes("-")) {
+					const [author, title] = track.title.split("-").map((str: string) => str.trim());
+					track.author = author;
+					track.title = title;
+				}
+			}
+		}
+
+		return filteredTracks;
 	}
 
 	/**
