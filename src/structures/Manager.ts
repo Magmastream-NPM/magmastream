@@ -429,7 +429,8 @@ export interface ManagerOptions {
 	send(id: string, payload: Payload): void;
 }
 
-export type SearchPlatform = "deezer" | "soundcloud" | "youtube music" | "youtube";
+export type SearchPlatform = "deezer" | "soundcloud" | "youtube music" | "youtube" | "spotify" | "jiosaavn" | "tidal" | "applemusic" | "bandcamp";
+
 
 export interface SearchQuery {
 	/** The source to search from. */
