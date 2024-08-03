@@ -11,7 +11,7 @@
 
 ## Useful Links
 
-- [Documentation](https://docs.blackforthosting.com)
+- [Documentation](https://docs.magmastream.com)
 - [Example Bot](https://github.com/Blackfort-Hosting/Magmastream_Template_Bot)
 
 ## Contributing
