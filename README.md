@@ -1,4 +1,4 @@
-# Magmastream
+<center><img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&height=200&section=header&text=Magmastream&fontSize=80&fontAlignY=35&animation=twinkling&fontColor=gradient" /></center>
 
 [![License](https://img.shields.io/badge/license-Apache-blue.svg)](https://github.com/Magmastream-NPM/magmastream/blob/main/LICENSE)
 [![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg)](https://github.com/Magmastream-NPM/magmastream/pulls)
