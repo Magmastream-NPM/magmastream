@@ -58,7 +58,7 @@ export class Rest {
 		try {
 			const response = await axios(config);
 			return response.data;
-		} catch(error) {
+		} catch (error) {
 			if (error?.response?.status === 404) {
 				this.node.destroy();
 				this.node.manager.createNode(this.node.options).connect();

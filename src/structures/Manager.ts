@@ -33,12 +33,12 @@ export class Manager extends EventEmitter {
 		"youtube music": "ytmsearch",
 		youtube: "ytsearch",
 		spotify: "spsearch",
-                jiosaavn: "jssearch",
-                soundcloud: "scsearch",
-                deezer: "dzsearch",
-                tidal: "tdsearch",
-                applemusic: "amsearch",
-                bandcamp: "bcsearch",
+		jiosaavn: "jssearch",
+		soundcloud: "scsearch",
+		deezer: "dzsearch",
+		tidal: "tdsearch",
+		applemusic: "amsearch",
+		bandcamp: "bcsearch",
 	};
 
 	/** The map of players. */
@@ -430,7 +430,6 @@ export interface ManagerOptions {
 }
 
 export type SearchPlatform = "deezer" | "soundcloud" | "youtube music" | "youtube" | "spotify" | "jiosaavn" | "tidal" | "applemusic" | "bandcamp";
-
 
 export interface SearchQuery {
 	/** The source to search from. */
