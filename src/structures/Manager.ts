@@ -22,7 +22,7 @@ import managerCheck from "../utils/managerCheck";
 import { ClientUser, User } from "discord.js";
 
 /**
- * The main hub for interacting with Lavalink and using Magmastream,
+ * The main hub for interacting with Lavalink and using Magmastream.
  */
 export class Manager extends EventEmitter {
 	public on<T extends keyof ManagerEvents>(event: T, listener: (...args: ManagerEvents[T]) => void): this {
@@ -49,7 +49,7 @@ export class Manager extends EventEmitter {
 	public readonly options: ManagerOptions;
 	private initiated = false;
 
-	/** Returns the nodes that has the least load. */
+	/** Returns the nodes that have the least load. */
 	private get leastLoadNode(): Collection<string, Node> {
 		return this.nodes
 			.filter((node) => node.connected)
@@ -60,7 +60,7 @@ export class Manager extends EventEmitter {
 			});
 	}
 
-	/** Returns the nodes that has the least amount of players. */
+	/** Returns the nodes that have the least amount of players. */
 	private get leastPlayersNode(): Collection<string, Node> {
 		return this.nodes.filter((node) => node.connected).sort((a, b) => a.stats.players - b.stats.players);
 	}
@@ -89,7 +89,11 @@ export class Manager extends EventEmitter {
 
 	/** Returns the node to use. */
 	public get useableNodes(): Node {
-		return this.options.usePriority ? this.priorityNode : this.options.useNode === "leastLoad" ? this.leastLoadNode.first() : this.leastPlayersNode.first();
+		return this.options.usePriority
+			? this.priorityNode
+			: this.options.useNode === "leastLoad"
+			? this.leastLoadNode.first()
+			: this.leastPlayersNode.first();
 	}
 
 	/**
@@ -129,6 +133,7 @@ export class Manager extends EventEmitter {
 			...options,
 		};
 
+		// Load plugins if any are provided
 		if (this.options.plugins) {
 			for (const [index, plugin] of this.options.plugins.entries()) {
 				if (!(plugin instanceof Plugin)) throw new RangeError(`Plugin at index ${index} does not extend Plugin.`);
@@ -136,6 +141,7 @@ export class Manager extends EventEmitter {
 			}
 		}
 
+		// Initialize and connect nodes
 		if (this.options.nodes) {
 			for (const nodeOptions of this.options.nodes) new (Structure.get("Node"))(nodeOptions);
 		}
@@ -151,7 +157,7 @@ export class Manager extends EventEmitter {
 
 		if (typeof this.options.clientId !== "string") throw new Error('"clientId" set is not type of "string"');
 
-		if (!this.options.clientId) throw new Error('"clientId" is not set. Pass it in Manager#init() or as a option in the constructor.');
+		if (!this.options.clientId) throw new Error('"clientId" is not set. Pass it in Manager#init() or as an option in the constructor.');
 
 		for (const node of this.nodes.values()) {
 			try {
@@ -166,7 +172,7 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-	 * Searches the enabled sources based off the URL or the `source` property.
+	 * Searches the enabled sources based on the URL or the `source` property.
 	 * @param query
 	 * @param requester
 	 * @returns The search result.
@@ -194,7 +200,7 @@ export class Manager extends EventEmitter {
 				throw new Error("Query not found.");
 			}
 
-			let searchData = [];
+			let searchData: TrackData[] = [];
 			let playlistData: PlaylistRawData | undefined;
 
 			switch (res.loadType) {
@@ -203,7 +209,7 @@ export class Manager extends EventEmitter {
 					break;
 
 				case "track":
-					searchData = [res.data as TrackData[]];
+					searchData = [res.data as TrackData];
 					break;
 
 				case "playlist":
@@ -212,7 +218,7 @@ export class Manager extends EventEmitter {
 			}
 
 			const tracks = searchData.map((track) => TrackUtils.build(track, requester));
-			let playlist = null;
+			let playlist: PlaylistData | null = null;
 
 			if (res.loadType === "playlist") {
 				playlist = {
@@ -228,63 +234,57 @@ export class Manager extends EventEmitter {
 				playlist,
 			};
 
+			// Optionally replace YouTube credentials
 			if (this.options.replaceYouTubeCredentials) {
 				let tracksToReplace: Track[] = [];
 				if (result.loadType === "playlist") {
-					tracksToReplace = result.playlist.tracks;
-				} else {
+					tracksToReplace = result.playlist!.tracks;
+				} else if (result.loadType === "track" || result.loadType === "search") {
 					tracksToReplace = result.tracks;
 				}
 
-				for (const track of tracksToReplace) {
-					if (isYouTubeURL(track.uri)) {
-						track.author = track.author.replace("- Topic", "");
-						track.title = track.title.replace("Topic -", "");
+				tracksToReplace.forEach((track) => {
+					const replaceInfo = track.info?.pluginInfo?.replace;
+					if (replaceInfo) {
+						track.info.uri = replaceInfo.uri;
+						track.info.identifier = replaceInfo.identifier;
 					}
-					if (track.title.includes("-")) {
-						const [author, title] = track.title.split("-").map((str: string) => str.trim());
-						track.author = author;
-						track.title = title;
-					}
-				}
+				});
 			}
 
 			return result;
 		} catch (err) {
-			throw new Error(err);
-		}
-
-		function isYouTubeURL(uri: string): boolean {
-			return uri.includes("youtube.com") || uri.includes("youtu.be");
+			throw new Error(`Failed to get results for search query ${search} with error: ${err}`);
 		}
 	}
 
 	/**
-	 * Decodes the base64 encoded tracks and returns a TrackData array.
+	 * Decodes tracks via Lavalink REST.
 	 * @param tracks
 	 */
-	public decodeTracks(tracks: string[]): Promise<TrackData[]> {
-		return new Promise(async (resolve, reject) => {
-			const node = this.nodes.first();
-			if (!node) throw new Error("No available nodes.");
+	public async decodeTracks(tracks: string[]): Promise<TrackData[]> {
+		if (!tracks || !Array.isArray(tracks)) {
+			throw new TypeError('The "tracks" parameter must be an array of strings.');
+		}
 
-			const res = (await node.rest.post("/v4/decodetracks", JSON.stringify(tracks)).catch((err) => reject(err))) as TrackData[];
+		const node = this.useableNodes;
+		if (!node) throw new Error("No available nodes.");
 
-			if (!res) {
-				return reject(new Error("No data returned from query."));
-			}
-
-			return resolve(res);
-		});
+		try {
+			const res = await node.rest.post("/v4/decodetracks", tracks);
+			return res.data as TrackData[];
+		} catch (err) {
+			throw new Error(`Failed to decode tracks with error: ${err}`);
+		}
 	}
 
 	/**
-	 * Decodes the base64 encoded track and returns a TrackData.
+	 * Decodes a single track via Lavalink REST.
 	 * @param track
 	 */
 	public async decodeTrack(track: string): Promise<TrackData> {
-		const res = await this.decodeTracks([track]);
-		return res[0];
+		const [trackData] = await this.decodeTracks([track]);
+		return trackData;
 	}
 
 	/**
@@ -292,10 +292,7 @@ export class Manager extends EventEmitter {
 	 * @param options
 	 */
 	public create(options: PlayerOptions): Player {
-		if (this.players.has(options.guild)) {
-			return this.players.get(options.guild);
-		}
-
+		if (this.players.has(options.guild)) return this.players.get(options.guild)!;
 		return new (Structure.get("Player"))(options);
 	}
 
@@ -312,7 +309,7 @@ export class Manager extends EventEmitter {
 	 * @param guild
 	 */
 	public destroy(guild: string): void {
-		this.players.delete(guild);
+		this.players.delete(guild)?.destroy();
 	}
 
 	/**
@@ -320,11 +317,16 @@ export class Manager extends EventEmitter {
 	 * @param options
 	 */
 	public createNode(options: NodeOptions): Node {
-		if (this.nodes.has(options.identifier || options.host)) {
-			return this.nodes.get(options.identifier || options.host);
-		}
-
+		if (this.nodes.has(options.identifier)) return this.nodes.get(options.identifier)!;
 		return new (Structure.get("Node"))(options);
+	}
+
+	/**
+	 * Returns a node or undefined if it does not exist.
+	 * @param identifier
+	 */
+	public getNode(identifier: string): Node | undefined {
+		return this.nodes.get(identifier);
 	}
 
 	/**
@@ -332,163 +334,83 @@ export class Manager extends EventEmitter {
 	 * @param identifier
 	 */
 	public destroyNode(identifier: string): void {
-		const node = this.nodes.get(identifier);
-		if (!node) return;
-		node.destroy();
-		this.nodes.delete(identifier);
+		this.nodes.delete(identifier)?.destroy();
 	}
 
 	/**
-	 * Sends voice data to the Lavalink server.
+	 * Sends voice update data to the Lavalink server.
 	 * @param data
 	 */
-	public async updateVoiceState(data: VoicePacket | VoiceServer | VoiceState): Promise<void> {
-		if ("t" in data && !["VOICE_STATE_UPDATE", "VOICE_SERVER_UPDATE"].includes(data.t)) return;
-
-		const update = "d" in data ? data.d : data;
-
-		if (!update || (!("token" in update) && !("session_id" in update))) return;
-
-		const player = this.players.get(update.guild_id);
-
-		if (!player) return;
-		if ("token" in update) {
-			player.voiceState.event = update;
-
-			const {
-				sessionId,
-				event: { token, endpoint },
-			} = player.voiceState;
-
-			await player.node.rest.updatePlayer({
-				guildId: player.guild,
-				data: { voice: { token, endpoint, sessionId } },
-			});
-
-			return;
-		}
-
-		if (update.user_id !== this.options.clientId) return;
-		if (update.channel_id) {
-			if (player.voiceChannel !== update.channel_id) {
-				this.emit("playerMove", player, player.voiceChannel, update.channel_id);
-			}
-
-			player.voiceState.sessionId = update.session_id;
-			player.voiceChannel = update.channel_id;
-			return;
-		}
-
-		this.emit("playerDisconnect", player, player.voiceChannel);
-		player.voiceChannel = null;
-		player.voiceState = Object.assign({});
-		player.destroy();
-		return;
+	public updateVoiceState(data: VoiceState): void {
+		if (!data || !data.guild_id) return;
+		const player = this.players.get(data.guild_id);
+		if (player) player.voiceStateUpdate(data);
 	}
-}
 
-export interface Payload {
-	/** The OP code */
-	op: number;
-	d: {
-		guild_id: string;
-		channel_id: string | null;
-		self_mute: boolean;
-		self_deaf: boolean;
-	};
+	/**
+	 * Sends a raw voice packet to Lavalink.
+	 * @param packet
+	 */
+	public sendRawVoicePacket(packet: VoicePacket): void {
+		if (!packet || !["VOICE_STATE_UPDATE", "VOICE_SERVER_UPDATE"].includes(packet.t!)) return;
+		const player = this.players.get(packet.d.guild_id);
+		if (player) player.rawVoiceUpdate(packet);
+	}
+
+	/**
+	 * Changes your self deafen status.
+	 * @param guild
+	 * @param state
+	 */
+	public setDeafen(guild: string, state: boolean): void {
+		const player = this.players.get(guild);
+		if (player) player.setSelfDeaf(state);
+	}
+
+	/**
+	 * Changes your self mute status.
+	 * @param guild
+	 * @param state
+	 */
+	public setMute(guild: string, state: boolean): void {
+		const player = this.players.get(guild);
+		if (player) player.setSelfMute(state);
+	}
 }
 
 export interface ManagerOptions {
-	/** Use priority mode over least amount of player or load? */
-	usePriority?: boolean;
-	/** Use the least amount of players or least load? */
-	useNode?: "leastLoad" | "leastPlayers";
-	/** The array of nodes to connect to. */
-	nodes?: NodeOptions[];
-	/** The client ID to use. */
 	clientId?: string;
-	/** Value to use for the `Client-Name` header. */
-	clientName?: string;
-	/** The shard count. */
-	shards?: number;
-	/** A array of plugins to use. */
 	plugins?: Plugin[];
-	/** Whether players should automatically play the next song. */
+	clientName?: string;
+	nodes?: NodeOptions[];
+	shards?: number;
 	autoPlay?: boolean;
-	/** An array of track properties to keep. `track` will always be present. */
 	trackPartial?: string[];
-	/** The default search platform to use, can be "youtube", "youtube music", "soundcloud" or deezer. */
+	useNode?: "leastLoad" | "leastPlayers";
+	usePriority?: boolean;
 	defaultSearchPlatform?: SearchPlatform;
-	/** Whether the YouTube video titles should be replaced if the Author does not exactly match. */
 	replaceYouTubeCredentials?: boolean;
-	/**
-	 * Function to send data to the websocket.
-	 * @param id
-	 * @param payload
-	 */
-	send(id: string, payload: Payload): void;
 }
 
-export type SearchPlatform = "deezer" | "soundcloud" | "youtube music" | "youtube" | "spotify" | "jiosaavn" | "tidal" | "applemusic" | "bandcamp";
-
-export interface SearchQuery {
-	/** The source to search from. */
-	source?: SearchPlatform | string;
-	/** The query to search for. */
-	query: string;
-}
-
-export interface LavalinkResponse {
-	loadType: LoadType;
-	data: TrackData[] | PlaylistRawData;
-}
-
-export interface SearchResult {
-	/** The load type of the result. */
-	loadType: LoadType;
-	/** The array of tracks from the result. */
-	tracks: Track[];
-	/** The playlist info if the load type is 'playlist'. */
-	playlist?: PlaylistData;
-}
-
-export interface PlaylistRawData {
-	info: {
-		/** The playlist name. */
-		name: string;
-	};
-	/** Addition info provided by plugins. */
-	pluginInfo: object;
-	/** The tracks of the playlist */
-	tracks: TrackData[];
-}
-
-export interface PlaylistData {
-	/** The playlist name. */
-	name: string;
-	/** The length of the playlist. */
-	duration: number;
-	/** The songs of the playlist. */
-	tracks: Track[];
-}
-
-export interface ManagerEvents {
-	nodeCreate: [node: Node];
-	nodeDestroy: [node: Node];
+export type ManagerEvents = {
 	nodeConnect: [node: Node];
 	nodeReconnect: [node: Node];
-	nodeDisconnect: [node: Node, reason: { code?: number; reason?: string }];
+	nodeDestroy: [node: Node, code: number, reason: Buffer | string];
 	nodeError: [node: Node, error: Error];
-	nodeRaw: [payload: unknown];
+	nodeRaw: [node: Node, payload: unknown];
 	playerCreate: [player: Player];
 	playerDestroy: [player: Player];
-	playerStateUpdate: [oldPlayer: Player, newPlayer: Player];
-	playerMove: [player: Player, initChannel: string, newChannel: string];
-	playerDisconnect: [player: Player, oldChannel: string];
-	queueEnd: [player: Player, track: Track | UnresolvedTrack, payload: TrackEndEvent];
-	socketClosed: [player: Player, payload: WebSocketClosedEvent];
-	trackStart: [player: Player, track: Track, payload: TrackStartEvent];
-	trackEnd: [player: Player, track: Track, payload: TrackEndEvent];
-	trackStuck: [player: Player, track: Track, payload: TrackStuckEvent];
-	trackError: [player: Player, track: Track | UnresolvedTrack, payload: TrackExceptionEvent];
-}
+	playerMove: [player: Player, oldChannel: string, newChannel: string];
+	playerDisconnect: [player: Player, oldChannel: string, newChannel: string];
+	playerConnect: [player: Player];
+	playerQueueEnd: [player: Player, track: Track];
+	trackStart: [player: Player, track: Track, event: TrackStartEvent];
+	trackEnd: [player: Player, track: Track, event: TrackEndEvent];
+	trackError: [player: Player, track: Track, event: TrackExceptionEvent];
+	trackStuck: [player: Player, track: Track, event: TrackStuckEvent];
+	queueEnd: [player: Player];
+	playerResume: [player: Player];
+	playerPause: [player: Player];
+	playerPing: [player: Player];
+	wsClosed: [player: Player, event: WebSocketClosedEvent];
+};
