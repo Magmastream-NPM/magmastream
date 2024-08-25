@@ -92,14 +92,7 @@ export abstract class TrackUtils {
 					return this.uri.includes("youtube") ? `https://img.youtube.com/vi/${data.info.identifier}/${finalSize}.jpg` : null;
 				},
 				requester,
-				pluginInfo: {
-					albumName: data.pluginInfo?.albumName,
-					albumUrl: data.pluginInfo?.albumUrl,
-					artistArtworkUrl: data.pluginInfo?.artistArtworkUrl,
-					artistUrl: data.pluginInfo?.artistUrl,
-					isPreview: data.pluginInfo?.isPreview,
-					previewUrl: data.pluginInfo?.previewUrl,
-				},
+				pluginInfo: data.pluginInfo,
 				customData: {},
 			};
 

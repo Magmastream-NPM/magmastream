@@ -279,8 +279,9 @@ export class Player {
 	/**
 	 * Gets recommended tracks and returns an array of tracks.
 	 * @param track
+	 * @param requester
 	 */
-	public async getRecommended(track: Track) {
+	public async getRecommended(track: Track, requester?: User | ClientUser) {
 		const node = this.manager.useableNodes;
 
 		if (!node) {
@@ -318,25 +319,9 @@ export class Player {
 						const recommendedTracks = playlistData.tracks;
 
 						if (recommendedTracks) {
-							const spotifyArray = [];
-							recommendedTracks.forEach((song) => {
-								const track = {
-									track: song.encoded,
-									title: song.info.title,
-									identifier: song.info.title,
-									author: song.info.author,
-									duration: song.info.length,
-									uri: song.info.uri,
-									artworkUrl: song.info.artworkUrl,
-									sourceName: song.info.sourceName,
-									requester: undefined,
-									plugininfo: song.pluginInfo,
-								};
+							const tracks = recommendedTracks.map((track) => TrackUtils.build(track, requester));
 
-								spotifyArray.push(track);
-							});
-
-							return spotifyArray;
+							return tracks;
 						}
 					}
 				}
