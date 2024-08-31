@@ -110,4 +110,33 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 			[this[i], this[j]] = [this[j], this[i]];
 		}
 	}
+
+	public equalizedShuffle() {
+		const userTracks = new Map<string, Array<Track | UnresolvedTrack>>();
+
+		this.forEach((track) => {
+			const user = track.requester.id;
+
+			if (!userTracks.has(user)) {
+				userTracks.set(user, []);
+			}
+
+			userTracks.get(user).push(track);
+		});
+
+		const shuffledQueue: Array<Track | UnresolvedTrack> = [];
+
+		while (shuffledQueue.length < this.length) {
+			userTracks.forEach((tracks) => {
+				const track = tracks.shift();
+				if (track) {
+					shuffledQueue.push(track);
+				}
+			});
+		}
+
+		this.clear();
+		this.add(shuffledQueue);
+		console.log(this);
+	}
 }
