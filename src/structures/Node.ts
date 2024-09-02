@@ -8,12 +8,19 @@ import {
 	TrackStuckEvent,
 	TrackUtils,
 	WebSocketClosedEvent,
+	SponsorBlockChaptersLoaded,
+	SponsorBlockChapterStarted,
+	SponsorBlockSegmentSkipped,
+	SponsorBlockSegmentsLoaded,
 } from "./Utils";
 import { LavalinkResponse, Manager, PlaylistRawData } from "./Manager";
 import { Player, Track, UnresolvedTrack } from "./Player";
 import { Rest } from "./Rest";
 import nodeCheck from "../utils/nodeCheck";
 import WebSocket from "ws";
+
+export const validSponsorBlocks = ["sponsor", "selfpromo", "interaction", "intro", "outro", "preview", "music_offtopic", "filler"];
+export type SponsorBlockSegment = "sponsor" | "selfpromo" | "interaction" | "intro" | "outro" | "preview" | "music_offtopic" | "filler";
 
 export class Node {
 	/** The socket for the node. */
@@ -25,7 +32,8 @@ export class Node {
 	public sessionId: string | null;
 	/** The REST instance. */
 	public readonly rest: Rest;
-
+	/** Actual Lavalink Information of the Node */
+    public info: LavalinkInfo | null = null;
 	private static _manager: Manager;
 	private reconnectTimeout?: NodeJS.Timeout;
 	private reconnectAttempts = 1;
@@ -154,8 +162,9 @@ export class Node {
 		}, this.options.retryDelay);
 	}
 
-	protected open(): void {
+	protected async open(): Promise<void> {
 		if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
+		this.info = await this.fetchInfo().catch(() => null);
 		this.manager.emit("nodeConnect", this);
 	}
 
@@ -244,6 +253,19 @@ export class Node {
 				this.socketClosed(player, payload);
 				break;
 
+			case "SegmentsLoaded":
+				this.SponsorBlockSegmentLoaded(player, player.queue.current as Track, payload);
+				break;
+			case "SegmentSkipped":
+				this.SponsorBlockSegmentSkipped(player, player.queue.current as Track, payload);
+				break;
+			case "ChaptersLoaded":
+				this.SponsorBlockChaptersLoaded(player, player.queue.current as Track, payload);
+				break;
+			case "ChapterStarted":
+				this.SponsorBlockChapterStarted(player, player.queue.current as Track, payload);
+				break;
+
 			default:
 				error = new Error(`Node#event unknown event '${type}'.`);
 				this.manager.emit("nodeError", this, error);
@@ -305,12 +327,8 @@ export class Node {
 
 		if (hasSpotifyURL) {
 			const node = this.manager.useableNodes;
-
-			const res = await node.rest.get(`/v4/info`);
-			const info = res as LavalinkInfo;
-
-			const isSpotifyPluginEnabled = info.plugins.some((plugin: { name: string }) => plugin.name === "lavasrc-plugin");
-			const isSpotifySourceManagerEnabled = info.sourceManagers.includes("spotify");
+			const isSpotifyPluginEnabled = this.info.plugins.some((plugin: { name: string }) => plugin.name === "lavasrc-plugin");
+			const isSpotifySourceManagerEnabled = this.info.sourceManagers.includes("spotify");
 
 			if (isSpotifyPluginEnabled && isSpotifySourceManagerEnabled) {
 				const trackID = this.extractSpotifyTrackID(previousTrack.uri);
@@ -462,6 +480,78 @@ export class Node {
 
 	protected socketClosed(player: Player, payload: WebSocketClosedEvent): void {
 		this.manager.emit("socketClosed", player, payload);
+	}
+
+	private SponsorBlockSegmentLoaded(player: Player, track: Track, payload: SponsorBlockSegmentsLoaded) {
+		return this.manager.emit("SegmentsLoaded", player, track, payload);
+	}
+
+	private SponsorBlockSegmentSkipped(player: Player, track: Track, payload: SponsorBlockSegmentSkipped) {
+		return this.manager.emit("SegmentSkipped", player, track, payload);
+	}
+
+	private SponsorBlockChaptersLoaded(player: Player, track: Track, payload: SponsorBlockChaptersLoaded) {
+		return this.manager.emit("ChaptersLoaded", player, track, payload);
+	}
+
+	private SponsorBlockChapterStarted(player: Player, track: Track, payload: SponsorBlockChapterStarted) {
+		return this.manager.emit("ChapterStarted", player, track, payload);
+	}
+	public async fetchInfo() {
+        return await this.rest.get(`/v4/info`) as LavalinkInfo;
+	}
+	
+	public async getSponsorBlock(player: Player): Promise<SponsorBlockSegment[]> {
+		// no plugin enabled
+		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "sponsorblock-plugin"))
+			throw new RangeError(`there is no sponsorblock-plugin available in the lavalink node: ${this.options.identifier}`);
+		// do the request
+		return (await this.rest.get(`/v4/sessions/${this.sessionId}/players/${player.guild}/sponsorblock/categories`)) as SponsorBlockSegment[];
+	}
+
+	/**
+	 * Set the current sponsorblocks for the sponsorblock plugin
+	 * @param player passthrough the player
+	 * @returns void
+	 *
+	 * @example
+	 * ```ts
+	 * // use it on the player via player.setSponsorBlock();
+	 * const sponsorBlockSegments = await player.node.setSponsorBlock(player, ["sponsor", "selfpromo"]);
+	 * ```
+	 */
+	public async setSponsorBlock(player: Player, segments: SponsorBlockSegment[] = ["sponsor", "selfpromo"]): Promise<void> {
+		// no plugin enabled
+		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "sponsorblock-plugin"))
+			throw new RangeError(`there is no sponsorblock-plugin available in the lavalink node: ${this.options.identifier}`);
+		// no segments length
+		if (!segments.length) throw new RangeError("No Segments provided. Did you ment to use 'deleteSponsorBlock'?");
+		// a not valid segment
+		if (segments.some((v) => !validSponsorBlocks.includes(v.toLowerCase())))
+			throw new SyntaxError(`You provided a sponsorblock which isn't valid, valid ones are: ${validSponsorBlocks.map((v) => `'${v}'`).join(", ")}`);
+		// do the request
+		await this.rest.put(`/v4/sessions/${this.sessionId}/players/${player.guild}/sponsorblock/categories`, JSON.stringify(segments.map((v) => v.toLowerCase())));
+		return;
+	}
+
+	/**
+	 * Delete the sponsorblock plugins
+	 * @param player passthrough the player
+	 * @returns void
+	 *
+	 * @example
+	 * ```ts
+	 * // use it on the player via player.deleteSponsorBlock();
+	 * const sponsorBlockSegments = await player.node.deleteSponsorBlock(player);
+	 * ```
+	 */
+	public async deleteSponsorBlock(player: Player): Promise<void> {
+		// no plugin enabled
+		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "sponsorblock-plugin"))
+			throw new RangeError(`there is no sponsorblock-plugin available in the lavalink node: ${this.options.identifier}`);
+		// do the request
+		await this.rest.delete(`/v4/sessions/${this.sessionId}/players/${player.guild}/sponsorblock/categories`);
+		return;
 	}
 }
 

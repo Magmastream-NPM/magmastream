@@ -1,6 +1,6 @@
 import { Filters } from "./Filters";
 import { LavalinkResponse, Manager, PlaylistRawData, SearchQuery, SearchResult } from "./Manager";
-import { LavalinkInfo, Node } from "./Node";
+import { LavalinkInfo, Node, SponsorBlockSegment } from "./Node";
 import { Queue } from "./Queue";
 import { Sizes, State, Structure, TrackSourceName, TrackUtils, VoiceState } from "./Utils";
 import * as _ from "lodash";
@@ -383,6 +383,15 @@ export class Player {
 		this.volume = volume;
 
 		return this;
+	}
+	public async setSponsorBlock(segments: SponsorBlockSegment[] = ["sponsor", "selfpromo"]) {
+		return this.node.setSponsorBlock(this, segments);
+	}
+	public async getSponsorBlock() {
+		return this.node.getSponsorBlock(this);
+	}
+	public async deleteSponsorBlock() {
+		return this.node.deleteSponsorBlock(this);
 	}
 
 	/**
