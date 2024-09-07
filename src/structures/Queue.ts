@@ -111,7 +111,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 		}
 	}
 
-	public equalizedShuffle() {
+	public userBlockShuffle() {
 		const userTracks = new Map<string, Array<Track | UnresolvedTrack>>();
 
 		this.forEach((track) => {
@@ -137,6 +137,43 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 
 		this.clear();
 		this.add(shuffledQueue);
-		console.log(this);
+	}
+
+	public roundRobinShuffle() {
+		const userTracks = new Map<string, Array<Track | UnresolvedTrack>>();
+
+		this.forEach((track) => {
+			const user = track.requester.id;
+
+			if (!userTracks.has(user)) {
+				userTracks.set(user, []);
+			}
+
+			userTracks.get(user).push(track);
+		});
+
+		userTracks.forEach((tracks) => {
+			for (let i = tracks.length - 1; i > 0; i--) {
+				const j = Math.floor(Math.random() * (i + 1));
+				[tracks[i], tracks[j]] = [tracks[j], tracks[i]];
+			}
+		});
+
+		const shuffledQueue: Array<Track | UnresolvedTrack> = [];
+		const users = Array.from(userTracks.keys());
+		const userQueues = users.map((user) => userTracks.get(user)!);
+		const userCount = users.length;
+
+		while (userQueues.some((queue) => queue.length > 0)) {
+			for (let i = 0; i < userCount; i++) {
+				const queue = userQueues[i];
+				if (queue.length > 0) {
+					shuffledQueue.push(queue.shift()!);
+				}
+			}
+		}
+
+		this.clear();
+		this.add(shuffledQueue);
 	}
 }
