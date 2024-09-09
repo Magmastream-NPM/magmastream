@@ -121,6 +121,8 @@ export class Player {
 		if (!this.voiceChannel) throw new RangeError("No voice channel has been set.");
 		this.state = "CONNECTING";
 
+		const oldPlayer = { ...this };
+
 		this.manager.options.send(this.guild, {
 			op: 4,
 			d: {
@@ -132,6 +134,8 @@ export class Player {
 		});
 
 		this.state = "CONNECTED";
+
+		this.manager.emit("playerStateUpdate", oldPlayer, this);
 		return this;
 	}
 
@@ -140,6 +144,7 @@ export class Player {
 		if (this.voiceChannel === null) return this;
 		this.state = "DISCONNECTING";
 
+		const oldPlayer = { ...this };
 		this.pause(true);
 		this.manager.options.send(this.guild, {
 			op: 4,
@@ -153,6 +158,8 @@ export class Player {
 
 		this.voiceChannel = null;
 		this.state = "DISCONNECTED";
+
+		this.manager.emit("playerStateUpdate", oldPlayer, this);
 		return this;
 	}
 
@@ -176,8 +183,12 @@ export class Player {
 	public setVoiceChannel(channel: string): this {
 		if (typeof channel !== "string") throw new TypeError("Channel must be a non-empty string.");
 
+		const oldPlayer = { ...this };
+
 		this.voiceChannel = channel;
 		this.connect();
+
+		this.manager.emit("playerStateUpdate", oldPlayer, this);
 		return this;
 	}
 
@@ -188,7 +199,11 @@ export class Player {
 	public setTextChannel(channel: string): this {
 		if (typeof channel !== "string") throw new TypeError("Channel must be a non-empty string.");
 
+		const oldPlayer = { ...this };
+
 		this.textChannel = channel;
+
+		this.manager.emit("playerStateUpdate", oldPlayer, this);
 		return this;
 	}
 
@@ -269,10 +284,12 @@ export class Player {
 		if (typeof botUser !== "object") {
 			throw new TypeError("botUser must be a user-object.");
 		}
+		const oldPlayer = { ...this };
 
 		this.isAutoplay = autoplayState;
 		this.set("Internal_BotUser", botUser);
 
+		this.manager.emit("playerStateUpdate", oldPlayer, this);
 		return this;
 	}
 
@@ -373,6 +390,7 @@ export class Player {
 	public setVolume(volume: number): this {
 		if (isNaN(volume)) throw new TypeError("Volume must be a number.");
 
+		const oldPlayer = { ...this };
 		this.node.rest.updatePlayer({
 			guildId: this.options.guild,
 			data: {
@@ -381,6 +399,7 @@ export class Player {
 		});
 
 		this.volume = volume;
+		this.manager.emit("playerStateUpdate", oldPlayer, this);
 
 		return this;
 	}
@@ -489,10 +508,12 @@ export class Player {
 
 	/** Stops the current track, optionally give an amount to skip to, e.g 5 would play the 5th song. */
 	public stop(amount?: number): this {
+		const oldPlayer = { ...this };
 		if (typeof amount === "number" && amount > 1) {
 			if (amount > this.queue.length) throw new RangeError("Cannot skip more than the queue length.");
 			this.queue.splice(0, amount - 1);
 		}
+
 
 		this.node.rest.updatePlayer({
 			guildId: this.guild,
@@ -500,7 +521,8 @@ export class Player {
 				encodedTrack: null,
 			},
 		});
-
+		
+		this.manager.emit("playerStateUpdate", oldPlayer, this);
 		return this;
 	}
 
@@ -531,9 +553,11 @@ export class Player {
 
 	/** Go back to the previous song. */
 	public previous(): this {
+		const oldPlayer = { ...this };
 		this.queue.unshift(this.queue.previous);
 		this.stop();
-
+		
+		this.manager.emit("playerStateUpdate", oldPlayer, this);
 		return this;
 	}
 
@@ -548,6 +572,8 @@ export class Player {
 		if (isNaN(position)) {
 			throw new RangeError("Position must be a number.");
 		}
+
+		const oldPlayer = { ...this };
 		if (position < 0 || position > this.queue.current.duration) position = Math.max(Math.min(position, this.queue.current.duration), 0);
 
 		this.position = position;
@@ -559,6 +585,7 @@ export class Player {
 			},
 		});
 
+		this.manager.emit("playerStateUpdate", oldPlayer, this);
 		return this;
 	}
 }
