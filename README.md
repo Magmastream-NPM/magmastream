@@ -58,3 +58,4 @@ Special thanks to the all the contributors who have helped make Magmastream even
 <!-- CONTRIBUTORS_START -->
 
 <!-- CONTRIBUTORS_END -->
+![Stats](https://repobeats.axiom.co/api/embed/e46896cea6c7ad6648effe4d7868ffa3fef0151b.svg "Repobeats analytics image")
