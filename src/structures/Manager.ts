@@ -261,6 +261,10 @@ export class Manager extends EventEmitter {
 	}
 
 	private parseYouTubeTitle(title: string, originalAuthor: string): { cleanTitle: string; cleanAuthor: string } {
+		// Remove "- Topic" from author and "Topic -" from title
+		const cleanAuthor = originalAuthor.replace("- Topic", "").trim();
+		title = title.replace("Topic -", "").trim();
+
 		// Remove blocked words and phrases
 		const escapedBlockedWords = blockedWords.map((word) => this.escapeRegExp(word));
 		const blockedWordsPattern = new RegExp(`\\b(${escapedBlockedWords.join("|")})\\b`, "gi");
@@ -283,17 +287,17 @@ export class Manager extends EventEmitter {
 		if (title.includes(" - ")) {
 			const [artist, songTitle] = title.split(" - ").map((part) => part.trim());
 
-			// If the artist part matches or is included in the original author, use the original author
-			if (artist.toLowerCase() === originalAuthor.toLowerCase() || originalAuthor.toLowerCase().includes(artist.toLowerCase())) {
-				return { cleanAuthor: originalAuthor, cleanTitle: songTitle };
+			// If the artist part matches or is included in the clean author, use the clean author
+			if (artist.toLowerCase() === cleanAuthor.toLowerCase() || cleanAuthor.toLowerCase().includes(artist.toLowerCase())) {
+				return { cleanAuthor, cleanTitle: songTitle };
 			}
 
 			// If the artist is different, keep both parts
 			return { cleanAuthor: artist, cleanTitle: songTitle };
 		}
 
-		// If no clear artist-title separation, return original author and cleaned title
-		return { cleanAuthor: originalAuthor, cleanTitle: title };
+		// If no clear artist-title separation, return clean author and cleaned title
+		return { cleanAuthor, cleanTitle: title };
 	}
 
 	private balanceBrackets(str: string): string {
