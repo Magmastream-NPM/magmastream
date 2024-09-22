@@ -231,26 +231,19 @@ export class Manager extends EventEmitter {
 			if (this.options.replaceYouTubeCredentials) {
 				const replaceCreditsURLs = ["youtube.com", "youtu.be"];
 
-				const processedTracks = result.tracks.map((track) => {
+				const processTrack = (track: Track) => {
 					if (!replaceCreditsURLs.some((url) => track.uri.includes(url))) return track;
 
 					const { cleanTitle, cleanAuthor } = this.parseYouTubeTitle(track.title, track.author);
 					track.title = cleanTitle;
 					track.author = cleanAuthor;
 					return track;
-				});
+				};
 
-				result.tracks = processedTracks;
-
-				if (result.playlist) {
-					result.playlist.tracks = result.playlist.tracks.map((track) => {
-						if (!replaceCreditsURLs.some((url) => track.uri.includes(url))) return track;
-
-						const { cleanTitle, cleanAuthor } = this.parseYouTubeTitle(track.title, track.author);
-						track.title = cleanTitle;
-						track.author = cleanAuthor;
-						return track;
-					});
+				if (result.loadType === "playlist") {
+					result.playlist.tracks = result.playlist.tracks.map(processTrack);
+				} else {
+					result.tracks = result.tracks.map(processTrack);
 				}
 			}
 
