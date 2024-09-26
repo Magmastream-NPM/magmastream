@@ -20,7 +20,7 @@ import { Player, PlayerOptions, Track, UnresolvedTrack } from "./Player";
 import { VoiceState } from "..";
 import managerCheck from "../utils/managerCheck";
 import { ClientUser, User } from "discord.js";
-
+import { blockedWords } from "../config/blockedWords";
 /**
  * The main hub for interacting with Lavalink and using Magmastream,
  */
@@ -229,23 +229,21 @@ export class Manager extends EventEmitter {
 			};
 
 			if (this.options.replaceYouTubeCredentials) {
-				let tracksToReplace: Track[] = [];
-				if (result.loadType === "playlist") {
-					tracksToReplace = result.playlist.tracks;
-				} else {
-					tracksToReplace = result.tracks;
-				}
+				const replaceCreditsURLs = ["youtube.com", "youtu.be"];
 
-				for (const track of tracksToReplace) {
-					if (isYouTubeURL(track.uri)) {
-						track.author = track.author.replace("- Topic", "");
-						track.title = track.title.replace("Topic -", "");
-					}
-					if (track.title.includes("-")) {
-						const [author, title] = track.title.split("-").map((str: string) => str.trim());
-						track.author = author;
-						track.title = title;
-					}
+				const processTrack = (track: Track) => {
+					if (!replaceCreditsURLs.some((url) => track.uri.includes(url))) return track;
+
+					const { cleanTitle, cleanAuthor } = this.parseYouTubeTitle(track.title, track.author);
+					track.title = cleanTitle;
+					track.author = cleanAuthor;
+					return track;
+				};
+
+				if (result.loadType === "playlist") {
+					result.playlist.tracks = result.playlist.tracks.map(processTrack);
+				} else {
+					result.tracks = result.tracks.map(processTrack);
 				}
 			}
 
@@ -253,10 +251,79 @@ export class Manager extends EventEmitter {
 		} catch (err) {
 			throw new Error(err);
 		}
+	}
 
-		function isYouTubeURL(uri: string): boolean {
-			return uri.includes("youtube.com") || uri.includes("youtu.be");
+	private parseYouTubeTitle(title: string, originalAuthor: string): { cleanTitle: string; cleanAuthor: string } {
+		// Remove "- Topic" from author and "Topic -" from title
+		const cleanAuthor = originalAuthor.replace("- Topic", "").trim();
+		title = title.replace("Topic -", "").trim();
+
+		// Remove blocked words and phrases
+		const escapedBlockedWords = blockedWords.map((word) => this.escapeRegExp(word));
+		const blockedWordsPattern = new RegExp(`\\b(${escapedBlockedWords.join("|")})\\b`, "gi");
+		title = title.replace(blockedWordsPattern, "").trim();
+
+		// Remove empty brackets and balance remaining brackets
+		title = title
+			.replace(/[([{]\s*[)\]}]/g, "") // Empty brackets
+			.replace(/^[^\w\d]*|[^\w\d]*$/g, "") // Leading/trailing non-word characters
+			.replace(/\s{2,}/g, " ") // Multiple spaces
+			.trim();
+
+		// Remove '@' symbol before usernames
+		title = title.replace(/@(\w+)/g, "$1");
+
+		// Balance remaining brackets
+		title = this.balanceBrackets(title);
+
+		// Check if the title contains a hyphen, indicating potential "Artist - Title" format
+		if (title.includes(" - ")) {
+			const [artist, songTitle] = title.split(" - ").map((part) => part.trim());
+
+			// If the artist part matches or is included in the clean author, use the clean author
+			if (artist.toLowerCase() === cleanAuthor.toLowerCase() || cleanAuthor.toLowerCase().includes(artist.toLowerCase())) {
+				return { cleanAuthor, cleanTitle: songTitle };
+			}
+
+			// If the artist is different, keep both parts
+			return { cleanAuthor: artist, cleanTitle: songTitle };
 		}
+
+		// If no clear artist-title separation, return clean author and cleaned title
+		return { cleanAuthor, cleanTitle: title };
+	}
+
+	private balanceBrackets(str: string): string {
+		const stack: string[] = [];
+		const openBrackets = "([{";
+		const closeBrackets = ")]}";
+		let result = "";
+
+		for (const char of str) {
+			if (openBrackets.includes(char)) {
+				stack.push(char);
+				result += char;
+			} else if (closeBrackets.includes(char)) {
+				if (stack.length > 0 && openBrackets.indexOf(stack[stack.length - 1]) === closeBrackets.indexOf(char)) {
+					stack.pop();
+					result += char;
+				}
+			} else {
+				result += char;
+			}
+		}
+
+		// Close any remaining open brackets
+		while (stack.length > 0) {
+			const lastOpen = stack.pop()!;
+			result += closeBrackets[openBrackets.indexOf(lastOpen)];
+		}
+
+		return result;
+	}
+
+	private escapeRegExp(string: string): string {
+		return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 	}
 
 	/**
