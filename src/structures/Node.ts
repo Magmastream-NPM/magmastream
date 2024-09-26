@@ -171,7 +171,7 @@ export class Node {
 		this.manager.emit("nodeError", this, error);
 	}
 
-	protected async message(d: Buffer | string): void {
+	protected async message(d: Buffer | string): Promise<void> {
 		if (Array.isArray(d)) d = Buffer.concat(d);
 		else if (d instanceof ArrayBuffer) d = Buffer.from(d);
 
