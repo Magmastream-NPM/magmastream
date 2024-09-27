@@ -1,0 +1,14 @@
+{
+	"projectName": "magmastream",
+	"projectOwner": "Magmastream-NPM",
+	"repoType": "github",
+	"repoHost": "https://github.com",
+	"files": ["README.md"],
+	"imageSize": 100,
+	"commit": false,
+	"commitConvention": "none",
+	"contributors": [],
+	"contributorsPerLine": 7,
+	"linkToUsage": false
+}
+
