@@ -328,7 +328,10 @@ export class Node {
 		if (!player.isAutoplay || !previousTrack) return;
 
 		const hasSpotifyURL = ["spotify.com", "open.spotify.com"].some((url) => previousTrack.uri.includes(url));
-		if (hasSpotifyURL) return this.handleSpotifyAutoplay(player);
+		if (hasSpotifyURL) {
+			const spotifySuccess = await this.handleSpotifyAutoplay(player); // Check if Spotify autoplay was successful
+			if (spotifySuccess) return; // If successful, exit the function
+		}
 
 		const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) => previousTrack.uri.includes(url));
 		let videoID = previousTrack.uri.substring(previousTrack.uri.indexOf("=") + 1);
@@ -367,40 +370,38 @@ export class Node {
 		player.play();
 	}
 
-	private async handleSpotifyAutoplay(player: Player) {
+	private async handleSpotifyAutoplay(player: Player): Promise<boolean> {
 		const previousTrack = player.queue.previous;
 		const node = this.manager.useableNodes;
 		const isSpotifyPluginEnabled = node.info.plugins.some((plugin: { name: string }) => plugin.name === "lavasrc-plugin");
 		const isSpotifySourceManagerEnabled = node.info.sourceManagers.includes("spotify");
 
-		if (!isSpotifySourceManagerEnabled || !isSpotifyPluginEnabled) return;
+		if (!isSpotifySourceManagerEnabled || !isSpotifyPluginEnabled) return false;
 
 		const trackID = this.extractSpotifyTrackID(previousTrack.uri);
 		const artistID = this.extractSpotifyArtistID(previousTrack.pluginInfo.artistUrl);
 
-		let identifier = "";
-
-		identifier = [trackID && `seed_tracks=${trackID}`, artistID && `seed_artists=${artistID}`].filter(Boolean).join("&");
+		let identifier = [trackID && `seed_tracks=${trackID}`, artistID && `seed_artists=${artistID}`].filter(Boolean).join("&");
 
 		if (identifier) {
 			identifier = `sprec:${identifier}`;
 		}
 
-		if (!identifier) return;
+		if (!identifier) return false;
 
 		const recommendedResult = (await node.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(identifier)}`)) as LavalinkResponse;
 
-		if (recommendedResult.loadType !== "playlist") return;
+		if (recommendedResult.loadType !== "playlist") return false;
 
 		const playlistData = recommendedResult.data as PlaylistRawData;
 		const recommendedTrack = playlistData.tracks[0];
 
-		if (!recommendedTrack) return;
+		if (!recommendedTrack) return false;
 
 		player.queue.add(TrackUtils.build(recommendedTrack, player.get("Internal_BotUser")));
 		player.play();
 
-		return;
+		return true;
 	}
 
 	// Handle the case when a track failed to load or was cleaned up
