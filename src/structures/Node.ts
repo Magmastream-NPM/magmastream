@@ -370,32 +370,36 @@ export class Node {
 	private async handleSpotifyAutoplay(player: Player) {
 		const previousTrack = player.queue.previous;
 		const node = this.manager.useableNodes;
+		const isSpotifyPluginEnabled = node.info.plugins.some((plugin: { name: string }) => plugin.name === "lavasrc-plugin");
+		const isSpotifySourceManagerEnabled = node.info.sourceManagers.includes("spotify");
 
-		if (!this.info) this.info = <LavalinkInfo>await node.rest.get("/v4/info");
-		const info = this.info;
-
-		const isSpotifySourceManagerEnabled = info.sourceManagers.includes("spotify");
-
-		if (!isSpotifySourceManagerEnabled) return;
+		if (!isSpotifySourceManagerEnabled || !isSpotifyPluginEnabled) return;
 
 		const trackID = this.extractSpotifyTrackID(previousTrack.uri);
 		const artistID = this.extractSpotifyArtistID(previousTrack.pluginInfo.artistUrl);
 
 		let identifier = "";
-		if (trackID && artistID) identifier = `sprec:seed_artists=${artistID}&seed_tracks=${trackID}`;
-		else if (trackID) identifier = `sprec:seed_tracks=${trackID}`;
-		else if (artistID) identifier = `sprec:seed_artists=${artistID}`;
+
+		identifier = [trackID && `seed_tracks=${trackID}`, artistID && `seed_artists=${artistID}`].filter(Boolean).join("&");
+
+		if (identifier) {
+			identifier = `sprec:${identifier}`;
+		}
 
 		if (!identifier) return;
+
 		const recommendedResult = (await node.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(identifier)}`)) as LavalinkResponse;
 
 		if (recommendedResult.loadType !== "playlist") return;
+
 		const playlistData = recommendedResult.data as PlaylistRawData;
 		const recommendedTrack = playlistData.tracks[0];
 
 		if (!recommendedTrack) return;
+
 		player.queue.add(TrackUtils.build(recommendedTrack, player.get("Internal_BotUser")));
 		player.play();
+
 		return;
 	}
 
