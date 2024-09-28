@@ -14,6 +14,7 @@ import {
 	WebSocketClosedEvent,
 } from "./Utils";
 import { Collection } from "@discordjs/collection";
+import { SponsorBlockChapterStarted, SponsorBlockChaptersLoaded, SponsorBlockSegmentSkipped, SponsorBlockSegmentsLoaded } from "./Utils";
 import { EventEmitter } from "events";
 import { Node, NodeOptions } from "./Node";
 import { Player, PlayerOptions, Track, UnresolvedTrack } from "./Player";
@@ -21,6 +22,7 @@ import { VoiceState } from "..";
 import managerCheck from "../utils/managerCheck";
 import { ClientUser, User } from "discord.js";
 import { blockedWords } from "../config/blockedWords";
+
 /**
  * The main hub for interacting with Lavalink and using Magmastream,
  */
@@ -120,7 +122,6 @@ export class Manager extends EventEmitter {
 					resumeTimeout: 1000,
 				},
 			],
-			shards: 1,
 			autoPlay: true,
 			usePriority: false,
 			clientName: "Magmastream",
@@ -476,8 +477,6 @@ export interface ManagerOptions {
 	clientId?: string;
 	/** Value to use for the `Client-Name` header. */
 	clientName?: string;
-	/** The shard count. */
-	shards?: number;
 	/** A array of plugins to use. */
 	plugins?: Plugin[];
 	/** Whether players should automatically play the next song. */
@@ -558,4 +557,8 @@ export interface ManagerEvents {
 	trackEnd: [player: Player, track: Track, payload: TrackEndEvent];
 	trackStuck: [player: Player, track: Track, payload: TrackStuckEvent];
 	trackError: [player: Player, track: Track | UnresolvedTrack, payload: TrackExceptionEvent];
+	SegmentsLoaded: [player: Player, track: Track | UnresolvedTrack, payload: SponsorBlockSegmentsLoaded];
+	SegmentSkipped: [player: Player, track: Track | UnresolvedTrack, payload: SponsorBlockSegmentSkipped];
+	ChapterStarted: [player: Player, track: Track | UnresolvedTrack, payload: SponsorBlockChapterStarted];
+	ChaptersLoaded: [player: Player, track: Track | UnresolvedTrack, payload: SponsorBlockChaptersLoaded];
 }

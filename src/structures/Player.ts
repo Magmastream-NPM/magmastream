@@ -1,6 +1,6 @@
 import { Filters } from "./Filters";
 import { LavalinkResponse, Manager, PlaylistRawData, SearchQuery, SearchResult } from "./Manager";
-import { LavalinkInfo, Node } from "./Node";
+import { LavalinkInfo, Node, SponsorBlockSegment } from "./Node";
 import { Queue } from "./Queue";
 import { Sizes, State, Structure, TrackSourceName, TrackUtils, VoiceState } from "./Utils";
 import * as _ from "lodash";
@@ -405,6 +405,28 @@ export class Player {
 	}
 
 	/**
+	 * Sets the sponsorblock for the player.
+	 * @param segments
+	 */
+	public async setSponsorBlock(segments: SponsorBlockSegment[] = ["sponsor", "selfpromo"]) {
+		return this.node.setSponsorBlock(this, segments);
+	}
+
+	/**
+	 * Gets the sponsorblock for the player.
+	 */
+	public async getSponsorBlock() {
+		return this.node.getSponsorBlock(this);
+	}
+
+	/**
+	 * Deletes the sponsorblock for the player.
+	 */
+	public async deleteSponsorBlock() {
+		return this.node.deleteSponsorBlock(this);
+	}
+
+	/**
 	 * Sets the track repeat.
 	 * @param repeat
 	 */
@@ -514,14 +536,13 @@ export class Player {
 			this.queue.splice(0, amount - 1);
 		}
 
-
 		this.node.rest.updatePlayer({
 			guildId: this.guild,
 			data: {
 				encodedTrack: null,
 			},
 		});
-		
+
 		this.manager.emit("playerStateUpdate", oldPlayer, this);
 		return this;
 	}
@@ -556,7 +577,7 @@ export class Player {
 		const oldPlayer = { ...this };
 		this.queue.unshift(this.queue.previous);
 		this.stop();
-		
+
 		this.manager.emit("playerStateUpdate", oldPlayer, this);
 		return this;
 	}

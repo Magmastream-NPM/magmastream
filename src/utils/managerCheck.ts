@@ -3,8 +3,7 @@ import { ManagerOptions } from "../structures/Manager";
 export default function managerCheck(options: ManagerOptions) {
 	if (!options) throw new TypeError("ManagerOptions must not be empty.");
 
-	const { autoPlay, clientId, clientName, defaultSearchPlatform, nodes, plugins, send, shards, trackPartial, usePriority, useNode, replaceYouTubeCredentials } =
-		options;
+	const { autoPlay, clientId, clientName, defaultSearchPlatform, nodes, plugins, send, trackPartial, usePriority, useNode, replaceYouTubeCredentials } = options;
 
 	if (typeof autoPlay !== "undefined" && typeof autoPlay !== "boolean") {
 		throw new TypeError('Manager option "autoPlay" must be a boolean.');
@@ -32,10 +31,6 @@ export default function managerCheck(options: ManagerOptions) {
 
 	if (typeof send !== "function") {
 		throw new TypeError('Manager option "send" must be present and a function.');
-	}
-
-	if (typeof shards !== "undefined" && typeof shards !== "number") {
-		throw new TypeError('Manager option "shards" must be a number.');
 	}
 
 	if (typeof trackPartial !== "undefined" && !Array.isArray(trackPartial)) {

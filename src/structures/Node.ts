@@ -8,12 +8,19 @@ import {
 	TrackStuckEvent,
 	TrackUtils,
 	WebSocketClosedEvent,
+	SponsorBlockChapterStarted,
+	SponsorBlockChaptersLoaded,
+	SponsorBlockSegmentsLoaded,
+	SponsorBlockSegmentSkipped,
 } from "./Utils";
 import { LavalinkResponse, Manager, PlaylistRawData } from "./Manager";
 import { Player, Track, UnresolvedTrack } from "./Player";
 import { Rest } from "./Rest";
 import nodeCheck from "../utils/nodeCheck";
 import WebSocket from "ws";
+
+export const validSponsorBlocks = ["sponsor", "selfpromo", "interaction", "intro", "outro", "preview", "music_offtopic", "filler"];
+export type SponsorBlockSegment = "sponsor" | "selfpromo" | "interaction" | "intro" | "outro" | "preview" | "music_offtopic" | "filler";
 
 export class Node {
 	/** The socket for the node. */
@@ -30,7 +37,8 @@ export class Node {
 	private reconnectTimeout?: NodeJS.Timeout;
 	private reconnectAttempts = 1;
 
-	public info: LavalinkInfo = null;
+	/** Actual Lavalink information of the node. */
+	public info: LavalinkInfo | null = null;
 
 	/** Returns if connected to the Node. */
 	public get connected(): boolean {
@@ -108,12 +116,15 @@ export class Node {
 	public connect(): void {
 		if (this.connected) return;
 
-		const headers = Object.assign({
+		const headers = {
 			Authorization: this.options.password,
-			"Num-Shards": String(this.manager.options.shards),
 			"User-Id": this.manager.options.clientId,
 			"Client-Name": this.manager.options.clientName,
-		});
+		};
+
+		if (this.sessionId) {
+			headers["Session-Id"] = this.sessionId;
+		}
 
 		this.socket = new WebSocket(`ws${this.options.secure ? "s" : ""}://${this.address}/v4/websocket`, { headers });
 		this.socket.on("open", this.open.bind(this));
@@ -197,7 +208,7 @@ export class Node {
 			case "ready":
 				this.rest.setSessionId(payload.sessionId);
 				this.sessionId = payload.sessionId;
-				this.info = <LavalinkInfo>await this.rest.get("/v4/info");
+				this.info = await this.fetchInfo();
 
 				if (this.options.resumeStatus) {
 					this.rest.patch(`/v4/sessions/${this.sessionId}`, {
@@ -245,6 +256,19 @@ export class Node {
 
 			case "WebSocketClosedEvent":
 				this.socketClosed(player, payload);
+				break;
+
+			case "SegmentsLoaded":
+				this.SponsorBlockSegmentLoaded(player, player.queue.current as Track, payload);
+				break;
+			case "SegmentSkipped":
+				this.SponsorBlockSegmentSkipped(player, player.queue.current as Track, payload);
+				break;
+			case "ChaptersLoaded":
+				this.SponsorBlockChaptersLoaded(player, player.queue.current as Track, payload);
+				break;
+			case "ChapterStarted":
+				this.SponsorBlockChapterStarted(player, player.queue.current as Track, payload);
 				break;
 
 			default:
@@ -449,6 +473,75 @@ export class Node {
 
 	protected socketClosed(player: Player, payload: WebSocketClosedEvent): void {
 		this.manager.emit("socketClosed", player, payload);
+	}
+
+	private SponsorBlockSegmentLoaded(player: Player, track: Track, payload: SponsorBlockSegmentsLoaded) {
+		return this.manager.emit("SegmentsLoaded", player, track, payload);
+	}
+
+	private SponsorBlockSegmentSkipped(player: Player, track: Track, payload: SponsorBlockSegmentSkipped) {
+		return this.manager.emit("SegmentSkipped", player, track, payload);
+	}
+
+	private SponsorBlockChaptersLoaded(player: Player, track: Track, payload: SponsorBlockChaptersLoaded) {
+		return this.manager.emit("ChaptersLoaded", player, track, payload);
+	}
+
+	private SponsorBlockChapterStarted(player: Player, track: Track, payload: SponsorBlockChapterStarted) {
+		return this.manager.emit("ChapterStarted", player, track, payload);
+	}
+	public async fetchInfo() {
+		return (await this.rest.get(`/v4/info`)) as LavalinkInfo;
+	}
+
+	public async getSponsorBlock(player: Player): Promise<SponsorBlockSegment[]> {
+		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "sponsorblock-plugin"))
+			throw new RangeError(`there is no sponsorblock-plugin available in the lavalink node: ${this.options.identifier}`);
+
+		return (await this.rest.get(`/v4/sessions/${this.sessionId}/players/${player.guild}/sponsorblock/categories`)) as SponsorBlockSegment[];
+	}
+
+	/**
+	 * Set the current sponsorblocks for the sponsorblock plugin
+	 * @param player passthrough the player
+	 * @returns void
+	 *
+	 * @example
+	 * ```ts
+	 * // use it on the player via player.setSponsorBlock();
+	 * const sponsorBlockSegments = await player.node.setSponsorBlock(player, ["sponsor", "selfpromo"]);
+	 * ```
+	 */
+	public async setSponsorBlock(player: Player, segments: SponsorBlockSegment[] = ["sponsor", "selfpromo"]): Promise<void> {
+		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "sponsorblock-plugin"))
+			throw new RangeError(`there is no sponsorblock-plugin available in the lavalink node: ${this.options.identifier}`);
+
+		if (!segments.length) throw new RangeError("No Segments provided. Did you mean to use 'deleteSponsorBlock'?");
+
+		if (segments.some((v) => !validSponsorBlocks.includes(v.toLowerCase())))
+			throw new SyntaxError(`You provided a sponsorblock which isn't valid, valid ones are: ${validSponsorBlocks.map((v) => `'${v}'`).join(", ")}`);
+
+		await this.rest.put(`/v4/sessions/${this.sessionId}/players/${player.guild}/sponsorblock/categories`, JSON.stringify(segments.map((v) => v.toLowerCase())));
+		return;
+	}
+
+	/**
+	 * Delete the sponsorblock plugins
+	 * @param player passthrough the player
+	 * @returns void
+	 *
+	 * @example
+	 * ```ts
+	 * // use it on the player via player.deleteSponsorBlock();
+	 * const sponsorBlockSegments = await player.node.deleteSponsorBlock(player);
+	 * ```
+	 */
+	public async deleteSponsorBlock(player: Player): Promise<void> {
+		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "sponsorblock-plugin"))
+			throw new RangeError(`there is no sponsorblock-plugin available in the lavalink node: ${this.options.identifier}`);
+
+		await this.rest.delete(`/v4/sessions/${this.sessionId}/players/${player.guild}/sponsorblock/categories`);
+		return;
 	}
 }
 

@@ -59,7 +59,9 @@ export class Rest {
 			const response = await axios(config);
 			return response.data;
 		} catch (error) {
-			if (error?.response?.status === 404) {
+			if (error?.response.data.message === "Guild not found") {
+				return [];
+			} else if (error?.response?.status === 404) {
 				this.node.destroy();
 				this.node.manager.createNode(this.node.options).connect();
 			}
@@ -81,6 +83,11 @@ export class Rest {
 	/* Sends a POST request to the specified endpoint and returns the response data. */
 	public async post(endpoint: string, body: unknown): Promise<unknown> {
 		return await this.request("POST", endpoint, body);
+	}
+
+	/* Sends a PUT request to the specified endpoint and returns the response data. */
+	public async put(endpoint: string, body: unknown): Promise<unknown> {
+		return await this.request("PUT", endpoint, body);
 	}
 
 	/* Sends a DELETE request to the specified endpoint and returns the response data. */

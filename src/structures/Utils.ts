@@ -229,9 +229,22 @@ export type LoadType = "track" | "playlist" | "search" | "empty" | "error";
 
 export type State = "CONNECTED" | "CONNECTING" | "DISCONNECTED" | "DISCONNECTING" | "DESTROYING";
 
-export type PlayerEvents = TrackStartEvent | TrackEndEvent | TrackStuckEvent | TrackExceptionEvent | WebSocketClosedEvent;
+export type SponsorBlockSegmentEvents = SponsorBlockSegmentSkipped | SponsorBlockSegmentsLoaded | SponsorBlockChapterStarted | SponsorBlockChaptersLoaded;
 
-export type PlayerEventType = "TrackStartEvent" | "TrackEndEvent" | "TrackExceptionEvent" | "TrackStuckEvent" | "WebSocketClosedEvent";
+export type SponsorBlockSegmentEventType = "SegmentSkipped" | "SegmentsLoaded" | "ChapterStarted" | "ChaptersLoaded";
+
+export type PlayerEvents = TrackStartEvent | TrackEndEvent | TrackStuckEvent | TrackExceptionEvent | WebSocketClosedEvent | SponsorBlockSegmentEvents;
+
+export type PlayerEventType =
+	| "TrackStartEvent"
+	| "TrackEndEvent"
+	| "TrackExceptionEvent"
+	| "TrackStuckEvent"
+	| "WebSocketClosedEvent"
+	| "SegmentSkipped"
+	| "SegmentsLoaded"
+	| "ChaptersLoaded"
+	| "ChapterStarted";
 
 export type TrackEndReason = "finished" | "loadFailed" | "stopped" | "replaced" | "cleanup";
 
@@ -337,6 +350,61 @@ export interface WebSocketClosedEvent extends PlayerEvent {
 	code: number;
 	reason: string;
 	byRemote: boolean;
+}
+
+export interface SponsorBlockSegmentsLoaded extends PlayerEvent {
+	type: "SegmentsLoaded";
+	/* The loaded segments */
+	segments: {
+		/* The category name */
+		category: string;
+		/* In milliseconds */
+		start: number;
+		/* In milliseconds */
+		end: number;
+	}[];
+}
+export interface SponsorBlockSegmentSkipped extends PlayerEvent {
+	type: "SegmentSkipped";
+	/* The skipped segment*/
+	segment: {
+		/* The category name */
+		category: string;
+		/* In milliseconds */
+		start: number;
+		/* In milliseconds */
+		end: number;
+	};
+}
+
+export interface SponsorBlockChapterStarted extends PlayerEvent {
+	type: "ChapterStarted";
+	/** The chapter which started */
+	chapter: {
+		/** The name of the chapter */
+		name: string;
+		/* In milliseconds */
+		start: number;
+		/* In milliseconds */
+		end: number;
+		/* In milliseconds */
+		duration: number;
+	};
+}
+
+export interface SponsorBlockChaptersLoaded extends PlayerEvent {
+	type: "ChaptersLoaded";
+	/** All chapters loaded */
+	chapters: {
+		/** The name of the chapter */
+		name: string;
+		/* In milliseconds */
+		start: number;
+		/* In milliseconds */
+		end: number;
+		/* In milliseconds */
+		duration: number;
+	}[];
 }
 
 export interface PlayerUpdate {
