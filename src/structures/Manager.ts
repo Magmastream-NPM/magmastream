@@ -557,8 +557,8 @@ export interface ManagerEvents {
 	trackEnd: [player: Player, track: Track, payload: TrackEndEvent];
 	trackStuck: [player: Player, track: Track, payload: TrackStuckEvent];
 	trackError: [player: Player, track: Track | UnresolvedTrack, payload: TrackExceptionEvent];
-	SegmentsLoaded: [player: Player, track: Track | UnresolvedTrack, payload: SponsorBlockSegmentsLoaded];
-	SegmentSkipped: [player: Player, track: Track | UnresolvedTrack, payload: SponsorBlockSegmentSkipped];
-	ChapterStarted: [player: Player, track: Track | UnresolvedTrack, payload: SponsorBlockChapterStarted];
-	ChaptersLoaded: [player: Player, track: Track | UnresolvedTrack, payload: SponsorBlockChaptersLoaded];
+	segmentsLoaded: [player: Player, track: Track | UnresolvedTrack, payload: SponsorBlockSegmentsLoaded];
+	segmentSkipped: [player: Player, track: Track | UnresolvedTrack, payload: SponsorBlockSegmentSkipped];
+	chapterStarted: [player: Player, track: Track | UnresolvedTrack, payload: SponsorBlockChapterStarted];
+	chaptersLoaded: [player: Player, track: Track | UnresolvedTrack, payload: SponsorBlockChaptersLoaded];
 }

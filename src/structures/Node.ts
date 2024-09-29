@@ -259,16 +259,16 @@ export class Node {
 				break;
 
 			case "SegmentsLoaded":
-				this.SponsorBlockSegmentLoaded(player, player.queue.current as Track, payload);
+				this.sponsorBlockSegmentLoaded(player, player.queue.current as Track, payload);
 				break;
 			case "SegmentSkipped":
-				this.SponsorBlockSegmentSkipped(player, player.queue.current as Track, payload);
+				this.sponsorBlockSegmentSkipped(player, player.queue.current as Track, payload);
 				break;
 			case "ChaptersLoaded":
-				this.SponsorBlockChaptersLoaded(player, player.queue.current as Track, payload);
+				this.sponsorBlockChaptersLoaded(player, player.queue.current as Track, payload);
 				break;
 			case "ChapterStarted":
-				this.SponsorBlockChapterStarted(player, player.queue.current as Track, payload);
+				this.sponsorBlockChapterStarted(player, player.queue.current as Track, payload);
 				break;
 
 			default:
@@ -328,13 +328,16 @@ export class Node {
 		if (!player.isAutoplay || !previousTrack) return;
 
 		const hasSpotifyURL = ["spotify.com", "open.spotify.com"].some((url) => previousTrack.uri.includes(url));
+
 		if (hasSpotifyURL) {
 			const spotifySuccess = await this.handleSpotifyAutoplay(player); // Check if Spotify autoplay was successful
+
 			if (spotifySuccess) return; // If successful, exit the function
 		}
 
 		const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) => previousTrack.uri.includes(url));
 		let videoID = previousTrack.uri.substring(previousTrack.uri.indexOf("=") + 1);
+
 		if (!hasYouTubeURL) {
 			const res = await player.search(`${previousTrack.author} - ${previousTrack.title}`, player.get("Internal_BotUser"));
 			videoID = res.tracks[0].uri.substring(res.tracks[0].uri.indexOf("=") + 1);
@@ -349,11 +352,15 @@ export class Node {
 		} while (track.uri.includes(searchURI));
 
 		const res = await player.search(searchURI, player.get("Internal_BotUser"));
+
 		if (res.loadType === "empty" || res.loadType === "error") return;
+
 		let tracks = res.tracks;
+
 		if (res.loadType === "playlist") tracks = res.playlist.tracks;
 
 		const foundTrack = tracks.sort(() => Math.random() - 0.5).find((shuffledTrack) => shuffledTrack.uri !== track.uri);
+
 		if (!foundTrack) return;
 		if (this.manager.options.replaceYouTubeCredentials) {
 			foundTrack.author = foundTrack.author.replace("- Topic", "");
@@ -361,6 +368,7 @@ export class Node {
 
 			if (foundTrack.title.includes("-")) {
 				const [author, title] = foundTrack.title.split("-").map((str: string) => str.trim());
+
 				foundTrack.author = author;
 				foundTrack.title = title;
 			}
@@ -480,20 +488,20 @@ export class Node {
 		this.manager.emit("socketClosed", player, payload);
 	}
 
-	private SponsorBlockSegmentLoaded(player: Player, track: Track, payload: SponsorBlockSegmentsLoaded) {
-		return this.manager.emit("SegmentsLoaded", player, track, payload);
+	private sponsorBlockSegmentLoaded(player: Player, track: Track, payload: SponsorBlockSegmentsLoaded) {
+		return this.manager.emit("segmentsLoaded", player, track, payload);
 	}
 
-	private SponsorBlockSegmentSkipped(player: Player, track: Track, payload: SponsorBlockSegmentSkipped) {
-		return this.manager.emit("SegmentSkipped", player, track, payload);
+	private sponsorBlockSegmentSkipped(player: Player, track: Track, payload: SponsorBlockSegmentSkipped) {
+		return this.manager.emit("segmentSkipped", player, track, payload);
 	}
 
-	private SponsorBlockChaptersLoaded(player: Player, track: Track, payload: SponsorBlockChaptersLoaded) {
-		return this.manager.emit("ChaptersLoaded", player, track, payload);
+	private sponsorBlockChaptersLoaded(player: Player, track: Track, payload: SponsorBlockChaptersLoaded) {
+		return this.manager.emit("chaptersLoaded", player, track, payload);
 	}
 
-	private SponsorBlockChapterStarted(player: Player, track: Track, payload: SponsorBlockChapterStarted) {
-		return this.manager.emit("ChapterStarted", player, track, payload);
+	private sponsorBlockChapterStarted(player: Player, track: Track, payload: SponsorBlockChapterStarted) {
+		return this.manager.emit("chapterStarted", player, track, payload);
 	}
 	public async fetchInfo() {
 		return (await this.rest.get(`/v4/info`)) as LavalinkInfo;
