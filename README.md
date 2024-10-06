@@ -1,6 +1,10 @@
 <center><img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&height=200&section=header&text=Magmastream&fontSize=80&fontAlignY=35&animation=twinkling&fontColor=gradient" /></center>
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-0-orange.svg?style=flat-square)](#contributors-)
+<p align="center">
+  <a href="#contributors-">
+    <img src="https://img.shields.io/badge/all_contributors-0-orange.svg?style=flat-square" alt="All Contributors" />
+  </a>
+</p>
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 [![License](https://img.shields.io/badge/license-Apache-blue.svg)](https://github.com/Magmastream-NPM/magmastream/blob/main/LICENSE)
