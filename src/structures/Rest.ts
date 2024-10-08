@@ -43,6 +43,11 @@ export class Rest {
 		return await this.delete(`/v4/sessions/${this.sessionId}/players/${guildId}`);
 	}
 
+	/** Updates the session status for resuming. */
+	public async updateSession(resuming: boolean, timeout: number): Promise<unknown> {
+		return await this.patch(`/v4/sessions/${this.sessionId}`, { resuming, timeout });
+	}
+
 	/* Sends a GET request to the specified endpoint and returns the response data. */
 	private async request(method: string, endpoint: string, body?: unknown): Promise<unknown> {
 		const config: AxiosRequestConfig = {

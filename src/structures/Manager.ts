@@ -22,6 +22,16 @@ import { VoiceState } from "..";
 import managerCheck from "../utils/managerCheck";
 import { ClientUser, User } from "discord.js";
 import { blockedWords } from "../config/blockedWords";
+import fs from "fs";
+import path from "path";
+
+const playerStatesFilePath = path.join(process.cwd(), "node_modules", "magmastream", "dist", "sessionData", "playerStates.json");
+
+const configDir = path.dirname(playerStatesFilePath);
+if (!fs.existsSync(configDir)) {
+	fs.mkdirSync(configDir, { recursive: true });
+	console.log(`Created directory at ${configDir}`);
+}
 
 /**
  * The main hub for interacting with Lavalink and using Magmastream,
@@ -50,6 +60,71 @@ export class Manager extends EventEmitter {
 	/** The options that were set. */
 	public readonly options: ManagerOptions;
 	private initiated = false;
+
+	/** Loads player states from the JSON file. */
+	public loadPlayerStates(): void {
+		if (fs.existsSync(playerStatesFilePath)) {
+			const data = fs.readFileSync(playerStatesFilePath, "utf-8");
+			const playerStates = JSON.parse(data);
+
+			for (const guildId in playerStates) {
+				const state = playerStates[guildId];
+				const player = new Player(state); // Assuming Player constructor can take state
+				this.players.set(guildId, player);
+			}
+
+			console.log("Loaded player states from playerStates.json");
+		}
+	}
+
+	/** Saves player states to the JSON file. */
+	public savePlayerStates(players: Map<string, Player>): void {
+		const playerStates: Record<string, Player> = {}; // Keep this as Record<string, Player>
+
+		players.forEach((player, guildId) => {
+			playerStates[guildId] = this.serializePlayer(player) as unknown as Player; // Directly assign the player instance
+		});
+
+		this.cleanupInactivePlayers(playerStates); // Pass the correct type
+
+		fs.writeFileSync(playerStatesFilePath, JSON.stringify(playerStates, null, 2), "utf-8");
+		console.log("Saved player states to playerStates.json");
+	}
+
+	/** Serializes a Player instance to avoid circular references. */
+	private serializePlayer(player: Player): Record<string, unknown> {
+		const seen = new WeakSet();
+		const serialize = (obj: unknown) => {
+			if (obj && typeof obj === "object") {
+				if (seen.has(obj)) return; // Prevent circular reference
+				seen.add(obj);
+			}
+			return obj;
+		};
+
+		// Create a deep copy of the player object while avoiding circular references
+		const serializedPlayer = JSON.parse(
+			JSON.stringify(player, (key, value) => {
+				// Exclude properties that cause circular references
+				if (key === "filters" || key === "manager") {
+					return undefined; // Exclude these properties
+				}
+				return serialize(value);
+			})
+		);
+
+		return serializedPlayer;
+	}
+
+	/** Check for players that are no longer active */
+	private cleanupInactivePlayers(playerStates: Record<string, Player>): void {
+		for (const guildId of Object.keys(playerStates)) {
+			const player = playerStates[guildId]; // Get the player from the states
+			if (!player || player.state === "DISCONNECTED") {
+				delete playerStates[guildId];
+			}
+		}
+	}
 
 	/** Returns the nodes that has the least load. */
 	private get leastLoadNode(): Collection<string, Node> {
@@ -94,12 +169,22 @@ export class Manager extends EventEmitter {
 		return this.options.usePriority ? this.priorityNode : this.options.useNode === "leastLoad" ? this.leastLoadNode.first() : this.leastPlayersNode.first();
 	}
 
+	/** Register savePlayerStates events */
+	private registerPlayerStateEvents(): void {
+		const events = ["playerStateUpdate", "playerDestroy", "queueEnd", "trackStart", "trackEnd"];
+		for (const event of events as (keyof ManagerEvents)[]) {
+			this.on(event, () => this.savePlayerStates(this.players));
+		}
+	}
+
 	/**
 	 * Initiates the Manager class.
 	 * @param options
 	 */
 	constructor(options: ManagerOptions) {
 		super();
+
+		this.registerPlayerStateEvents();
 
 		managerCheck(options);
 
@@ -381,6 +466,7 @@ export class Manager extends EventEmitter {
 	 */
 	public destroy(guild: string): void {
 		this.players.delete(guild);
+		this.savePlayerStates(this.players);
 	}
 
 	/**
