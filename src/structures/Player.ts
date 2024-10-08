@@ -9,7 +9,7 @@ import { ClientUser, Message, User } from "discord.js";
 
 export class Player {
 	/** The Queue for the Player. */
-	public readonly queue = new (Structure.get("Queue"))() as Queue;
+	public readonly queue: Queue;
 	/** The filters applied to the audio. */
 	public filters: Filters;
 	/** Whether the queue repeats the track. */
@@ -100,6 +100,9 @@ export class Player {
 		this.node = node || this.manager.useableNodes;
 
 		if (!this.node) throw new RangeError("No available nodes.");
+
+		// Initialize the queue with guild and manager
+		this.queue = new Queue(this.guild, this.manager);
 
 		this.manager.players.set(options.guild, this);
 		this.manager.emit("playerCreate", this);

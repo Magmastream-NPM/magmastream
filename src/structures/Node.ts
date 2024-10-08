@@ -18,9 +18,20 @@ import { Player, Track, UnresolvedTrack } from "./Player";
 import { Rest } from "./Rest";
 import nodeCheck from "../utils/nodeCheck";
 import WebSocket from "ws";
+import fs from "fs";
+import path from "path";
 
 export const validSponsorBlocks = ["sponsor", "selfpromo", "interaction", "intro", "outro", "preview", "music_offtopic", "filler"];
 export type SponsorBlockSegment = "sponsor" | "selfpromo" | "interaction" | "intro" | "outro" | "preview" | "music_offtopic" | "filler";
+
+const sessionIdsFilePath = path.join(process.cwd(), "node_modules", "magmastream", "dist", "sessionData", "sessionIds.json");
+let sessionIdsMap: Map<string, string> = new Map();
+
+const configDir = path.dirname(sessionIdsFilePath);
+if (!fs.existsSync(configDir)) {
+	fs.mkdirSync(configDir, { recursive: true });
+	console.log(`Created directory at ${configDir}`);
+}
 
 export class Node {
 	/** The socket for the node. */
@@ -110,6 +121,33 @@ export class Node {
 		this.manager.nodes.set(this.options.identifier, this);
 		this.manager.emit("nodeCreate", this);
 		this.rest = new Rest(this);
+
+		this.createSessionIdsFile(); // Create the session IDs file on initialization
+		this.loadSessionIds(); // Load session IDs on initialization
+	}
+
+	/** Creates the sessionIds.json file if it doesn't exist. */
+	public createSessionIdsFile(): void {
+		if (!fs.existsSync(sessionIdsFilePath)) {
+			fs.writeFileSync(sessionIdsFilePath, JSON.stringify({}), "utf-8");
+			console.log(`Created sessionIds.json at ${sessionIdsFilePath}`);
+		}
+	}
+
+	/** Loads session IDs from the sessionIds.json file. */
+	public loadSessionIds(): void {
+		if (fs.existsSync(sessionIdsFilePath)) {
+			const sessionIdsData = fs.readFileSync(sessionIdsFilePath, "utf-8");
+			sessionIdsMap = new Map(Object.entries(JSON.parse(sessionIdsData)));
+			console.log(`Loaded session IDs from JSON file`);
+		}
+	}
+
+	/** Updates the session ID in the sessionIds.json file. */
+	public updateSessionId(): void {
+		sessionIdsMap.set(this.options.identifier, this.sessionId); // Store session ID
+		fs.writeFileSync(sessionIdsFilePath, JSON.stringify(Object.fromEntries(sessionIdsMap))); // Update JSON file
+		console.log(`Updated session ID for ${this.options.identifier} to ${this.sessionId}`);
 	}
 
 	/** Connects to the Node. */
@@ -124,6 +162,10 @@ export class Node {
 
 		if (this.sessionId) {
 			headers["Session-Id"] = this.sessionId;
+		} else if (this.options.resumeStatus && sessionIdsMap.has(this.options.identifier)) {
+			this.sessionId = sessionIdsMap.get(this.options.identifier) || null;
+			headers["Session-Id"] = this.sessionId;
+			console.log(`Resuming session with ID: ${this.sessionId}`);
 		}
 
 		this.socket = new WebSocket(`ws${this.options.secure ? "s" : ""}://${this.address}/v4/websocket`, { headers });
@@ -208,7 +250,12 @@ export class Node {
 			case "ready":
 				this.rest.setSessionId(payload.sessionId);
 				this.sessionId = payload.sessionId;
+				this.updateSessionId(); // Call to update session ID
 				this.info = await this.fetchInfo();
+				// Log if the session was resumed successfully
+				if (payload.resumed) {
+					console.log(`Session resumed successfully for ${this.options.identifier}`);
+				}
 
 				if (this.options.resumeStatus) {
 					this.rest.patch(`/v4/sessions/${this.sessionId}`, {
