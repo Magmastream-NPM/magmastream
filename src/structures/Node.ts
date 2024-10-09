@@ -255,6 +255,8 @@ export class Node {
 				// Log if the session was resumed successfully
 				if (payload.resumed) {
 					console.log(`Session resumed successfully for ${this.options.identifier}`);
+					// work in progress
+					// this.manager.loadPlayerStates();
 				}
 
 				if (this.options.resumeStatus) {

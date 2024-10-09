@@ -69,8 +69,20 @@ export class Manager extends EventEmitter {
 
 			for (const guildId in playerStates) {
 				const state = playerStates[guildId];
-				const player = new Player(state); // Assuming Player constructor can take state
-				this.players.set(guildId, player);
+
+				if (state && typeof state === "object" && state.guild) {
+					const playerOptions: PlayerOptions = {
+						guild: state.options.guild,
+						textChannel: state.options.textChannel,
+						voiceChannel: state.options.voiceChannel,
+						selfDeafen: state.options.selfDeafen,
+						volume: state.options.volume,
+					};
+
+					this.create(playerOptions);
+					// const player = new Player(playerOptions);
+					// this.players.set(state.options.guild, player);
+				}
 			}
 
 			console.log("Loaded player states from playerStates.json");
@@ -79,13 +91,13 @@ export class Manager extends EventEmitter {
 
 	/** Saves player states to the JSON file. */
 	public savePlayerStates(players: Map<string, Player>): void {
-		const playerStates: Record<string, Player> = {}; // Keep this as Record<string, Player>
+		const playerStates: Record<string, Player> = {};
 
 		players.forEach((player, guildId) => {
-			playerStates[guildId] = this.serializePlayer(player) as unknown as Player; // Directly assign the player instance
+			playerStates[guildId] = this.serializePlayer(player) as unknown as Player;
 		});
 
-		this.cleanupInactivePlayers(playerStates); // Pass the correct type
+		this.cleanupInactivePlayers(playerStates);
 
 		fs.writeFileSync(playerStatesFilePath, JSON.stringify(playerStates, null, 2), "utf-8");
 		console.log("Saved player states to playerStates.json");
