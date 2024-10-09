@@ -256,6 +256,8 @@ export class Node {
 				if (payload.resumed) {
 					console.log(`Session resumed successfully for ${this.options.identifier}`);
 					// work in progress
+					const players = await this.rest.getAllPlayers();
+					console.log(player);
 					// this.manager.loadPlayerStates();
 				}
 
