@@ -62,34 +62,52 @@ export class Manager extends EventEmitter {
 	private initiated = false;
 
 	/** Loads player states from the JSON file. */
-	public loadPlayerStates(): void {
-		if (fs.existsSync(playerStatesFilePath)) {
-			const data = fs.readFileSync(playerStatesFilePath, "utf-8");
-			const playerStates = JSON.parse(data);
+	public loadPlayerStates(nodeId: string): Promise<void> {
+		return new Promise((resolve, reject) => {
+			if (fs.existsSync(playerStatesFilePath)) {
+				const data = fs.readFileSync(playerStatesFilePath, "utf-8");
+				const playerStates = JSON.parse(data);
 
-			for (const guildId in playerStates) {
-				const state = playerStates[guildId];
+				for (const guildId in playerStates) {
+					const state = playerStates[guildId];
 
-				if (state && typeof state === "object" && state.guild) {
-					const playerOptions: PlayerOptions = {
-						guild: state.options.guild,
-						textChannel: state.options.textChannel,
-						voiceChannel: state.options.voiceChannel,
-						selfDeafen: state.options.selfDeafen,
-						volume: state.options.volume,
-					};
+					if (state && typeof state === "object" && state.guild && state.node.options.identifier === nodeId) {
+						const playerOptions: PlayerOptions = {
+							guild: state.options.guild,
+							textChannel: state.options.textChannel,
+							voiceChannel: state.options.voiceChannel,
+							selfDeafen: state.options.selfDeafen,
+							volume: state.options.volume,
+						};
 
-					this.create(playerOptions);
-					// const player = new Player(playerOptions);
-					// this.players.set(state.options.guild, player);
+						this.create(playerOptions);
+					}
+
+					const player = this.get(state.options.guild);
+					player.pause(state.paused);
+					player.seek(state.position);
+					player.setTrackRepeat(state.trackRepeat);
+					player.setQueueRepeat(state.queueRepeat);
+					// player.setDynamicRepeat(state.dynamicRepeat, 6969)??? why milliseconds?
+					if (state.isAutoplay) {
+						player.setAutoplay(state.isAutoplay, state.data.Internal_BotUser);
+					}
+					if (state.queue.current !== null) {
+						player.queue.add(TrackUtils.build(state.queue.current));
+						if (Array.isArray(state.queue)) {
+							player.queue.add(state.queue.map((trackData) => TrackUtils.build(trackData))); // Convert to Track instances
+						}
+					}
 				}
-			}
 
-			console.log("Loaded player states from playerStates.json");
-		}
+				console.log("Loaded player states from playerStates.json");
+				resolve();
+			} else {
+				reject(new Error("Player states file does not exist."));
+			}
+		});
 	}
 
-	/** Saves player states to the JSON file. */
 	public savePlayerStates(players: Map<string, Player>): void {
 		const playerStates: Record<string, Player> = {};
 
@@ -100,27 +118,37 @@ export class Manager extends EventEmitter {
 		this.cleanupInactivePlayers(playerStates);
 
 		fs.writeFileSync(playerStatesFilePath, JSON.stringify(playerStates, null, 2), "utf-8");
+
 		console.log("Saved player states to playerStates.json");
 	}
 
 	/** Serializes a Player instance to avoid circular references. */
 	private serializePlayer(player: Player): Record<string, unknown> {
 		const seen = new WeakSet();
-		const serialize = (obj: unknown) => {
+
+		const serialize = (obj: unknown): unknown => {
 			if (obj && typeof obj === "object") {
-				if (seen.has(obj)) return; // Prevent circular reference
+				if (seen.has(obj)) return;
+
 				seen.add(obj);
 			}
 			return obj;
 		};
 
-		// Create a deep copy of the player object while avoiding circular references
 		const serializedPlayer = JSON.parse(
 			JSON.stringify(player, (key, value) => {
-				// Exclude properties that cause circular references
 				if (key === "filters" || key === "manager") {
-					return undefined; // Exclude these properties
+					return null;
 				}
+
+				if (key === "queue") {
+					return {
+						...value,
+
+						current: value.current || null,
+					};
+				}
+
 				return serialize(value);
 			})
 		);
@@ -131,7 +159,8 @@ export class Manager extends EventEmitter {
 	/** Check for players that are no longer active */
 	private cleanupInactivePlayers(playerStates: Record<string, Player>): void {
 		for (const guildId of Object.keys(playerStates)) {
-			const player = playerStates[guildId]; // Get the player from the states
+			const player = playerStates[guildId];
+
 			if (!player || player.state === "DISCONNECTED") {
 				delete playerStates[guildId];
 			}
@@ -183,7 +212,7 @@ export class Manager extends EventEmitter {
 
 	/** Register savePlayerStates events */
 	private registerPlayerStateEvents(): void {
-		const events = ["playerStateUpdate", "playerDestroy", "queueEnd", "trackStart", "trackEnd"];
+		const events = ["playerDestroy", "queueEnd", "trackStart", "trackEnd"];
 		for (const event of events as (keyof ManagerEvents)[]) {
 			this.on(event, () => this.savePlayerStates(this.players));
 		}
