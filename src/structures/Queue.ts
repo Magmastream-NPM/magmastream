@@ -1,5 +1,6 @@
 import { Track, UnresolvedTrack } from "./Player";
 import { TrackUtils } from "./Utils";
+import { Manager } from "./Manager"; // Import Manager to access emit method
 
 /**
  * The player's queue, the `current` property is the currently playing track, think of the rest as the up-coming tracks.
@@ -27,12 +28,25 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 	/** The previous track */
 	public previous: Track | UnresolvedTrack | null = null;
 
+	/** The Manager instance. */
+	public manager: Manager;
+
+	/** The guild property. */
+	guild: string;
+
+	constructor(guild: string, manager: Manager) {
+		super();
+		this.manager = manager; // Initialize the manager
+		this.guild = guild; // Initialize the guild property
+	}
+
 	/**
 	 * Adds a track to the queue.
 	 * @param track
 	 * @param [offset=null]
 	 */
 	public add(track: (Track | UnresolvedTrack) | (Track | UnresolvedTrack)[], offset?: number): void {
+		const oldPlayer = { ...this.manager.players.get(this.guild) }; // Capture the old player state
 		if (!TrackUtils.validate(track)) {
 			throw new RangeError('Track must be a "Track" or "Track[]".');
 		}
@@ -67,6 +81,9 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 				}
 			}
 		}
+
+		// Emit the playerStateUpdate event after modifying the queue
+		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild));
 	}
 
 	/**
@@ -100,7 +117,10 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 
 	/** Clears the queue. */
 	public clear(): void {
+		const oldPlayer = { ...this.manager.players.get(this.guild) }; // Capture the old player state
 		this.splice(0);
+		// Emit the playerStateUpdate event after modifying the queue
+		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild));
 	}
 
 	/** Shuffles the queue. */

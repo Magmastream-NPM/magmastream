@@ -22,6 +22,16 @@ import { VoiceState } from "..";
 import managerCheck from "../utils/managerCheck";
 import { ClientUser, User } from "discord.js";
 import { blockedWords } from "../config/blockedWords";
+import fs from "fs";
+import path from "path";
+
+const playerStatesFilePath = path.join(process.cwd(), "node_modules", "magmastream", "dist", "sessionData", "playerStates.json");
+
+const configDir = path.dirname(playerStatesFilePath);
+if (!fs.existsSync(configDir)) {
+	fs.mkdirSync(configDir, { recursive: true });
+	console.log(`Created directory at ${configDir}`);
+}
 
 /**
  * The main hub for interacting with Lavalink and using Magmastream,
@@ -50,6 +60,112 @@ export class Manager extends EventEmitter {
 	/** The options that were set. */
 	public readonly options: ManagerOptions;
 	private initiated = false;
+
+	/** Loads player states from the JSON file. */
+	public loadPlayerStates(nodeId: string): Promise<void> {
+		return new Promise((resolve, reject) => {
+			if (fs.existsSync(playerStatesFilePath)) {
+				const data = fs.readFileSync(playerStatesFilePath, "utf-8");
+				const playerStates = JSON.parse(data);
+
+				for (const guildId in playerStates) {
+					const state = playerStates[guildId];
+
+					if (state && typeof state === "object" && state.guild && state.node.options.identifier === nodeId) {
+						const playerOptions: PlayerOptions = {
+							guild: state.options.guild,
+							textChannel: state.options.textChannel,
+							voiceChannel: state.options.voiceChannel,
+							selfDeafen: state.options.selfDeafen,
+							volume: state.options.volume,
+						};
+
+						this.create(playerOptions);
+					}
+
+					const player = this.get(state.options.guild);
+					player.pause(state.paused);
+					player.seek(state.position);
+					player.setTrackRepeat(state.trackRepeat);
+					player.setQueueRepeat(state.queueRepeat);
+					// player.setDynamicRepeat(state.dynamicRepeat, 6969)??? why milliseconds?
+					if (state.isAutoplay) {
+						player.setAutoplay(state.isAutoplay, state.data.Internal_BotUser);
+					}
+					if (state.queue.current !== null) {
+						player.queue.add(TrackUtils.build(state.queue.current));
+						if (Array.isArray(state.queue)) {
+							player.queue.add(state.queue.map((trackData) => TrackUtils.build(trackData))); // Convert to Track instances
+						}
+					}
+				}
+
+				console.log("Loaded player states from playerStates.json");
+				resolve();
+			} else {
+				reject(new Error("Player states file does not exist."));
+			}
+		});
+	}
+
+	public savePlayerStates(players: Map<string, Player>): void {
+		const playerStates: Record<string, Player> = {};
+
+		players.forEach((player, guildId) => {
+			playerStates[guildId] = this.serializePlayer(player) as unknown as Player;
+		});
+
+		this.cleanupInactivePlayers(playerStates);
+
+		fs.writeFileSync(playerStatesFilePath, JSON.stringify(playerStates, null, 2), "utf-8");
+
+		console.log("Saved player states to playerStates.json");
+	}
+
+	/** Serializes a Player instance to avoid circular references. */
+	private serializePlayer(player: Player): Record<string, unknown> {
+		const seen = new WeakSet();
+
+		const serialize = (obj: unknown): unknown => {
+			if (obj && typeof obj === "object") {
+				if (seen.has(obj)) return;
+
+				seen.add(obj);
+			}
+			return obj;
+		};
+
+		const serializedPlayer = JSON.parse(
+			JSON.stringify(player, (key, value) => {
+				if (key === "filters" || key === "manager") {
+					return null;
+				}
+
+				if (key === "queue") {
+					return {
+						...value,
+
+						current: value.current || null,
+					};
+				}
+
+				return serialize(value);
+			})
+		);
+
+		return serializedPlayer;
+	}
+
+	/** Check for players that are no longer active */
+	private cleanupInactivePlayers(playerStates: Record<string, Player>): void {
+		for (const guildId of Object.keys(playerStates)) {
+			const player = playerStates[guildId];
+
+			if (!player || player.state === "DISCONNECTED") {
+				delete playerStates[guildId];
+			}
+		}
+	}
 
 	/** Returns the nodes that has the least load. */
 	private get leastLoadNode(): Collection<string, Node> {
@@ -94,12 +210,22 @@ export class Manager extends EventEmitter {
 		return this.options.usePriority ? this.priorityNode : this.options.useNode === "leastLoad" ? this.leastLoadNode.first() : this.leastPlayersNode.first();
 	}
 
+	/** Register savePlayerStates events */
+	private registerPlayerStateEvents(): void {
+		const events = ["playerDestroy", "queueEnd", "trackStart", "trackEnd"];
+		for (const event of events as (keyof ManagerEvents)[]) {
+			this.on(event, () => this.savePlayerStates(this.players));
+		}
+	}
+
 	/**
 	 * Initiates the Manager class.
 	 * @param options
 	 */
 	constructor(options: ManagerOptions) {
 		super();
+
+		this.registerPlayerStateEvents();
 
 		managerCheck(options);
 
@@ -381,6 +507,7 @@ export class Manager extends EventEmitter {
 	 */
 	public destroy(guild: string): void {
 		this.players.delete(guild);
+		this.savePlayerStates(this.players);
 	}
 
 	/**

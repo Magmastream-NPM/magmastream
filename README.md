@@ -3,30 +3,7 @@
 </p>
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-<p align="center">
-  <a href="#contributors-">
-    <img src="https://img.shields.io/badge/all_contributors-0-orange.svg?style=flat-square" alt="All Contributors" />
-  </a>
-  <a href="https://github.com/Magmastream-NPM/magmastream/blob/main/LICENSE">
-    <img src="https://img.shields.io/badge/license-Apache-blue.svg" alt="License" />
-  </a>
-  <a href="https://github.com/Magmastream-NPM/magmastream/pulls">
-    <img src="https://img.shields.io/badge/contributions-welcome-brightgreen.svg" alt="Contributions Welcome" />
-  </a>
-  <img src="https://img.shields.io/github/stars/Magmastream-NPM/magmastream.svg" alt="GitHub Stars" />
-  <a href="https://github.com/Magmastream-NPM/magmastream/issues">
-    <img src="https://img.shields.io/github/issues/Magmastream-NPM/magmastream.svg" alt="Issues" />
-  </a>
-  <a href="https://github.com/Magmastream-NPM/magmastream/pulls">
-    <img src="https://img.shields.io/github/issues-pr/Magmastream-NPM/magmastream.svg" alt="Pull Requests" />
-  </a>
-  <a href="https://github.com/sponsors/Magmastream-NPM">
-    <img src="https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86" alt="Sponsor" />
-  </a>
-  <a href="https://www.npmjs.com/package/magmastream">
-    <img src="https://img.shields.io/npm/dw/magmastream" alt="npm downloads" />
-  </a>
-</p>
+[![All Contributors](https://img.shields.io/badge/all_contributors-0-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 
