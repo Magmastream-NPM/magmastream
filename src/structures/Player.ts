@@ -168,6 +168,7 @@ export class Player {
 
 	/** Destroys the player. */
 	public destroy(disconnect = true): void {
+		const oldPlayer = { ...this };
 		this.state = "DESTROYING";
 
 		if (disconnect) {
@@ -177,6 +178,7 @@ export class Player {
 		this.node.rest.destroyPlayer(this.guild);
 		this.manager.emit("playerDestroy", this);
 		this.manager.players.delete(this.guild);
+		this.manager.emit("playerStateUpdate", oldPlayer, this);
 	}
 
 	/**

@@ -82,7 +82,6 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 			}
 		}
 
-		// Emit the playerStateUpdate event after modifying the queue
 		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild));
 	}
 
