@@ -25,7 +25,7 @@ export abstract class TrackUtils {
 
 	static setTrackPartial(partial: string[]): void {
 		if (!Array.isArray(partial) || !partial.every((str) => typeof str === "string")) throw new Error("Provided partial is not an array or not a string array.");
-		
+
 		// Define the default properties to always include
 		const defaultProperties = [
 			"encoded",
@@ -39,7 +39,7 @@ export abstract class TrackUtils {
 			"title",
 			"uri",
 			"artworkUrl",
-			"sourceName"
+			"sourceName",
 		];
 
 		// Ensure default properties are included
@@ -88,7 +88,7 @@ export abstract class TrackUtils {
 	 * @param data
 	 * @param requester
 	 */
-	static build(data: TrackData, requester?: User | ClientUser): Track {
+	static build<T = User | ClientUser>(data: TrackData, requester?: T): Track {
 		if (typeof data === "undefined") throw new RangeError('Argument "data" must be present.');
 
 		try {
@@ -109,7 +109,7 @@ export abstract class TrackUtils {
 					const finalSize = SIZES.find((s) => s === size) ?? "default";
 					return this.uri.includes("youtube") ? `https://img.youtube.com/vi/${data.info.identifier}/${finalSize}.jpg` : null;
 				},
-				requester,
+				requester: requester as User | ClientUser,
 				pluginInfo: data.pluginInfo,
 				customData: {},
 			};
@@ -139,11 +139,11 @@ export abstract class TrackUtils {
 	 * @param query
 	 * @param requester
 	 */
-	static buildUnresolved(query: string | UnresolvedQuery, requester?: User | ClientUser): UnresolvedTrack {
+	static buildUnresolved<T = User | ClientUser>(query: string | UnresolvedQuery, requester?: T): UnresolvedTrack {
 		if (typeof query === "undefined") throw new RangeError('Argument "query" must be present.');
 
 		let unresolvedTrack: Partial<UnresolvedTrack> = {
-			requester,
+			requester: requester as User | ClientUser,
 			async resolve(): Promise<void> {
 				const resolved = await TrackUtils.getClosestTrack(this);
 				Object.getOwnPropertyNames(this).forEach((prop) => delete this[prop]);

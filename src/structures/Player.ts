@@ -115,7 +115,7 @@ export class Player {
 	 * @param query
 	 * @param requester
 	 */
-	public search(query: string | SearchQuery, requester?: User | ClientUser): Promise<SearchResult> {
+	public search<T = User | ClientUser>(query: string | SearchQuery, requester?: T): Promise<SearchResult> {
 		return this.manager.search(query, requester);
 	}
 
@@ -213,11 +213,14 @@ export class Player {
 	}
 
 	/** Sets the now playing message. */
-	public setNowPlayingMessage(message: Message): Message {
+	public setNowPlayingMessage<T = Message>(message: T): Message {
 		if (!message) {
 			throw new TypeError("You must provide the message of the now playing message.");
 		}
-		return (this.nowPlayingMessage = message);
+
+		this.nowPlayingMessage = message as Message;
+
+		return this.nowPlayingMessage;
 	}
 
 	/** Plays the next track. */
@@ -303,7 +306,7 @@ export class Player {
 	 * @param track
 	 * @param requester
 	 */
-	public async getRecommended(track: Track, requester?: User | ClientUser) {
+	public async getRecommended<T = User | ClientUser>(track: Track, requester?: T) {
 		const node = this.manager.useableNodes;
 
 		if (!node) {
@@ -660,7 +663,7 @@ export interface Track {
 	/** The thumbnail of the track or null if it's a unsupported source. */
 	readonly thumbnail: string | null;
 	/** The user that requested the track. */
-	readonly requester: User | ClientUser | null;
+	readonly requester?: User | ClientUser;
 	/** Displays the track thumbnail with optional size or null if it's a unsupported source. */
 	displayThumbnail(size?: Sizes): string;
 	/** Additional track info provided by plugins. */

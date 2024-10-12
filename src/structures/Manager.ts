@@ -338,7 +338,7 @@ export class Manager extends EventEmitter {
 	 * @param requester
 	 * @returns The search result.
 	 */
-	public async search(query: string | SearchQuery, requester?: User | ClientUser): Promise<SearchResult> {
+	public async search<T = User | ClientUser>(query: string | SearchQuery, requester?: T): Promise<SearchResult> {
 		const node = this.useableNodes;
 
 		if (!node) {
