@@ -25,14 +25,6 @@ import { blockedWords } from "../config/blockedWords";
 import fs from "fs";
 import path from "path";
 
-const playerStatesFilePath = path.join(process.cwd(), "node_modules", "magmastream", "dist", "sessionData", "playerStates.json");
-
-const configDir = path.dirname(playerStatesFilePath);
-if (!fs.existsSync(configDir)) {
-	fs.mkdirSync(configDir, { recursive: true });
-	console.log(`Created directory at ${configDir}`);
-}
-
 /**
  * The main hub for interacting with Lavalink and using Magmastream,
  */
@@ -62,8 +54,7 @@ export class Manager extends EventEmitter {
 	private initiated = false;
 
 	/** Loads player states from the JSON file. */
-	public loadPlayerStates(nodeId: string): Promise<void> {
-		/** Function to create track data */
+	public loadPlayerStates(nodeId: string): void {
 		const createTrackData = (song): TrackData => ({
 			encoded: song.track,
 			info: {
@@ -81,74 +72,83 @@ export class Manager extends EventEmitter {
 			pluginInfo: song.pluginInfo,
 		});
 
-		return new Promise((resolve, reject) => {
-			if (fs.existsSync(playerStatesFilePath)) {
-				const data = fs.readFileSync(playerStatesFilePath, "utf-8");
-				const playerStates = JSON.parse(data);
+		const playerStatesDir = path.join(process.cwd(), "node_modules", "magmastream", "dist", "sessionData", "players");
 
-				for (const guildId in playerStates) {
-					const state = playerStates[guildId];
+		if (!fs.existsSync(playerStatesDir)) {
+			fs.mkdirSync(playerStatesDir, { recursive: true });
+			console.log(`Created directory at ${playerStatesDir}`);
+		}
 
-					if (state && typeof state === "object" && state.guild && state.node.options.identifier === nodeId) {
-						const playerOptions: PlayerOptions = {
-							guild: state.options.guild,
-							textChannel: state.options.textChannel,
-							voiceChannel: state.options.voiceChannel,
-							selfDeafen: state.options.selfDeafen,
-							volume: state.options.volume,
-						};
+		const playerFiles = fs.readdirSync(playerStatesDir);
 
-						this.create(playerOptions);
-					}
+		for (const file of playerFiles) {
+			const filePath = path.join(playerStatesDir, file);
+			const data = fs.readFileSync(filePath, "utf-8");
+			const state = JSON.parse(data);
 
-					const player = this.get(state.options.guild);
-					player.pause(state.paused);
-					player.seek(state.position);
-					player.setTrackRepeat(state.trackRepeat);
-					player.setQueueRepeat(state.queueRepeat);
-					if (state.dynamicRepeat) {
-						player.setDynamicRepeat(state.dynamicRepeat, state.dynamicLoopInterval._idleTimeout);
-					}
-					if (state.isAutoplay) {
-						player.setAutoplay(state.isAutoplay, state.data.Internal_BotUser);
-					}
-					const tracks = [];
-					if (state.queue.current !== null) {
-						const currentTrack = state.queue.current;
-						tracks.push(TrackUtils.build(createTrackData(currentTrack), currentTrack.requester));
+			if (state && typeof state === "object" && state.guild && state.node.options.identifier === nodeId) {
+				const playerOptions: PlayerOptions = {
+					guild: state.options.guild,
+					textChannel: state.options.textChannel,
+					voiceChannel: state.options.voiceChannel,
+					selfDeafen: state.options.selfDeafen,
+					volume: state.options.volume,
+				};
 
-						for (const key in state.queue) {
-							if (!isNaN(Number(key)) && key !== "current" && key !== "previous" && key !== "manager") {
-								const song = state.queue[key];
-								tracks.push(TrackUtils.build(createTrackData(song), song.requester));
-							}
-						}
+				this.create(playerOptions);
+			}
 
-						player.queue.add(tracks);
+			const player = this.get(state.options.guild);
+			const tracks = [];
+			if (state.queue.current !== null) {
+				const currentTrack = state.queue.current;
+				tracks.push(TrackUtils.build(createTrackData(currentTrack), currentTrack.requester));
+
+				for (const key in state.queue) {
+					if (!isNaN(Number(key)) && key !== "current" && key !== "previous" && key !== "manager") {
+						const song = state.queue[key];
+						tracks.push(TrackUtils.build(createTrackData(song), song.requester));
 					}
 				}
 
-				console.log("Loaded player states from playerStates.json");
-				resolve();
-			} else {
-				reject(new Error("Player states file does not exist."));
+				player.queue.add(tracks);
 			}
-		});
+			if (state.paused) player.pause(true);
+			player.setTrackRepeat(state.trackRepeat);
+			player.setQueueRepeat(state.queueRepeat);
+			if (state.dynamicRepeat) {
+				player.setDynamicRepeat(state.dynamicRepeat, state.dynamicLoopInterval._idleTimeout);
+			}
+			if (state.isAutoplay) {
+				player.setAutoplay(state.isAutoplay, state.data.Internal_BotUser);
+			}
+			console.log(`Loaded player state for ${state.options.guild}.`);
+		}
+
+		console.log("Loaded player states from player files.");
+	}
+
+	/** Gets each player's JSON file */
+	private getPlayerFilePath(guildId: string): string {
+		const playerStateFilePath = path.join(process.cwd(), "node_modules", "magmastream", "dist", "sessionData", "players", `${guildId}.json`);
+		const configDir = path.dirname(playerStateFilePath);
+		if (!fs.existsSync(configDir)) {
+			fs.mkdirSync(configDir, { recursive: true });
+			console.log(`Created directory at: ${configDir}`);
+		}
+		return playerStateFilePath;
 	}
 
 	/** Saves player states to the JSON file. */
-	public savePlayerStates(players: Map<string, Player>): void {
-		const playerStates: Record<string, Player> = {};
+	public savePlayerState(guildId: string): void {
+		const playerStateFilePath = this.getPlayerFilePath(guildId);
 
-		players.forEach((player, guildId) => {
-			playerStates[guildId] = this.serializePlayer(player) as unknown as Player;
-		});
+		const player = this.players.get(guildId);
+		if (!player || player.state === "DISCONNECTED" || !player.voiceChannel) return this.cleanupInactivePlayers();
+		const serializedPlayer = this.serializePlayer(player) as unknown as Player;
+		fs.writeFileSync(playerStateFilePath, JSON.stringify(serializedPlayer, null, 2), "utf-8");
 
-		this.cleanupInactivePlayers(playerStates);
-
-		fs.writeFileSync(playerStatesFilePath, JSON.stringify(playerStates, null, 2), "utf-8");
-
-		console.log("Saved player states to playerStates.json");
+		console.log(`Saved ${guildId} player state to: ${playerStateFilePath}`);
 	}
 
 	/** Serializes a Player instance to avoid circular references. */
@@ -157,7 +157,7 @@ export class Manager extends EventEmitter {
 
 		const serialize = (obj: unknown): unknown => {
 			if (obj && typeof obj === "object") {
-				if (seen.has(obj)) return;
+				if (seen.has(obj)) return; // Prevent circular references
 
 				seen.add(obj);
 			}
@@ -173,11 +173,11 @@ export class Manager extends EventEmitter {
 				if (key === "queue") {
 					return {
 						...value,
-
 						current: value.current || null,
 					};
 				}
 
+				// return value === undefined ? null : serialize(value);
 				return serialize(value);
 			})
 		);
@@ -186,12 +186,26 @@ export class Manager extends EventEmitter {
 	}
 
 	/** Check for players that are no longer active */
-	private cleanupInactivePlayers(playerStates: Record<string, Player>): void {
-		for (const guildId of Object.keys(playerStates)) {
-			const player = playerStates[guildId];
+	private cleanupInactivePlayers(): void {
+		const playerStatesDir = path.join(process.cwd(), "node_modules", "magmastream", "dist", "sessionData", "players");
 
-			if (!player || player.state === "DISCONNECTED") {
-				delete playerStates[guildId];
+		// Create the directory if it does not exist
+		if (!fs.existsSync(playerStatesDir)) {
+			fs.mkdirSync(playerStatesDir, { recursive: true });
+			console.log(`Created directory at ${playerStatesDir}`);
+		}
+
+		const playerFiles = fs.readdirSync(playerStatesDir);
+
+		const activeGuildIds = new Set(this.players.keys());
+
+		for (const file of playerFiles) {
+			const guildId = path.basename(file, ".json");
+
+			if (!activeGuildIds.has(guildId)) {
+				const filePath = path.join(playerStatesDir, file);
+				fs.unlinkSync(filePath);
+				console.log(`Deleted inactive player state file: ${filePath}`);
 			}
 		}
 	}
@@ -240,59 +254,73 @@ export class Manager extends EventEmitter {
 	}
 
 	/** work in progress */
-	// private lastSaveTimes: Map<string, number> = new Map();
-	// private saveInterval: number = 1000;
+	private lastProcessedGuilds: Set<string> = new Set();
+	private lastSaveTimes: Map<string, number> = new Map();
+	private saveInterval: number = 1000;
+	private saveQueues: Map<string, Player[]> = new Map();
 
 	/** Register savePlayerStates events */
 	private registerPlayerStateEvents(): void {
 		const events: (keyof ManagerEvents)[] = ["playerStateUpdate", "playerDestroy"];
 		for (const event of events) {
-			// this.on(event, (player: Player) => this.handleEvent(event, player));
-			this.on(event, () => this.handleEvent(event));
+			this.on(event, (player: Player) => this.handleEvent(event, player));
 		}
 	}
 
-	private handleEvent(event: keyof ManagerEvents): void {
-		// private handleEvent(event: keyof ManagerEvents, player: Player): void {
+	private handleEvent(event: keyof ManagerEvents, player: Player): void {
 		switch (event) {
 			case "playerDestroy":
-				// this.handlePlayerDestroy(player);
-				this.handlePlayerDestroy();
+				this.lastSaveTimes.delete(player.guild);
+				this.players.delete(player.guild);
+				this.cleanupInactivePlayers();
 				break;
 			case "playerStateUpdate":
-				// this.handlePlayerStateUpdate(player);
-				this.handlePlayerStateUpdate();
+				this.queuePlayerStateSave(player);
 				break;
 			default:
-				this.savePlayerStates(this.players);
+				this.savePlayerState(player.guild);
 				break;
 		}
 	}
 
-	private handlePlayerDestroy(): void {
-		this.savePlayerStates(this.players);
+	/** Queues a player state save */
+	private queuePlayerStateSave(player: Player): void {
+		const guildId = player.guild;
+
+		// If the current guild is not being processed, save immediately
+		if (!this.lastProcessedGuilds.has(guildId)) {
+			this.lastProcessedGuilds.add(guildId);
+			this.savePlayerState(guildId);
+
+			setTimeout(() => {
+				this.lastProcessedGuilds.delete(guildId);
+				this.processNextQueue(guildId);
+			}, this.saveInterval);
+		} else {
+			if (!this.saveQueues.has(guildId)) {
+				this.saveQueues.set(guildId, []);
+			}
+
+			this.saveQueues.get(guildId)!.push(player);
+		}
 	}
-	/** work in progress */
-	// private handlePlayerDestroy(player: Player): void {
-	// 	this.lastSaveTimes.delete(player.guild);
-	// 	this.savePlayerStates(this.players);
-	// }
 
-	private handlePlayerStateUpdate(): void {
-		this.savePlayerStates(this.players);
+	/** Processes the next queued save for a specific guild */
+	private processNextQueue(guildId: string): void {
+		const queue = this.saveQueues.get(guildId);
+		if (queue && queue.length > 0) {
+			const player = queue.shift()!;
+			this.savePlayerState(player.guild);
+
+			if (queue.length === 0) {
+				this.saveQueues.delete(guildId);
+			}
+
+			setTimeout(() => this.processNextQueue(guildId), this.saveInterval);
+		} else {
+			this.lastProcessedGuilds.delete(guildId);
+		}
 	}
-	/** work in progress */
-	// private handlePlayerStateUpdate(player: Player): void {
-	// 	const currentTime = Date.now();
-	// 	const guildId = player.guild;
-
-	// 	this.savePlayerStates(this.players);
-
-	// 	if (!this.lastSaveTimes.has(guildId) || currentTime - this.lastSaveTimes.get(guildId)! >= this.saveInterval) {
-	// 		this.savePlayerStates(this.players);
-	// 		this.lastSaveTimes.set(guildId, currentTime);
-	// 	}
-	// }
 
 	/**
 	 * Initiates the Manager class.
@@ -583,7 +611,7 @@ export class Manager extends EventEmitter {
 	 */
 	public destroy(guild: string): void {
 		this.players.delete(guild);
-		this.savePlayerStates(this.players);
+		this.cleanupInactivePlayers();
 	}
 
 	/**
