@@ -93,9 +93,49 @@ export class Manager extends EventEmitter {
 						player.setAutoplay(state.isAutoplay, state.data.Internal_BotUser);
 					}
 					if (state.queue.current !== null) {
-						player.queue.add(TrackUtils.build(state.queue.current));
-						if (Array.isArray(state.queue)) {
-							player.queue.add(state.queue.map((trackData) => TrackUtils.build(trackData))); // Convert to Track instances
+						const currentTrack = state.queue.current;
+
+						const trackData: TrackData = {
+							encoded: currentTrack.track,
+							info: {
+								identifier: currentTrack.identifier,
+								isSeekable: currentTrack.isSeekable,
+								author: currentTrack.author,
+								length: currentTrack.duration,
+								isrc: currentTrack.isrc,
+								isStream: currentTrack.isStream,
+								title: currentTrack.title,
+								uri: currentTrack.uri,
+								artworkUrl: currentTrack.artworkUrl,
+								sourceName: currentTrack.sourceName,
+							},
+							pluginInfo: currentTrack.pluginInfo,
+						};
+
+						player.queue.add(TrackUtils.build(trackData, currentTrack.requester));
+
+						for (const key in state.queue) {
+							if (!isNaN(Number(key)) && key !== "current" && key !== "previous" && key !== "manager") {
+								const song = state.queue[key];
+								const trackData: TrackData = {
+									encoded: song.track,
+									info: {
+										identifier: song.identifier,
+										isSeekable: song.isSeekable,
+										author: song.author,
+										length: song.duration,
+										isrc: song.isrc,
+										isStream: song.isStream,
+										title: song.title,
+										uri: song.uri,
+										artworkUrl: song.artworkUrl,
+										sourceName: song.sourceName,
+									},
+									pluginInfo: song.pluginInfo,
+								};
+
+								player.queue.add(TrackUtils.build(trackData, song.requester));
+							}
 						}
 					}
 				}
@@ -212,7 +252,7 @@ export class Manager extends EventEmitter {
 
 	/** Register savePlayerStates events */
 	private registerPlayerStateEvents(): void {
-		const events = ["playerDestroy", "queueEnd", "trackStart", "trackEnd"];
+		const events = ["playerStateUpdate", "playerDestroy", "queueEnd", "trackStart", "trackEnd"];
 		for (const event of events as (keyof ManagerEvents)[]) {
 			this.on(event, () => this.savePlayerStates(this.players));
 		}
