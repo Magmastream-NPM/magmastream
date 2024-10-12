@@ -330,13 +330,17 @@ export class Node {
 	}
 
 	protected trackStart(player: Player, track: Track, payload: TrackStartEvent): void {
+		const oldPlayer = player;
 		player.playing = true;
 		player.paused = false;
 		this.manager.emit("trackStart", player, track, payload);
+		this.manager.emit("playerStateUpdate", oldPlayer, player, "trackChange");
 	}
 
 	protected async trackEnd(player: Player, track: Track, payload: TrackEndEvent): Promise<void> {
 		const { reason } = payload;
+
+		const oldPlayer = player;
 
 		// If the track failed to load or was cleaned up
 		if (["loadFailed", "cleanup"].includes(reason)) {
@@ -359,6 +363,7 @@ export class Node {
 		else {
 			await this.queueEnd(player, track, payload);
 		}
+		this.manager.emit("playerStateUpdate", oldPlayer, player, "trackChange");
 	}
 
 	public extractSpotifyTrackID(url: string): string | null {

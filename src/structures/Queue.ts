@@ -46,7 +46,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 	 * @param [offset=null]
 	 */
 	public add(track: (Track | UnresolvedTrack) | (Track | UnresolvedTrack)[], offset?: number): void {
-		const oldPlayer = { ...this.manager.players.get(this.guild) }; // Capture the old player state
+		const oldPlayer = { ...this.manager.players.get(this.guild) };
 		if (!TrackUtils.validate(track)) {
 			throw new RangeError('Track must be a "Track" or "Track[]".');
 		}
@@ -82,7 +82,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 			}
 		}
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild));
+		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), "queueChange");
 	}
 
 	/**
@@ -99,6 +99,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 	public remove(start: number, end: number): (Track | UnresolvedTrack)[];
 
 	public remove(startOrPosition = 0, end?: number): (Track | UnresolvedTrack)[] {
+		const oldPlayer = { ...this.manager.players.get(this.guild) };
 		if (typeof end !== "undefined") {
 			if (isNaN(Number(startOrPosition)) || isNaN(Number(end))) {
 				throw new RangeError(`Missing "start" or "end" parameter.`);
@@ -108,29 +109,35 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 				throw new RangeError("Invalid start or end values.");
 			}
 
-			return this.splice(startOrPosition, end - startOrPosition);
+			this.splice(startOrPosition, end - startOrPosition);
+			this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), "queueChange");
+			return;
 		}
 
-		return this.splice(startOrPosition, 1);
+		this.splice(startOrPosition, 1);
+		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), "queueChange");
+		return;
 	}
 
 	/** Clears the queue. */
 	public clear(): void {
-		const oldPlayer = { ...this.manager.players.get(this.guild) }; // Capture the old player state
+		const oldPlayer = { ...this.manager.players.get(this.guild) };
 		this.splice(0);
-		// Emit the playerStateUpdate event after modifying the queue
-		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild));
+		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), "queueChange");
 	}
 
 	/** Shuffles the queue. */
 	public shuffle(): void {
+		const oldPlayer = { ...this.manager.players.get(this.guild) };
 		for (let i = this.length - 1; i > 0; i--) {
 			const j = Math.floor(Math.random() * (i + 1));
 			[this[i], this[j]] = [this[j], this[i]];
 		}
+		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), "queueChange");
 	}
 
 	public userBlockShuffle() {
+		const oldPlayer = { ...this.manager.players.get(this.guild) };
 		const userTracks = new Map<string, Array<Track | UnresolvedTrack>>();
 
 		this.forEach((track) => {
@@ -154,11 +161,13 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 			});
 		}
 
-		this.clear();
+		this.splice(0);
 		this.add(shuffledQueue);
+		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), "queueChange");
 	}
 
 	public roundRobinShuffle() {
+		const oldPlayer = { ...this.manager.players.get(this.guild) };
 		const userTracks = new Map<string, Array<Track | UnresolvedTrack>>();
 
 		this.forEach((track) => {
@@ -192,7 +201,8 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 			}
 		}
 
-		this.clear();
+		this.splice(0);
 		this.add(shuffledQueue);
+		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), "queueChange");
 	}
 }

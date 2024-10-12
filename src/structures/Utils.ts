@@ -26,7 +26,6 @@ export abstract class TrackUtils {
 	static setTrackPartial(partial: string[]): void {
 		if (!Array.isArray(partial) || !partial.every((str) => typeof str === "string")) throw new Error("Provided partial is not an array or not a string array.");
 
-		// Define the default properties to always include
 		const defaultProperties = [
 			"encoded",
 			"pluginInfo",
@@ -42,7 +41,6 @@ export abstract class TrackUtils {
 			"sourceName",
 		];
 
-		// Ensure default properties are included
 		this.trackPartial = Array.from(new Set([...defaultProperties, ...partial]));
 
 		if (!this.trackPartial.includes("track")) this.trackPartial.unshift("track");
