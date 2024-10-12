@@ -20,6 +20,7 @@ import nodeCheck from "../utils/nodeCheck";
 import WebSocket from "ws";
 import fs from "fs";
 import path from "path";
+import { ClientUser } from "discord.js";
 
 export const validSponsorBlocks = ["sponsor", "selfpromo", "interaction", "intro", "outro", "preview", "music_offtopic", "filler"];
 export type SponsorBlockSegment = "sponsor" | "selfpromo" | "interaction" | "intro" | "outro" | "preview" | "music_offtopic" | "filler";
@@ -389,7 +390,7 @@ export class Node {
 		let videoID = previousTrack.uri.substring(previousTrack.uri.indexOf("=") + 1);
 
 		if (!hasYouTubeURL) {
-			const res = await player.search(`${previousTrack.author} - ${previousTrack.title}`, player.get("Internal_BotUser"));
+			const res = await player.search(`${previousTrack.author} - ${previousTrack.title}`, player.get("Internal_BotUser") as ClientUser);
 			videoID = res.tracks[0].uri.substring(res.tracks[0].uri.indexOf("=") + 1);
 		}
 
@@ -401,7 +402,7 @@ export class Node {
 			searchURI = `https://www.youtube.com/watch?v=${videoID}&list=RD${videoID}&index=${randomIndex}`;
 		} while (track.uri.includes(searchURI));
 
-		const res = await player.search(searchURI, player.get("Internal_BotUser"));
+		const res = await player.search(searchURI, player.get("Internal_BotUser") as ClientUser);
 
 		if (res.loadType === "empty" || res.loadType === "error") return;
 
@@ -456,7 +457,7 @@ export class Node {
 
 		if (!recommendedTrack) return false;
 
-		player.queue.add(TrackUtils.build(recommendedTrack, player.get("Internal_BotUser")));
+		player.queue.add(TrackUtils.build(recommendedTrack, player.get("Internal_BotUser") as ClientUser));
 		player.play();
 
 		return true;
