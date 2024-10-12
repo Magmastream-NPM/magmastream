@@ -138,7 +138,7 @@ export class Player {
 
 		this.state = "CONNECTED";
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this);
+		this.manager.emit("playerStateUpdate", oldPlayer, this, "connectionChange");
 		return this;
 	}
 
@@ -162,7 +162,7 @@ export class Player {
 		this.voiceChannel = null;
 		this.state = "DISCONNECTED";
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this);
+		this.manager.emit("playerStateUpdate", oldPlayer, this, "connectionChange");
 		return this;
 	}
 
@@ -178,7 +178,7 @@ export class Player {
 		this.node.rest.destroyPlayer(this.guild);
 		this.manager.emit("playerDestroy", this);
 		this.manager.players.delete(this.guild);
-		this.manager.emit("playerStateUpdate", oldPlayer, this);
+		this.manager.emit("playerStateUpdate", oldPlayer, this, "playerDestroy");
 	}
 
 	/**
@@ -193,7 +193,7 @@ export class Player {
 		this.voiceChannel = channel;
 		this.connect();
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this);
+		this.manager.emit("playerStateUpdate", oldPlayer, this, "channelChange");
 		return this;
 	}
 
@@ -208,7 +208,7 @@ export class Player {
 
 		this.textChannel = channel;
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this);
+		this.manager.emit("playerStateUpdate", oldPlayer, this, "channelChange");
 		return this;
 	}
 
@@ -297,7 +297,7 @@ export class Player {
 		this.isAutoplay = autoplayState;
 		this.set("Internal_BotUser", botUser);
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this);
+		this.manager.emit("playerStateUpdate", oldPlayer, this, "autoplayChange");
 		return this;
 	}
 
@@ -407,7 +407,7 @@ export class Player {
 		});
 
 		this.volume = volume;
-		this.manager.emit("playerStateUpdate", oldPlayer, this);
+		this.manager.emit("playerStateUpdate", oldPlayer, this, "volumeChange");
 
 		return this;
 	}
@@ -453,7 +453,7 @@ export class Player {
 			this.dynamicRepeat = false;
 		}
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this);
+		this.manager.emit("playerStateUpdate", oldPlayer, this, "repeatChange");
 		return this;
 	}
 
@@ -476,7 +476,7 @@ export class Player {
 			this.dynamicRepeat = false;
 		}
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this);
+		this.manager.emit("playerStateUpdate", oldPlayer, this, "repeatChange");
 		return this;
 	}
 
@@ -516,7 +516,7 @@ export class Player {
 			this.dynamicRepeat = false;
 		}
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this);
+		this.manager.emit("playerStateUpdate", oldPlayer, this, "repeatChange");
 		return this;
 	}
 
@@ -551,7 +551,7 @@ export class Player {
 			},
 		});
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this);
+		this.manager.emit("playerStateUpdate", oldPlayer, this, "trackChange");
 		return this;
 	}
 
@@ -576,7 +576,7 @@ export class Player {
 			},
 		});
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this);
+		this.manager.emit("playerStateUpdate", oldPlayer, this, "pauseChange");
 		return this;
 	}
 
@@ -586,7 +586,7 @@ export class Player {
 		this.queue.unshift(this.queue.previous);
 		this.stop();
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this);
+		this.manager.emit("playerStateUpdate", oldPlayer, this, "trackChange");
 		return this;
 	}
 
@@ -614,7 +614,7 @@ export class Player {
 			},
 		});
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this);
+		this.manager.emit("playerStateUpdate", oldPlayer, this, "trackChange");
 		return this;
 	}
 }

@@ -63,6 +63,24 @@ export class Manager extends EventEmitter {
 
 	/** Loads player states from the JSON file. */
 	public loadPlayerStates(nodeId: string): Promise<void> {
+		/** Function to create track data */
+		const createTrackData = (song): TrackData => ({
+			encoded: song.track,
+			info: {
+				identifier: song.identifier,
+				isSeekable: song.isSeekable,
+				author: song.author,
+				length: song.duration,
+				isrc: song.isrc,
+				isStream: song.isStream,
+				title: song.title,
+				uri: song.uri,
+				artworkUrl: song.artworkUrl,
+				sourceName: song.sourceName,
+			},
+			pluginInfo: song.pluginInfo,
+		});
+
 		return new Promise((resolve, reject) => {
 			if (fs.existsSync(playerStatesFilePath)) {
 				const data = fs.readFileSync(playerStatesFilePath, "utf-8");
@@ -88,55 +106,25 @@ export class Manager extends EventEmitter {
 					player.seek(state.position);
 					player.setTrackRepeat(state.trackRepeat);
 					player.setQueueRepeat(state.queueRepeat);
-					// player.setDynamicRepeat(state.dynamicRepeat, 6969)??? why milliseconds?
+					if (state.dynamicRepeat) {
+						player.setDynamicRepeat(state.dynamicRepeat, state.dynamicLoopInterval._idleTimeout);
+					}
 					if (state.isAutoplay) {
 						player.setAutoplay(state.isAutoplay, state.data.Internal_BotUser);
 					}
+					const tracks = [];
 					if (state.queue.current !== null) {
 						const currentTrack = state.queue.current;
-
-						const trackData: TrackData = {
-							encoded: currentTrack.track,
-							info: {
-								identifier: currentTrack.identifier,
-								isSeekable: currentTrack.isSeekable,
-								author: currentTrack.author,
-								length: currentTrack.duration,
-								isrc: currentTrack.isrc,
-								isStream: currentTrack.isStream,
-								title: currentTrack.title,
-								uri: currentTrack.uri,
-								artworkUrl: currentTrack.artworkUrl,
-								sourceName: currentTrack.sourceName,
-							},
-							pluginInfo: currentTrack.pluginInfo,
-						};
-
-						player.queue.add(TrackUtils.build(trackData, currentTrack.requester));
+						tracks.push(TrackUtils.build(createTrackData(currentTrack), currentTrack.requester));
 
 						for (const key in state.queue) {
 							if (!isNaN(Number(key)) && key !== "current" && key !== "previous" && key !== "manager") {
 								const song = state.queue[key];
-								const trackData: TrackData = {
-									encoded: song.track,
-									info: {
-										identifier: song.identifier,
-										isSeekable: song.isSeekable,
-										author: song.author,
-										length: song.duration,
-										isrc: song.isrc,
-										isStream: song.isStream,
-										title: song.title,
-										uri: song.uri,
-										artworkUrl: song.artworkUrl,
-										sourceName: song.sourceName,
-									},
-									pluginInfo: song.pluginInfo,
-								};
-
-								player.queue.add(TrackUtils.build(trackData, song.requester));
+								tracks.push(TrackUtils.build(createTrackData(song), song.requester));
 							}
 						}
+
+						player.queue.add(tracks);
 					}
 				}
 
@@ -148,6 +136,7 @@ export class Manager extends EventEmitter {
 		});
 	}
 
+	/** Saves player states to the JSON file. */
 	public savePlayerStates(players: Map<string, Player>): void {
 		const playerStates: Record<string, Player> = {};
 
@@ -250,13 +239,60 @@ export class Manager extends EventEmitter {
 		return this.options.usePriority ? this.priorityNode : this.options.useNode === "leastLoad" ? this.leastLoadNode.first() : this.leastPlayersNode.first();
 	}
 
+	/** work in progress */
+	// private lastSaveTimes: Map<string, number> = new Map();
+	// private saveInterval: number = 1000;
+
 	/** Register savePlayerStates events */
 	private registerPlayerStateEvents(): void {
-		const events = ["playerStateUpdate", "playerDestroy", "queueEnd", "trackStart", "trackEnd"];
-		for (const event of events as (keyof ManagerEvents)[]) {
-			this.on(event, () => this.savePlayerStates(this.players));
+		const events: (keyof ManagerEvents)[] = ["playerStateUpdate", "playerDestroy"];
+		for (const event of events) {
+			// this.on(event, (player: Player) => this.handleEvent(event, player));
+			this.on(event, () => this.handleEvent(event));
 		}
 	}
+
+	private handleEvent(event: keyof ManagerEvents): void {
+		// private handleEvent(event: keyof ManagerEvents, player: Player): void {
+		switch (event) {
+			case "playerDestroy":
+				// this.handlePlayerDestroy(player);
+				this.handlePlayerDestroy();
+				break;
+			case "playerStateUpdate":
+				// this.handlePlayerStateUpdate(player);
+				this.handlePlayerStateUpdate();
+				break;
+			default:
+				this.savePlayerStates(this.players);
+				break;
+		}
+	}
+
+	private handlePlayerDestroy(): void {
+		this.savePlayerStates(this.players);
+	}
+	/** work in progress */
+	// private handlePlayerDestroy(player: Player): void {
+	// 	this.lastSaveTimes.delete(player.guild);
+	// 	this.savePlayerStates(this.players);
+	// }
+
+	private handlePlayerStateUpdate(): void {
+		this.savePlayerStates(this.players);
+	}
+	/** work in progress */
+	// private handlePlayerStateUpdate(player: Player): void {
+	// 	const currentTime = Date.now();
+	// 	const guildId = player.guild;
+
+	// 	this.savePlayerStates(this.players);
+
+	// 	if (!this.lastSaveTimes.has(guildId) || currentTime - this.lastSaveTimes.get(guildId)! >= this.saveInterval) {
+	// 		this.savePlayerStates(this.players);
+	// 		this.lastSaveTimes.set(guildId, currentTime);
+	// 	}
+	// }
 
 	/**
 	 * Initiates the Manager class.
@@ -664,6 +700,18 @@ export interface ManagerOptions {
 
 export type SearchPlatform = "deezer" | "soundcloud" | "youtube music" | "youtube" | "spotify" | "jiosaavn" | "tidal" | "applemusic" | "bandcamp";
 
+export type PlayerStateEventType =
+	| "connectionChange"
+	| "playerCreate"
+	| "playerDestroy"
+	| "channelChange"
+	| "volumeChange"
+	| "pauseChange"
+	| "queueChange"
+	| "trackChange"
+	| "repeatChange"
+	| "autoplayChange";
+
 export interface SearchQuery {
 	/** The source to search from. */
 	source?: SearchPlatform | string;
@@ -715,7 +763,7 @@ export interface ManagerEvents {
 	nodeRaw: [payload: unknown];
 	playerCreate: [player: Player];
 	playerDestroy: [player: Player];
-	playerStateUpdate: [oldPlayer: Player, newPlayer: Player];
+	playerStateUpdate: [oldPlayer: Player, newPlayer: Player, changeType: PlayerStateEventType];
 	playerMove: [player: Player, initChannel: string, newChannel: string];
 	playerDisconnect: [player: Player, oldChannel: string];
 	queueEnd: [player: Player, track: Track | UnresolvedTrack, payload: TrackEndEvent];
