@@ -54,7 +54,22 @@ export class Manager extends EventEmitter {
 	private initiated = false;
 
 	/** Loads player states from the JSON file. */
-	public loadPlayerStates(nodeId: string): void {
+	public async loadPlayerStates(nodeId: string): Promise<void> {
+		// Changed to async and added Promise<void>
+		const node = this.nodes.get(nodeId);
+		if (!node) throw new Error(`Could not find node: ${nodeId}`);
+
+		const info = (await node.rest.getAllPlayers()) as LavaPlayer[];
+
+		const playerStatesDir = path.join(process.cwd(), "node_modules", "magmastream", "dist", "sessionData", "players");
+
+		if (!fs.existsSync(playerStatesDir)) {
+			fs.mkdirSync(playerStatesDir, { recursive: true });
+			console.log(`Created directory at ${playerStatesDir}`);
+		}
+
+		const playerFiles = fs.readdirSync(playerStatesDir);
+
 		const createTrackData = (song): TrackData => ({
 			encoded: song.track,
 			info: {
@@ -72,21 +87,17 @@ export class Manager extends EventEmitter {
 			pluginInfo: song.pluginInfo,
 		});
 
-		const playerStatesDir = path.join(process.cwd(), "node_modules", "magmastream", "dist", "sessionData", "players");
-
-		if (!fs.existsSync(playerStatesDir)) {
-			fs.mkdirSync(playerStatesDir, { recursive: true });
-			console.log(`Created directory at ${playerStatesDir}`);
-		}
-
-		const playerFiles = fs.readdirSync(playerStatesDir);
-
 		for (const file of playerFiles) {
 			const filePath = path.join(playerStatesDir, file);
 			const data = fs.readFileSync(filePath, "utf-8");
 			const state = JSON.parse(data);
 
 			if (state && typeof state === "object" && state.guild && state.node.options.identifier === nodeId) {
+				const lavaPlayer = info.find((player) => player.guildId === state.guild);
+				if (!lavaPlayer) {
+					this.destroy(state.guild);
+					continue;
+				}
 				const playerOptions: PlayerOptions = {
 					guild: state.options.guild,
 					textChannel: state.options.textChannel,
@@ -96,36 +107,76 @@ export class Manager extends EventEmitter {
 				};
 
 				this.create(playerOptions);
-			}
 
-			const player = this.get(state.options.guild);
-			const tracks = [];
-			if (state.queue.current !== null) {
-				const currentTrack = state.queue.current;
-				tracks.push(TrackUtils.build(createTrackData(currentTrack), currentTrack.requester));
-
-				for (const key in state.queue) {
-					if (!isNaN(Number(key)) && key !== "current" && key !== "previous" && key !== "manager") {
-						const song = state.queue[key];
-						tracks.push(TrackUtils.build(createTrackData(song), song.requester));
+				const player = this.get(state.options.guild);
+				if (!lavaPlayer.state.connected) {
+					try {
+						player.connect();
+					} catch (error) {
+						console.log(error);
+						continue;
 					}
 				}
 
-				player.queue.add(tracks);
+				const tracks = [];
+
+				if (!lavaPlayer.track) {
+					if (state.queue.current !== null) {
+						for (const key in state.queue) {
+							if (!isNaN(Number(key)) && key !== "current" && key !== "previous" && key !== "manager") {
+								const song = state.queue[key];
+								tracks.push(TrackUtils.build(createTrackData(song), song.requester));
+							}
+						}
+
+						if (tracks.length > 0) {
+							if (player.state !== "CONNECTED") player.connect();
+							player.queue.add(tracks);
+							if (!state.paused && player.state === "CONNECTED") player.play();
+							else console.log(player.state);
+						} else {
+							const payload = {
+								reason: "finished",
+							};
+							node.queueEnd(player, state.queue.current, payload as TrackEndEvent);
+							continue;
+						}
+					} else {
+						if (state.queue.previous !== null) {
+							const payload = {
+								reason: "finished",
+							};
+							node.queueEnd(player, state.queue.previous, payload as TrackEndEvent);
+						} else this.destroy(state.guild);
+					}
+				} else {
+					const currentTrack = state.queue.current;
+					tracks.push(TrackUtils.build(createTrackData(currentTrack), currentTrack.requester));
+
+					for (const key in state.queue) {
+						if (!isNaN(Number(key)) && key !== "current" && key !== "previous" && key !== "manager") {
+							const song = state.queue[key];
+							tracks.push(TrackUtils.build(createTrackData(song), song.requester));
+						}
+					}
+					if (player.state !== "CONNECTED") player.connect();
+					player.queue.add(tracks);
+				}
+
+				if (state.paused) player.pause(true);
+				player.setTrackRepeat(state.trackRepeat);
+				player.setQueueRepeat(state.queueRepeat);
+				if (state.dynamicRepeat) {
+					player.setDynamicRepeat(state.dynamicRepeat, state.dynamicLoopInterval._idleTimeout);
+				}
+				if (state.isAutoplay) {
+					player.setAutoplay(state.isAutoplay, state.data.Internal_BotUser);
+				}
+				console.log(`Loaded player state for ${state.options.guild}.`);
 			}
-			if (state.paused) player.pause(true);
-			player.setTrackRepeat(state.trackRepeat);
-			player.setQueueRepeat(state.queueRepeat);
-			if (state.dynamicRepeat) {
-				player.setDynamicRepeat(state.dynamicRepeat, state.dynamicLoopInterval._idleTimeout);
-			}
-			if (state.isAutoplay) {
-				player.setAutoplay(state.isAutoplay, state.data.Internal_BotUser);
-			}
-			console.log(`Loaded player state for ${state.options.guild}.`);
 		}
 
-		console.log("Loaded player states from player files.");
+		console.log("Finished loading player states from player files.");
 	}
 
 	/** Gets each player's JSON file */
@@ -157,7 +208,7 @@ export class Manager extends EventEmitter {
 
 		const serialize = (obj: unknown): unknown => {
 			if (obj && typeof obj === "object") {
-				if (seen.has(obj)) return; // Prevent circular references
+				if (seen.has(obj)) return;
 
 				seen.add(obj);
 			}
@@ -177,7 +228,6 @@ export class Manager extends EventEmitter {
 					};
 				}
 
-				// return value === undefined ? null : serialize(value);
 				return serialize(value);
 			})
 		);
@@ -253,7 +303,6 @@ export class Manager extends EventEmitter {
 		return this.options.usePriority ? this.priorityNode : this.options.useNode === "leastLoad" ? this.leastLoadNode.first() : this.leastPlayersNode.first();
 	}
 
-	/** work in progress */
 	private lastProcessedGuilds: Set<string> = new Set();
 	private lastSaveTimes: Map<string, number> = new Map();
 	private saveInterval: number = 1000;
@@ -750,6 +799,25 @@ export interface SearchQuery {
 export interface LavalinkResponse {
 	loadType: LoadType;
 	data: TrackData[] | PlaylistRawData;
+}
+
+interface LavaPlayer {
+	guildId: string;
+	track: TrackData | Track;
+	volume: number;
+	paused: boolean;
+	state: {
+		time: number;
+		position: number;
+		connected: boolean;
+		ping: number;
+	};
+	voice: {
+		token: string;
+		endpoint: string;
+		sessionId: string;
+	};
+	filters: Record<string, unknown>;
 }
 
 export interface SearchResult {

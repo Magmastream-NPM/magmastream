@@ -123,8 +123,8 @@ export class Node {
 		this.manager.emit("nodeCreate", this);
 		this.rest = new Rest(this);
 
-		this.createSessionIdsFile(); // Create the session IDs file on initialization
-		this.loadSessionIds(); // Load session IDs on initialization
+		this.createSessionIdsFile();
+		this.loadSessionIds();
 	}
 
 	/** Creates the sessionIds.json file if it doesn't exist. */
@@ -146,8 +146,8 @@ export class Node {
 
 	/** Updates the session ID in the sessionIds.json file. */
 	public updateSessionId(): void {
-		sessionIdsMap.set(this.options.identifier, this.sessionId); // Store session ID
-		fs.writeFileSync(sessionIdsFilePath, JSON.stringify(Object.fromEntries(sessionIdsMap))); // Update JSON file
+		sessionIdsMap.set(this.options.identifier, this.sessionId);
+		fs.writeFileSync(sessionIdsFilePath, JSON.stringify(Object.fromEntries(sessionIdsMap)));
 		console.log(`Updated session ID for ${this.options.identifier} to ${this.sessionId}`);
 	}
 
@@ -515,7 +515,7 @@ export class Node {
 		if (this.manager.options.autoPlay) player.play();
 	}
 
-	protected async queueEnd(player: Player, track: Track, payload: TrackEndEvent): Promise<void> {
+	public async queueEnd(player: Player, track: Track, payload: TrackEndEvent): Promise<void> {
 		player.queue.previous = player.queue.current;
 		player.queue.current = null;
 
