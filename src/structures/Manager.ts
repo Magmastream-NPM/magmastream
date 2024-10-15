@@ -103,7 +103,7 @@ export class Manager extends EventEmitter {
 					textChannel: state.options.textChannel,
 					voiceChannel: state.options.voiceChannel,
 					selfDeafen: state.options.selfDeafen,
-					volume: state.options.volume,
+					volume: lavaPlayer.volume || state.options.volume,
 				};
 
 				this.create(playerOptions);
@@ -303,72 +303,51 @@ export class Manager extends EventEmitter {
 		return this.options.usePriority ? this.priorityNode : this.options.useNode === "leastLoad" ? this.leastLoadNode.first() : this.leastPlayersNode.first();
 	}
 
-	private lastProcessedGuilds: Set<string> = new Set();
 	private lastSaveTimes: Map<string, number> = new Map();
-	private saveInterval: number = 1000;
-	private saveQueues: Map<string, Player[]> = new Map();
+	private eventBatchInterval: NodeJS.Timeout | null = null;
+	private eventBatchDuration: number = 1000;
+	private latestPlayerStates: Map<string, Player> = new Map();
 
 	/** Register savePlayerStates events */
 	private registerPlayerStateEvents(): void {
 		const events: (keyof ManagerEvents)[] = ["playerStateUpdate", "playerDestroy"];
+
 		for (const event of events) {
-			this.on(event, (player: Player) => this.handleEvent(event, player));
+			this.on(event, (player: Player) => this.collectPlayerStateEvent(event, player));
 		}
 	}
 
-	private handleEvent(event: keyof ManagerEvents, player: Player): void {
-		switch (event) {
-			case "playerDestroy":
-				this.lastSaveTimes.delete(player.guild);
-				this.players.delete(player.guild);
-				this.cleanupInactivePlayers();
-				break;
-			case "playerStateUpdate":
-				this.queuePlayerStateSave(player);
-				break;
-			default:
-				this.savePlayerState(player.guild);
-				break;
+	/** Collects player state events */
+	private collectPlayerStateEvent(event: keyof ManagerEvents, player: Player): void {
+		if (event === "playerDestroy") {
+			this.lastSaveTimes.delete(player.guild);
+			this.players.delete(player.guild);
+			this.cleanupInactivePlayers();
+		} else if (event === "playerStateUpdate") {
+			// Store the latest player state for the guild
+			this.latestPlayerStates.set(player.guild, player);
+		}
+
+		// Start the batch timer if it's not already running
+		if (!this.eventBatchInterval) {
+			this.eventBatchInterval = setTimeout(() => this.processBatchEvents(), this.eventBatchDuration);
 		}
 	}
 
-	/** Queues a player state save */
-	private queuePlayerStateSave(player: Player): void {
-		const guildId = player.guild;
-
-		// If the current guild is not being processed, save immediately
-		if (!this.lastProcessedGuilds.has(guildId)) {
-			this.lastProcessedGuilds.add(guildId);
-			this.savePlayerState(guildId);
-
-			setTimeout(() => {
-				this.lastProcessedGuilds.delete(guildId);
-				this.processNextQueue(guildId);
-			}, this.saveInterval);
-		} else {
-			if (!this.saveQueues.has(guildId)) {
-				this.saveQueues.set(guildId, []);
-			}
-
-			this.saveQueues.get(guildId)!.push(player);
+	/** Processes the collected player state events */
+	private processBatchEvents(): void {
+		if (this.eventBatchInterval) {
+			clearTimeout(this.eventBatchInterval);
+			this.eventBatchInterval = null;
 		}
-	}
 
-	/** Processes the next queued save for a specific guild */
-	private processNextQueue(guildId: string): void {
-		const queue = this.saveQueues.get(guildId);
-		if (queue && queue.length > 0) {
-			const player = queue.shift()!;
-			this.savePlayerState(player.guild);
+		// Save the latest player states for each guild
+		this.latestPlayerStates.forEach((player, guildId) => {
+			this.savePlayerState(guildId); // Perform a single write operation
+		});
 
-			if (queue.length === 0) {
-				this.saveQueues.delete(guildId);
-			}
-
-			setTimeout(() => this.processNextQueue(guildId), this.saveInterval);
-		} else {
-			this.lastProcessedGuilds.delete(guildId);
-		}
+		// Clear the latest player states after processing
+		this.latestPlayerStates.clear();
 	}
 
 	/**
