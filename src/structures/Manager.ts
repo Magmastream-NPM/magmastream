@@ -125,7 +125,7 @@ export class Manager extends EventEmitter {
 						for (const key in state.queue) {
 							if (!isNaN(Number(key)) && key !== "current" && key !== "previous" && key !== "manager") {
 								const song = state.queue[key];
-								tracks.push(TrackUtils.build(createTrackData(song), song.requester));
+								tracks.push(TrackUtils.buildUnresolved(song, song.requester));
 							}
 						}
 
@@ -156,7 +156,7 @@ export class Manager extends EventEmitter {
 					for (const key in state.queue) {
 						if (!isNaN(Number(key)) && key !== "current" && key !== "previous" && key !== "manager") {
 							const song = state.queue[key];
-							tracks.push(TrackUtils.build(createTrackData(song), song.requester));
+							tracks.push(TrackUtils.buildUnresolved(song, song.requester));
 						}
 					}
 					if (player.state !== "CONNECTED") player.connect();
