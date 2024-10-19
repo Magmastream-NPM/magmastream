@@ -106,9 +106,8 @@ export class Manager extends EventEmitter {
 					volume: lavaPlayer.volume || state.options.volume,
 				};
 
-				this.create(playerOptions);
+				const player = this.create(playerOptions);
 
-				const player = this.get(state.options.guild);
 				if (!lavaPlayer.state.connected) {
 					try {
 						player.connect();
@@ -130,16 +129,13 @@ export class Manager extends EventEmitter {
 						}
 
 						if (tracks.length > 0) {
-							if (player.state !== "CONNECTED") player.connect();
 							player.queue.add(tracks);
-							if (!state.paused && player.state === "CONNECTED") player.play();
-							else console.log(player.state);
+							if (!state.paused && lavaPlayer.state.connected) player.play();
 						} else {
 							const payload = {
 								reason: "finished",
 							};
 							node.queueEnd(player, state.queue.current, payload as TrackEndEvent);
-							continue;
 						}
 					} else {
 						if (state.queue.previous !== null) {
@@ -147,7 +143,11 @@ export class Manager extends EventEmitter {
 								reason: "finished",
 							};
 							node.queueEnd(player, state.queue.previous, payload as TrackEndEvent);
-						} else this.destroy(state.guild);
+						} else { 
+							this.destroy(state.guild);
+							continue;
+						}
+						
 					}
 				} else {
 					const currentTrack = state.queue.current;
@@ -159,7 +159,6 @@ export class Manager extends EventEmitter {
 							tracks.push(TrackUtils.buildUnresolved(song, song.requester));
 						}
 					}
-					if (player.state !== "CONNECTED") player.connect();
 					player.queue.add(tracks);
 				}
 
