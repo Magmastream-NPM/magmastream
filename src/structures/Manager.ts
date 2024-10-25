@@ -89,6 +89,12 @@ export class Manager extends EventEmitter {
 
 		for (const file of playerFiles) {
 			const filePath = path.join(playerStatesDir, file);
+
+			if (!fs.existsSync(filePath)) {
+				console.warn(`File not found: ${filePath}. Skipping...`);
+				continue;
+			}
+
 			const data = fs.readFileSync(filePath, "utf-8");
 			const state = JSON.parse(data);
 
@@ -143,11 +149,10 @@ export class Manager extends EventEmitter {
 								reason: "finished",
 							};
 							node.queueEnd(player, state.queue.previous, payload as TrackEndEvent);
-						} else { 
+						} else {
 							this.destroy(state.guild);
 							continue;
 						}
-						
 					}
 				} else {
 					const currentTrack = state.queue.current;
