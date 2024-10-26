@@ -31,7 +31,6 @@ let sessionIdsMap: Map<string, string> = new Map();
 const configDir = path.dirname(sessionIdsFilePath);
 if (!fs.existsSync(configDir)) {
 	fs.mkdirSync(configDir, { recursive: true });
-	console.log(`Created directory at ${configDir}`);
 }
 
 export class Node {
@@ -131,7 +130,6 @@ export class Node {
 	public createSessionIdsFile(): void {
 		if (!fs.existsSync(sessionIdsFilePath)) {
 			fs.writeFileSync(sessionIdsFilePath, JSON.stringify({}), "utf-8");
-			console.log(`Created sessionIds.json at ${sessionIdsFilePath}`);
 		}
 	}
 
@@ -140,7 +138,6 @@ export class Node {
 		if (fs.existsSync(sessionIdsFilePath)) {
 			const sessionIdsData = fs.readFileSync(sessionIdsFilePath, "utf-8");
 			sessionIdsMap = new Map(Object.entries(JSON.parse(sessionIdsData)));
-			console.log(`Loaded session IDs from JSON file`);
 		}
 	}
 
@@ -148,7 +145,6 @@ export class Node {
 	public updateSessionId(): void {
 		sessionIdsMap.set(this.options.identifier, this.sessionId);
 		fs.writeFileSync(sessionIdsFilePath, JSON.stringify(Object.fromEntries(sessionIdsMap)));
-		console.log(`Updated session ID for ${this.options.identifier} to ${this.sessionId}`);
 	}
 
 	/** Connects to the Node. */
@@ -166,7 +162,6 @@ export class Node {
 		} else if (this.options.resumeStatus && sessionIdsMap.has(this.options.identifier)) {
 			this.sessionId = sessionIdsMap.get(this.options.identifier) || null;
 			headers["Session-Id"] = this.sessionId;
-			console.log(`Resuming session with ID: ${this.sessionId}`);
 		}
 
 		this.socket = new WebSocket(`ws${this.options.secure ? "s" : ""}://${this.address}/v4/websocket`, { headers });
@@ -255,8 +250,6 @@ export class Node {
 				this.info = await this.fetchInfo();
 				// Log if the session was resumed successfully
 				if (payload.resumed) {
-					console.log(`Session resumed successfully for ${this.options.identifier}`);
-
 					// Load player states from the JSON file
 					await this.manager.loadPlayerStates(this.options.identifier);
 				}
