@@ -65,7 +65,6 @@ export class Manager extends EventEmitter {
 
 		if (!fs.existsSync(playerStatesDir)) {
 			fs.mkdirSync(playerStatesDir, { recursive: true });
-			console.log(`Created directory at ${playerStatesDir}`);
 		}
 
 		const playerFiles = fs.readdirSync(playerStatesDir);
@@ -91,7 +90,6 @@ export class Manager extends EventEmitter {
 			const filePath = path.join(playerStatesDir, file);
 
 			if (!fs.existsSync(filePath)) {
-				console.warn(`File not found: ${filePath}. Skipping...`);
 				continue;
 			}
 
@@ -118,7 +116,6 @@ export class Manager extends EventEmitter {
 					try {
 						player.connect();
 					} catch (error) {
-						console.log(error);
 						continue;
 					}
 				}
@@ -176,11 +173,8 @@ export class Manager extends EventEmitter {
 				if (state.isAutoplay) {
 					player.setAutoplay(state.isAutoplay, state.data.Internal_BotUser);
 				}
-				console.log(`Loaded player state for ${state.options.guild}.`);
 			}
 		}
-
-		console.log("Finished loading player states from player files.");
 	}
 
 	/** Gets each player's JSON file */
@@ -189,7 +183,6 @@ export class Manager extends EventEmitter {
 		const configDir = path.dirname(playerStateFilePath);
 		if (!fs.existsSync(configDir)) {
 			fs.mkdirSync(configDir, { recursive: true });
-			console.log(`Created directory at: ${configDir}`);
 		}
 		return playerStateFilePath;
 	}
@@ -202,8 +195,6 @@ export class Manager extends EventEmitter {
 		if (!player || player.state === "DISCONNECTED" || !player.voiceChannel) return this.cleanupInactivePlayers();
 		const serializedPlayer = this.serializePlayer(player) as unknown as Player;
 		fs.writeFileSync(playerStateFilePath, JSON.stringify(serializedPlayer, null, 2), "utf-8");
-
-		console.log(`Saved ${guildId} player state to: ${playerStateFilePath}`);
 	}
 
 	/** Serializes a Player instance to avoid circular references. */
@@ -246,7 +237,6 @@ export class Manager extends EventEmitter {
 		// Create the directory if it does not exist
 		if (!fs.existsSync(playerStatesDir)) {
 			fs.mkdirSync(playerStatesDir, { recursive: true });
-			console.log(`Created directory at ${playerStatesDir}`);
 		}
 
 		const playerFiles = fs.readdirSync(playerStatesDir);
@@ -259,7 +249,6 @@ export class Manager extends EventEmitter {
 			if (!activeGuildIds.has(guildId)) {
 				const filePath = path.join(playerStatesDir, file);
 				fs.unlinkSync(filePath);
-				console.log(`Deleted inactive player state file: ${filePath}`);
 			}
 		}
 	}
