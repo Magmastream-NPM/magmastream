@@ -34,8 +34,9 @@ export class Rest {
 
 	/** Retrieves all the players that are currently running on the node. */
 	public async getAllPlayers(): Promise<unknown> {
-		this.manager.emit("debug", `[REST] Getting all players for: ${JSON.stringify(this.node)}`);
-		return await this.get(`/v4/sessions/${this.sessionId}/players`);
+		const result = await this.get(`/v4/sessions/${this.sessionId}/players`);
+		this.manager.emit("debug", `[REST] Getting all players on node: ${this.node.options.identifier} : ${JSON.stringify(result)}`);
+		return result;
 	}
 
 	/** Sends a PATCH request to update player related data. */
