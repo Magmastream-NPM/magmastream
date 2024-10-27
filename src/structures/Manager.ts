@@ -55,6 +55,7 @@ export class Manager extends EventEmitter {
 
 	/** Loads player states from the JSON file. */
 	public async loadPlayerStates(nodeId: string): Promise<void> {
+		this.emit("debug", "[MANAGER] Loading saved players.");
 		// Changed to async and added Promise<void>
 		const node = this.nodes.get(nodeId);
 		if (!node) throw new Error(`Could not find node: ${nodeId}`);
@@ -175,6 +176,7 @@ export class Manager extends EventEmitter {
 				}
 			}
 		}
+		this.emit("debug", "[MANAGER] Finished loading saved players.");
 	}
 
 	/** Gets each player's JSON file */
@@ -195,6 +197,7 @@ export class Manager extends EventEmitter {
 		if (!player || player.state === "DISCONNECTED" || !player.voiceChannel) return this.cleanupInactivePlayers();
 		const serializedPlayer = this.serializePlayer(player) as unknown as Player;
 		fs.writeFileSync(playerStateFilePath, JSON.stringify(serializedPlayer, null, 2), "utf-8");
+		this.emit("debug", `[MANAGER] Saving player: ${guildId} at location: ${playerStateFilePath}`);
 	}
 
 	/** Serializes a Player instance to avoid circular references. */
@@ -249,6 +252,7 @@ export class Manager extends EventEmitter {
 			if (!activeGuildIds.has(guildId)) {
 				const filePath = path.join(playerStatesDir, file);
 				fs.unlinkSync(filePath);
+				this.emit("debug", `[MANAGER] Deleting inactive player: ${guildId}`);
 			}
 		}
 	}
@@ -439,6 +443,8 @@ export class Manager extends EventEmitter {
 			search = `${_source}:${search}`;
 		}
 
+		this.emit("debug", `[MANAGER] Performing ${_source} search for: ${_query}`);
+
 		try {
 			const res = (await node.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(search)}`)) as LavalinkResponse;
 
@@ -499,6 +505,7 @@ export class Manager extends EventEmitter {
 				}
 			}
 
+			this.emit("debug", `[MANAGER] Result ${_source} search for: ${_query}: ${JSON.stringify(result)}`);
 			return result;
 		} catch (err) {
 			throw new Error(err);
@@ -583,6 +590,7 @@ export class Manager extends EventEmitter {
 	 * @param tracks
 	 */
 	public decodeTracks(tracks: string[]): Promise<TrackData[]> {
+		this.emit("debug", `[MANAGER] Decoding tracks: ${JSON.stringify(tracks)}`);
 		return new Promise(async (resolve, reject) => {
 			const node = this.nodes.first();
 			if (!node) throw new Error("No available nodes.");
@@ -615,6 +623,7 @@ export class Manager extends EventEmitter {
 			return this.players.get(options.guild);
 		}
 
+		this.emit("debug", `[MANAGER] Creating new player with options: ${JSON.stringify(options)}`);
 		return new (Structure.get("Player"))(options);
 	}
 
@@ -631,6 +640,7 @@ export class Manager extends EventEmitter {
 	 * @param guild
 	 */
 	public destroy(guild: string): void {
+		this.emit("debug", `[MANAGER] Destroying player: ${guild}`);
 		this.players.delete(guild);
 		this.cleanupInactivePlayers();
 	}
@@ -644,6 +654,7 @@ export class Manager extends EventEmitter {
 			return this.nodes.get(options.identifier || options.host);
 		}
 
+		this.emit("debug", `[MANAGER] Creating new node with options: ${JSON.stringify(options)}`);
 		return new (Structure.get("Node"))(options);
 	}
 
@@ -654,6 +665,7 @@ export class Manager extends EventEmitter {
 	public destroyNode(identifier: string): void {
 		const node = this.nodes.get(identifier);
 		if (!node) return;
+		this.emit("debug", `[MANAGER] Destroying node: ${identifier}`);
 		node.destroy();
 		this.nodes.delete(identifier);
 	}
@@ -665,6 +677,7 @@ export class Manager extends EventEmitter {
 	public async updateVoiceState(data: VoicePacket | VoiceServer | VoiceState): Promise<void> {
 		if ("t" in data && !["VOICE_STATE_UPDATE", "VOICE_SERVER_UPDATE"].includes(data.t)) return;
 
+		this.emit("debug", `[MANAGER] Updating voice state: ${JSON.stringify(data)}`);
 		const update = "d" in data ? data.d : data;
 
 		if (!update || (!("token" in update) && !("session_id" in update))) return;
@@ -822,6 +835,7 @@ export interface PlaylistData {
 }
 
 export interface ManagerEvents {
+	debug: [info: string];
 	nodeCreate: [node: Node];
 	nodeDestroy: [node: Node];
 	nodeConnect: [node: Node];

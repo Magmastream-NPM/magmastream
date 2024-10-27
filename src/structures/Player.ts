@@ -123,7 +123,7 @@ export class Player {
 	public connect(): this {
 		if (!this.voiceChannel) throw new RangeError("No voice channel has been set.");
 		this.state = "CONNECTING";
-
+		
 		const oldPlayer = { ...this };
 
 		this.manager.options.send(this.guild, {
