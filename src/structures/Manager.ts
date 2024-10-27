@@ -111,6 +111,7 @@ export class Manager extends EventEmitter {
 					volume: lavaPlayer.volume || state.options.volume,
 				};
 
+				this.emit("debug", `[MANAGER] Recreating player: ${state.guild} from saved file: ${JSON.stringify(state.options)}`);
 				const player = this.create(playerOptions);
 
 				if (!lavaPlayer.state.connected) {
@@ -443,7 +444,7 @@ export class Manager extends EventEmitter {
 			search = `${_source}:${search}`;
 		}
 
-		this.emit("debug", `[MANAGER] Performing ${_source} search for: ${_query}`);
+		this.emit("debug", `[MANAGER] Performing ${_source} search for: ${_query.query}`);
 
 		try {
 			const res = (await node.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(search)}`)) as LavalinkResponse;
@@ -505,7 +506,7 @@ export class Manager extends EventEmitter {
 				}
 			}
 
-			this.emit("debug", `[MANAGER] Result ${_source} search for: ${_query}: ${JSON.stringify(result)}`);
+			this.emit("debug", `[MANAGER] Result ${_source} search for: ${_query.query}: ${JSON.stringify(result)}`);
 			return result;
 		} catch (err) {
 			throw new Error(err);
@@ -677,14 +678,14 @@ export class Manager extends EventEmitter {
 	public async updateVoiceState(data: VoicePacket | VoiceServer | VoiceState): Promise<void> {
 		if ("t" in data && !["VOICE_STATE_UPDATE", "VOICE_SERVER_UPDATE"].includes(data.t)) return;
 
-		this.emit("debug", `[MANAGER] Updating voice state: ${JSON.stringify(data)}`);
 		const update = "d" in data ? data.d : data;
-
+		
 		if (!update || (!("token" in update) && !("session_id" in update))) return;
-
+		
 		const player = this.players.get(update.guild_id);
-
+		
 		if (!player) return;
+		this.emit("debug", `[MANAGER] Updating voice state: ${JSON.stringify(update)}`);
 		if ("token" in update) {
 			player.voiceState.event = update;
 
