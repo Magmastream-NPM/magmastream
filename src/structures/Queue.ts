@@ -46,6 +46,9 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 	 * @param [offset=null]
 	 */
 	public add(track: (Track | UnresolvedTrack) | (Track | UnresolvedTrack)[], offset?: number): void {
+		const trackInfo = Array.isArray(track) ? track.map((t) => JSON.stringify(t, null, 2)).join(", ") : JSON.stringify(track, null, 2);
+		this.manager.emit("debug", `[QUEUE] Added ${Array.isArray(track) ? track.length : 1} track(s) to queue: ${trackInfo}`);
+
 		const oldPlayer = { ...this.manager.players.get(this.guild) };
 		if (!TrackUtils.validate(track)) {
 			throw new RangeError('Track must be a "Track" or "Track[]".');
@@ -100,22 +103,29 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 
 	public remove(startOrPosition = 0, end?: number): (Track | UnresolvedTrack)[] {
 		const oldPlayer = { ...this.manager.players.get(this.guild) };
+
 		if (typeof end !== "undefined") {
+			// Validate input for `start` and `end`
 			if (isNaN(Number(startOrPosition)) || isNaN(Number(end))) {
-				throw new RangeError(`Missing "start" or "end" parameter.`);
+				throw new RangeError(`Invalid "start" or "end" parameter: start = ${startOrPosition}, end = ${end}`);
 			}
 
 			if (startOrPosition >= end || startOrPosition >= this.length) {
-				throw new RangeError("Invalid start or end values.");
+				throw new RangeError("Invalid range: start should be less than end and within queue length.");
 			}
 
-			this.splice(startOrPosition, end - startOrPosition);
+			const removedTracks = this.splice(startOrPosition, end - startOrPosition);
+			this.manager.emit("debug", `[QUEUE] Removed ${removedTracks.length} track(s) from player: ${this.guild} from position ${startOrPosition} to ${end}.`);
 			this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), "queueChange");
+
 			return;
 		}
 
-		this.splice(startOrPosition, 1);
+		// Single item removal when no end specified
+		const removedTrack = this.splice(startOrPosition, 1);
+		this.manager.emit("debug", `[QUEUE] Removed 1 track from player: ${this.guild} from position ${startOrPosition}: ${JSON.stringify(removedTrack[0], null, 2)}`);
 		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), "queueChange");
+
 		return;
 	}
 
@@ -124,6 +134,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 		const oldPlayer = { ...this.manager.players.get(this.guild) };
 		this.splice(0);
 		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), "queueChange");
+		this.manager.emit("debug", `[QUEUE] Cleared the queue for: ${this.guild}`);
 	}
 
 	/** Shuffles the queue. */
@@ -134,6 +145,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 			[this[i], this[j]] = [this[j], this[i]];
 		}
 		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), "queueChange");
+		this.manager.emit("debug", `[QUEUE] Shuffled the queue for: ${this.guild}`);
 	}
 
 	public userBlockShuffle() {
@@ -164,6 +176,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 		this.splice(0);
 		this.add(shuffledQueue);
 		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), "queueChange");
+		this.manager.emit("debug", `[QUEUE] userBlockShuffled the queue for: ${this.guild}`);
 	}
 
 	public roundRobinShuffle() {
@@ -204,5 +217,6 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 		this.splice(0);
 		this.add(shuffledQueue);
 		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), "queueChange");
+		this.manager.emit("debug", `[QUEUE] roundRobinShuffled the queue for: ${this.guild}`);
 	}
 }

@@ -120,7 +120,7 @@ export class Node {
 
 		this.manager.nodes.set(this.options.identifier, this);
 		this.manager.emit("nodeCreate", this);
-		this.rest = new Rest(this);
+		this.rest = new Rest(this, this.manager);
 
 		this.createSessionIdsFile();
 		this.loadSessionIds();
@@ -129,6 +129,7 @@ export class Node {
 	/** Creates the sessionIds.json file if it doesn't exist. */
 	public createSessionIdsFile(): void {
 		if (!fs.existsSync(sessionIdsFilePath)) {
+			this.manager.emit("debug", `[NODE] Creating sessionId file at: ${sessionIdsFilePath}`);
 			fs.writeFileSync(sessionIdsFilePath, JSON.stringify({}), "utf-8");
 		}
 	}
@@ -136,6 +137,7 @@ export class Node {
 	/** Loads session IDs from the sessionIds.json file. */
 	public loadSessionIds(): void {
 		if (fs.existsSync(sessionIdsFilePath)) {
+			this.manager.emit("debug", `[NODE] Loading sessionIds from file: ${sessionIdsFilePath}`);
 			const sessionIdsData = fs.readFileSync(sessionIdsFilePath, "utf-8");
 			sessionIdsMap = new Map(Object.entries(JSON.parse(sessionIdsData)));
 		}
@@ -143,6 +145,7 @@ export class Node {
 
 	/** Updates the session ID in the sessionIds.json file. */
 	public updateSessionId(): void {
+		this.manager.emit("debug", `[NODE] Updating sessionIds to file: ${sessionIdsFilePath}`);
 		sessionIdsMap.set(this.options.identifier, this.sessionId);
 		fs.writeFileSync(sessionIdsFilePath, JSON.stringify(Object.fromEntries(sessionIdsMap)));
 	}
@@ -169,11 +172,35 @@ export class Node {
 		this.socket.on("close", this.close.bind(this));
 		this.socket.on("message", this.message.bind(this));
 		this.socket.on("error", this.error.bind(this));
+
+		const debugInfo = {
+			connected: this.connected,
+			address: this.address,
+			sessionId: this.sessionId,
+			options: {
+				clientId: this.manager.options.clientId,
+				clientName: this.manager.options.clientName,
+				secure: this.options.secure,
+				identifier: this.options.identifier,
+			},
+		};
+
+		this.manager.emit("debug", `[NODE] Connecting ${JSON.stringify(debugInfo)}`);
 	}
 
 	/** Destroys the Node and all players connected with it. */
 	public destroy(): void {
 		if (!this.connected) return;
+
+		const debugInfo = {
+			connected: this.connected,
+			identifier: this.options.identifier,
+			address: this.address,
+			sessionId: this.sessionId,
+			playerCount: this.manager.players.filter((p) => p.node == this).size,
+		};
+
+		this.manager.emit("debug", `[NODE] Destroying node: ${JSON.stringify(debugInfo)}`);
 
 		const players = this.manager.players.filter((p) => p.node == this);
 		if (players.size) players.forEach((p) => p.destroy());
@@ -190,13 +217,23 @@ export class Node {
 	}
 
 	private reconnect(): void {
+		const debugInfo = {
+			identifier: this.options.identifier,
+			connected: this.connected,
+			reconnectAttempts: this.reconnectAttempts,
+			retryAmount: this.options.retryAmount,
+			retryDelay: this.options.retryDelay,
+		};
+
+		this.manager.emit("debug", `[NODE] Reconnecting node: ${JSON.stringify(debugInfo)}`);
+
 		this.reconnectTimeout = setTimeout(() => {
 			if (this.reconnectAttempts >= this.options.retryAmount) {
 				const error = new Error(`Unable to connect after ${this.options.retryAmount} attempts.`);
-
 				this.manager.emit("nodeError", this, error);
 				return this.destroy();
 			}
+
 			this.socket?.removeAllListeners();
 			this.socket = null;
 			this.manager.emit("nodeReconnect", this);
@@ -207,16 +244,32 @@ export class Node {
 
 	protected open(): void {
 		if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
+		const debugInfo = {
+			identifier: this.options.identifier,
+			connected: this.connected,
+		};
 		this.manager.emit("nodeConnect", this);
+		this.manager.emit("debug", `[NODE] Connected node: ${JSON.stringify(debugInfo)}`);
 	}
 
 	protected close(code: number, reason: string): void {
+		const debugInfo = {
+			identifier: this.options.identifier,
+			code,
+			reason,
+		};
 		this.manager.emit("nodeDisconnect", this, { code, reason });
+		this.manager.emit("debug", `[NODE] Disconnected node: ${JSON.stringify(debugInfo)}`);
 		if (code !== 1000 || reason !== "destroy") this.reconnect();
 	}
 
 	protected error(error: Error): void {
 		if (!error) return;
+		const debugInfo = {
+			identifier: this.options.identifier,
+			error: error.message,
+		};
+		this.manager.emit("debug", `[NODE] Error on node: ${JSON.stringify(debugInfo)}`);
 		this.manager.emit("nodeError", this, error);
 	}
 
@@ -241,9 +294,11 @@ export class Node {
 				if (player) player.position = payload.state.position || 0;
 				break;
 			case "event":
+				this.manager.emit("debug", `[NODE] Node message: ${JSON.stringify(payload)}`);
 				this.handleEvent(payload);
 				break;
 			case "ready":
+				this.manager.emit("debug", `[NODE] Node message: ${JSON.stringify(payload)}`);
 				this.rest.setSessionId(payload.sessionId);
 				this.sessionId = payload.sessionId;
 				this.updateSessionId(); // Call to update session ID
@@ -535,6 +590,7 @@ export class Node {
 
 	protected socketClosed(player: Player, payload: WebSocketClosedEvent): void {
 		this.manager.emit("socketClosed", player, payload);
+		this.manager.emit("debug", `[NODE] Websocket closed for player: ${player.guild} with payload: ${JSON.stringify(payload)}`);
 	}
 
 	private sponsorBlockSegmentLoaded(player: Player, track: Track, payload: SponsorBlockSegmentsLoaded) {

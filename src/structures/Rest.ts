@@ -1,5 +1,6 @@
 import { Node } from "./Node";
 import axios, { AxiosRequestConfig } from "axios";
+import { Manager } from "./Manager";
 
 /** Handles the requests sent to the Lavalink REST API. */
 export class Rest {
@@ -11,12 +12,15 @@ export class Rest {
 	private readonly password: string;
 	/** The URL of the Node. */
 	private readonly url: string;
+	/** The Manager instance. */
+	public manager: Manager;
 
-	constructor(node: Node) {
+	constructor(node: Node, manager: Manager) {
 		this.node = node;
 		this.url = `http${node.options.secure ? "s" : ""}://${node.options.host}:${node.options.port}`;
 		this.sessionId = node.sessionId;
 		this.password = node.options.password;
+		this.manager = manager;
 	}
 
 	/**
@@ -30,26 +34,31 @@ export class Rest {
 
 	/** Retrieves all the players that are currently running on the node. */
 	public async getAllPlayers(): Promise<unknown> {
+		this.manager.emit("debug", `[REST] Getting all players for: ${JSON.stringify(this.node)}`);
 		return await this.get(`/v4/sessions/${this.sessionId}/players`);
 	}
 
 	/** Sends a PATCH request to update player related data. */
 	public async updatePlayer(options: playOptions): Promise<unknown> {
+		this.manager.emit("debug", `[REST] Updating player: ${options.guildId}: ${JSON.stringify(options)}`);
 		return await this.patch(`/v4/sessions/${this.sessionId}/players/${options.guildId}?noReplace=false`, options.data);
 	}
 
 	/** Sends a DELETE request to the server to destroy the player. */
 	public async destroyPlayer(guildId: string): Promise<unknown> {
+		this.manager.emit("debug", `[REST] Destroying player: ${guildId}`);
 		return await this.delete(`/v4/sessions/${this.sessionId}/players/${guildId}`);
 	}
 
 	/** Updates the session status for resuming. */
 	public async updateSession(resuming: boolean, timeout: number): Promise<unknown> {
+		this.manager.emit("debug", `[REST] Updating session: ${this.sessionId}`);
 		return await this.patch(`/v4/sessions/${this.sessionId}`, { resuming, timeout });
 	}
 
 	/* Sends a GET request to the specified endpoint and returns the response data. */
 	private async request(method: string, endpoint: string, body?: unknown): Promise<unknown> {
+		this.manager.emit("debug", `[REST] ${method} api call for endpoint: ${endpoint} with data: ${JSON.stringify(body)}`);
 		const config: AxiosRequestConfig = {
 			method,
 			url: this.url + endpoint,
