@@ -173,7 +173,7 @@ export class Manager extends EventEmitter {
 					player.setDynamicRepeat(state.dynamicRepeat, state.dynamicLoopInterval._idleTimeout);
 				}
 				if (state.isAutoplay) {
-					player.setAutoplay(state.isAutoplay, state.data.Internal_BotUser);
+					player.setAutoplay(state.isAutoplay, state.data.Internal_BotUser as User | ClientUser);
 				}
 			}
 		}
@@ -679,11 +679,11 @@ export class Manager extends EventEmitter {
 		if ("t" in data && !["VOICE_STATE_UPDATE", "VOICE_SERVER_UPDATE"].includes(data.t)) return;
 
 		const update = "d" in data ? data.d : data;
-		
+
 		if (!update || (!("token" in update) && !("session_id" in update))) return;
-		
+
 		const player = this.players.get(update.guild_id);
-		
+
 		if (!player) return;
 		this.emit("debug", `[MANAGER] Updating voice state: ${JSON.stringify(update)}`);
 		if ("token" in update) {
