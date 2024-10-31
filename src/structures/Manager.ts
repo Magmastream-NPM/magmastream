@@ -172,7 +172,7 @@ export class Manager extends EventEmitter {
 				if (state.dynamicRepeat) {
 					player.setDynamicRepeat(state.dynamicRepeat, state.dynamicLoopInterval._idleTimeout);
 				}
-				if (state.isAutoplay) {
+				if (state.isAutoplay && state?.data?.Internal_BotUser) {
 					player.setAutoplay(state.isAutoplay, state.data.Internal_BotUser as User | ClientUser);
 				}
 			}
