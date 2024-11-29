@@ -753,6 +753,11 @@ export interface ManagerOptions {
 	defaultSearchPlatform?: SearchPlatform;
 	/** Whether the YouTube video titles should be replaced if the Author does not exactly match. */
 	replaceYouTubeCredentials?: boolean;
+	/** The last.fm API key.
+	 * If you need to create one go here: https://www.last.fm/api/account/create.
+	 * If you already have one, get it from here: https://www.last.fm/api/accounts.
+	 */
+	lastFmApiKey: string;
 	/**
 	 * Function to send data to the websocket.
 	 * @param id
