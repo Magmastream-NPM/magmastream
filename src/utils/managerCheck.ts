@@ -3,7 +3,20 @@ import { ManagerOptions } from "../structures/Manager";
 export default function managerCheck(options: ManagerOptions) {
 	if (!options) throw new TypeError("ManagerOptions must not be empty.");
 
-	const { autoPlay, clientId, clientName, defaultSearchPlatform, nodes, plugins, send, trackPartial, usePriority, useNode, replaceYouTubeCredentials } = options;
+	const {
+		autoPlay,
+		clientId,
+		clientName,
+		defaultSearchPlatform,
+		nodes,
+		plugins,
+		send,
+		trackPartial,
+		usePriority,
+		useNode,
+		replaceYouTubeCredentials,
+		lastFmApiKey,
+	} = options;
 
 	if (typeof autoPlay !== "undefined" && typeof autoPlay !== "boolean") {
 		throw new TypeError('Manager option "autoPlay" must be a boolean.');
@@ -61,5 +74,9 @@ export default function managerCheck(options: ManagerOptions) {
 
 	if (typeof replaceYouTubeCredentials !== "undefined" && typeof replaceYouTubeCredentials !== "boolean") {
 		throw new TypeError('Manager option "replaceYouTubeCredentials" must be a boolean.');
+	}
+
+	if (typeof lastFmApiKey !== "undefined" && (typeof lastFmApiKey !== "string" || lastFmApiKey.trim().length === 0)) {
+		throw new TypeError('Manager option "lastFmApiKey" must be a string.');
 	}
 }

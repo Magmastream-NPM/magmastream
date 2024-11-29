@@ -6,14 +6,13 @@ import {
 	TrackExceptionEvent,
 	TrackStartEvent,
 	TrackStuckEvent,
-	TrackUtils,
 	WebSocketClosedEvent,
 	SponsorBlockChapterStarted,
 	SponsorBlockChaptersLoaded,
 	SponsorBlockSegmentsLoaded,
 	SponsorBlockSegmentSkipped,
 } from "./Utils";
-import { LavalinkResponse, Manager, PlaylistRawData } from "./Manager";
+import { Manager } from "./Manager";
 import { Player, Track, UnresolvedTrack } from "./Player";
 import { Rest } from "./Rest";
 import nodeCheck from "../utils/nodeCheck";
@@ -21,6 +20,7 @@ import WebSocket from "ws";
 import fs from "fs";
 import path from "path";
 import { ClientUser } from "discord.js";
+import axios from "axios";
 
 export const validSponsorBlocks = ["sponsor", "selfpromo", "interaction", "intro", "outro", "preview", "music_offtopic", "filler"];
 export type SponsorBlockSegment = "sponsor" | "selfpromo" | "interaction" | "intro" | "outro" | "preview" | "music_offtopic" | "filler";
@@ -427,90 +427,53 @@ export class Node {
 	}
 
 	// Handle autoplay
-	private async handleAutoplay(player: Player, track: Track) {
+	private async handleAutoplay(player: Player, track: Track): Promise<boolean> {
 		const previousTrack = player.queue.previous;
-		if (!player.isAutoplay || !previousTrack) return;
+		if (!player.isAutoplay || !previousTrack || !this.manager.options.lastFmApiKey) return false;
 
-		const hasSpotifyURL = ["spotify.com", "open.spotify.com"].some((url) => previousTrack.uri.includes(url));
+		const { author: artist, title } = previousTrack;
+		const apiKey = this.manager.options.lastFmApiKey;
+		const url = `https://ws.audioscrobbler.com/2.0/?method=track.getSimilar&artist=${artist}&track=${title}&limit=10&autocorrect=1&api_key=${apiKey}&format=json`;
 
-		if (hasSpotifyURL) {
-			const spotifySuccess = await this.handleSpotifyAutoplay(player); // Check if Spotify autoplay was successful
+		const response = await axios.get(url);
+		if (response.data.error || !response.data.similartracks) return false;
 
-			if (spotifySuccess) return; // If successful, exit the function
+		if (response.data.similartracks.track.length === 0) {
+			const artistFromResponse = response.data.similartracks['@attr'].artist;
+			const retryUrl = `https://ws.audioscrobbler.com/2.0/?method=artist.getTopTracks&artist=${artistFromResponse}&autocorrect=1&api_key=${apiKey}&format=json`;
+
+
+			const retryResponse = await axios.get(retryUrl);
+
+			if (retryResponse.data.error || !retryResponse.data.toptracks || retryResponse.data.toptracks.track.length === 0) return false;
+
+			const similarTracks = retryResponse.data.toptracks.track;
+			const randomTrack = similarTracks[Math.floor(Math.random() * similarTracks.length)];
+
+			const res = await player.search(`${randomTrack.artist.name} - ${randomTrack.name}`, player.get("Internal_BotUser") as ClientUser);
+			if (res.loadType === "empty" || res.loadType === "error") return false;
+
+			const tracks = res.loadType === "playlist" ? res.playlist.tracks : res.tracks;
+
+			if (tracks[0].uri === track.uri || (tracks[0].author === track.author && tracks[0].title === track.title)) return false;
+
+			player.queue.add(tracks[0]);
+			player.play();
+
+			return true;
 		}
 
-		const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) => previousTrack.uri.includes(url));
-		let videoID = previousTrack.uri.substring(previousTrack.uri.indexOf("=") + 1);
+		const similarTracks = response.data.similartracks.track;
+		const randomTrack = similarTracks[Math.floor(Math.random() * similarTracks.length)];
 
-		if (!hasYouTubeURL) {
-			const res = await player.search(`${previousTrack.author} - ${previousTrack.title}`, player.get("Internal_BotUser") as ClientUser);
-			videoID = res.tracks[0].uri.substring(res.tracks[0].uri.indexOf("=") + 1);
-		}
+		const res = await player.search(`${randomTrack.artist.name} - ${randomTrack.name}`, player.get("Internal_BotUser") as ClientUser);
+		if (res.loadType === "empty" || res.loadType === "error") return false;
 
-		let randomIndex: number;
-		let searchURI: string;
+		const tracks = res.loadType === "playlist" ? res.playlist.tracks : res.tracks;
 
-		do {
-			randomIndex = Math.floor(Math.random() * 23) + 2;
-			searchURI = `https://www.youtube.com/watch?v=${videoID}&list=RD${videoID}&index=${randomIndex}`;
-		} while (track.uri.includes(searchURI));
+		if (tracks[0].uri === track.uri || (tracks[0].author === track.author && tracks[0].title === track.title)) return false;
 
-		const res = await player.search(searchURI, player.get("Internal_BotUser") as ClientUser);
-
-		if (res.loadType === "empty" || res.loadType === "error") return;
-
-		let tracks = res.tracks;
-
-		if (res.loadType === "playlist") tracks = res.playlist.tracks;
-
-		const foundTrack = tracks.sort(() => Math.random() - 0.5).find((shuffledTrack) => shuffledTrack.uri !== track.uri);
-
-		if (!foundTrack) return;
-		if (this.manager.options.replaceYouTubeCredentials) {
-			foundTrack.author = foundTrack.author.replace("- Topic", "");
-			foundTrack.title = foundTrack.title.replace("Topic -", "");
-
-			if (foundTrack.title.includes("-")) {
-				const [author, title] = foundTrack.title.split("-").map((str: string) => str.trim());
-
-				foundTrack.author = author;
-				foundTrack.title = title;
-			}
-		}
-
-		player.queue.add(foundTrack);
-		player.play();
-	}
-
-	private async handleSpotifyAutoplay(player: Player): Promise<boolean> {
-		const previousTrack = player.queue.previous;
-		const node = this.manager.useableNodes;
-		const isSpotifyPluginEnabled = node.info.plugins.some((plugin: { name: string }) => plugin.name === "lavasrc-plugin");
-		const isSpotifySourceManagerEnabled = node.info.sourceManagers.includes("spotify");
-
-		if (!isSpotifySourceManagerEnabled || !isSpotifyPluginEnabled) return false;
-
-		const trackID = this.extractSpotifyTrackID(previousTrack.uri);
-		const artistID = this.extractSpotifyArtistID(previousTrack.pluginInfo.artistUrl);
-
-		let identifier = [trackID && `seed_tracks=${trackID}`, artistID && `seed_artists=${artistID}`].filter(Boolean).join("&");
-
-		if (identifier) {
-			identifier = `sprec:${identifier}`;
-		}
-
-		if (!identifier) return false;
-
-		const recommendedResult = (await node.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(identifier)}`)) as LavalinkResponse;
-
-		if (recommendedResult.loadType !== "playlist") return false;
-
-		const playlistData = recommendedResult.data as PlaylistRawData;
-		const recommendedTrack = playlistData.tracks[0];
-
-		if (!recommendedTrack) return false;
-
-		player.queue.add(TrackUtils.build(recommendedTrack, player.get("Internal_BotUser") as ClientUser));
+		player.queue.add(tracks[0]);
 		player.play();
 
 		return true;
@@ -568,14 +531,24 @@ export class Node {
 		player.queue.current = null;
 
 		if (!player.isAutoplay) {
-			player.queue.previous = player.queue.current;
-			player.queue.current = null;
 			player.playing = false;
 			this.manager.emit("queueEnd", player, track, payload);
 			return;
 		}
 
-		await this.handleAutoplay(player, track);
+		let attempts = 0;
+		let success = false;
+
+		while (attempts < 3) {
+			success = await this.handleAutoplay(player, track);
+			if (success) return;
+			attempts++;
+		}
+
+		// If all attempts fail, reset the player state and emit queueEnd
+		player.queue.previous = null;
+		player.playing = false;
+		this.manager.emit("queueEnd", player, track, payload);
 	}
 
 	protected trackStuck(player: Player, track: Track, payload: TrackStuckEvent): void {
