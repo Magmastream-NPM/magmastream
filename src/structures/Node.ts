@@ -465,7 +465,20 @@ export class Node {
 
 		// Handle Last.fm-based autoplay logic
 		let { author: artist } = previousTrack;
-		const { title } = previousTrack;
+		const { title, uri } = previousTrack;
+
+		const enabledSources = this.info.sourceManagers;
+
+		const isSpotifyEnabled = enabledSources.includes("spotify");
+		const isSpotifyUri = uri.includes("spotify.com");
+
+		let selectedSource: string | null = null;
+
+		if (isSpotifyEnabled && isSpotifyUri) {
+			selectedSource = "spotify";
+		} else {
+			selectedSource = this.manager.options.defaultSearchPlatform;
+		}
 
 		if (!artist || !title) {
 			if (!title) {
@@ -475,7 +488,10 @@ export class Node {
 				if (response.data.error || !response.data.toptracks?.track?.length) return false;
 
 				const randomTrack = response.data.toptracks.track[Math.floor(Math.random() * response.data.toptracks.track.length)];
-				const res = await player.search(`${randomTrack.artist.name} - ${randomTrack.name}`, player.get("Internal_BotUser") as ClientUser);
+				const res = await player.search(
+					{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: selectedSource },
+					player.get("Internal_BotUser") as ClientUser
+				);
 				if (res.loadType === "empty" || res.loadType === "error") return false;
 
 				const foundTrack = res.tracks.find((t) => t.uri !== track.uri);
@@ -502,7 +518,10 @@ export class Node {
 			if (retryResponse.data.error || !retryResponse.data.toptracks?.track?.length) return false;
 
 			const randomTrack = retryResponse.data.toptracks.track[Math.floor(Math.random() * retryResponse.data.toptracks.track.length)];
-			const res = await player.search(`${randomTrack.artist.name} - ${randomTrack.name}`, player.get("Internal_BotUser") as ClientUser);
+			const res = await player.search(
+				{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: selectedSource },
+				player.get("Internal_BotUser") as ClientUser
+			);
 			if (res.loadType === "empty" || res.loadType === "error") return false;
 
 			const foundTrack = res.tracks.find((t) => t.uri !== track.uri);
@@ -514,7 +533,7 @@ export class Node {
 		}
 
 		const randomTrack = response.data.similartracks.track[Math.floor(Math.random() * response.data.similartracks.track.length)];
-		const res = await player.search(`${randomTrack.artist.name} - ${randomTrack.name}`, player.get("Internal_BotUser") as ClientUser);
+		const res = await player.search({ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: selectedSource }, player.get("Internal_BotUser") as ClientUser);
 		if (res.loadType === "empty" || res.loadType === "error") return false;
 
 		const foundTrack = res.tracks.find((t) => t.uri !== track.uri);
