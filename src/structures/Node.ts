@@ -428,98 +428,100 @@ export class Node {
 
 	// Handle autoplay
 	private async handleAutoplay(player: Player, track: Track, attempts: number = 0): Promise<boolean> {
+		if (!player.isAutoplay || attempts > 3 || !player.queue.previous) return false;
+
 		const previousTrack = player.queue.previous;
+		const apiKey = this.manager.options.lastFmApiKey;
 
-		if (!player.isAutoplay || !previousTrack) return false;
+		// If Last.fm API is not available and YouTube is not supported
+		if (!apiKey && !this.info.sourceManagers.includes("youtube")) return false;
 
-		if (!this.manager.options.lastFmApiKey || attempts === 3) {
+		// Handle YouTube autoplay logic
+		if ((!apiKey && this.info.sourceManagers.includes("youtube")) || (attempts > 2 && this.info.sourceManagers.includes("youtube"))) {
 			const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) => previousTrack.uri.includes(url));
-			let videoID = previousTrack.uri.substring(previousTrack.uri.indexOf("=") + 1);
+			const videoID = hasYouTubeURL
+				? previousTrack.uri.split("=").pop()
+				: (await player.search(`${previousTrack.author} - ${previousTrack.title}`, player.get("Internal_BotUser") as ClientUser)).tracks[0]?.uri.split("=").pop();
 
-			if (!hasYouTubeURL) {
-				const res = await player.search(`${previousTrack.author} - ${previousTrack.title}`, player.get("Internal_BotUser") as ClientUser);
-				if (res.loadType === "empty" || res.loadType === "error") return false;
-				videoID = res.tracks[0].uri.substring(res.tracks[0].uri.indexOf("=") + 1);
-			}
+			if (!videoID) return false;
 
 			let randomIndex: number;
 			let searchURI: string;
-
 			do {
 				randomIndex = Math.floor(Math.random() * 23) + 2;
 				searchURI = `https://www.youtube.com/watch?v=${videoID}&list=RD${videoID}&index=${randomIndex}`;
 			} while (track.uri.includes(searchURI));
 
 			const res = await player.search(searchURI, player.get("Internal_BotUser") as ClientUser);
-
 			if (res.loadType === "empty" || res.loadType === "error") return false;
 
-			const tracks = res.loadType === "playlist" ? res.playlist.tracks : res.tracks;
-
-			const foundTrack = tracks.sort(() => Math.random() - 0.5).find((shuffledTrack) => shuffledTrack.uri !== track.uri);
-
+			const foundTrack = res.tracks.find((t) => t.uri !== track.uri && t.author !== track.author && t.title !== track.title);
 			if (!foundTrack) return false;
-
-			if (this.manager.options.replaceYouTubeCredentials) {
-				foundTrack.author = foundTrack.author.replace("- Topic", "");
-				foundTrack.title = foundTrack.title.replace("Topic -", "");
-
-				if (foundTrack.title.includes("-")) {
-					const [author, title] = foundTrack.title.split("-").map((str: string) => str.trim());
-
-					foundTrack.author = author;
-					foundTrack.title = title;
-				}
-			}
 
 			player.queue.add(foundTrack);
 			player.play();
-		}
-
-		const { author: artist, title } = previousTrack;
-		const apiKey = this.manager.options.lastFmApiKey;
-		const url = `https://ws.audioscrobbler.com/2.0/?method=track.getSimilar&artist=${artist}&track=${title}&limit=10&autocorrect=1&api_key=${apiKey}&format=json`;
-
-		const response = await axios.get(url);
-		if (response.data.error || !response.data.similartracks) return false;
-
-		if (response.data.similartracks.track.length === 0) {
-			const artistFromResponse = response.data.similartracks["@attr"].artist;
-			const retryUrl = `https://ws.audioscrobbler.com/2.0/?method=artist.getTopTracks&artist=${artistFromResponse}&autocorrect=1&api_key=${apiKey}&format=json`;
-
-			const retryResponse = await axios.get(retryUrl);
-
-			if (retryResponse.data.error || !retryResponse.data.toptracks || retryResponse.data.toptracks.track.length === 0) return false;
-
-			const similarTracks = retryResponse.data.toptracks.track;
-			const randomTrack = similarTracks[Math.floor(Math.random() * similarTracks.length)];
-
-			const res = await player.search(`${randomTrack.artist.name} - ${randomTrack.name}`, player.get("Internal_BotUser") as ClientUser);
-			if (res.loadType === "empty" || res.loadType === "error") return false;
-
-			const tracks = res.loadType === "playlist" ? res.playlist.tracks : res.tracks;
-
-			if (tracks[0].uri === track.uri || (tracks[0].author === track.author && tracks[0].title === track.title)) return false;
-
-			player.queue.add(tracks[0]);
-			player.play();
-
 			return true;
 		}
 
-		const similarTracks = response.data.similartracks.track;
-		const randomTrack = similarTracks[Math.floor(Math.random() * similarTracks.length)];
+		// Handle Last.fm-based autoplay logic
+		let { author: artist } = previousTrack;
+		const { title } = previousTrack;
 
+		if (!artist || !title) {
+			if (!title) {
+				const noTitleUrl = `https://ws.audioscrobbler.com/2.0/?method=artist.getTopTracks&artist=${artist}&autocorrect=1&api_key=${apiKey}&format=json`;
+				const response = await axios.get(noTitleUrl);
+
+				if (response.data.error || !response.data.toptracks?.track?.length) return false;
+
+				const randomTrack = response.data.toptracks.track[Math.floor(Math.random() * response.data.toptracks.track.length)];
+				const res = await player.search(`${randomTrack.artist.name} - ${randomTrack.name}`, player.get("Internal_BotUser") as ClientUser);
+				if (res.loadType === "empty" || res.loadType === "error") return false;
+
+				const foundTrack = res.tracks.find((t) => t.uri !== track.uri);
+				if (!foundTrack) return false;
+
+				player.queue.add(foundTrack);
+				player.play();
+				return true;
+			} else if (!artist) {
+				const noArtistUrl = `https://ws.audioscrobbler.com/2.0/?method=track.search&track=${title}&api_key=${apiKey}&format=json`;
+				const response = await axios.get(noArtistUrl);
+				artist = response.data.results.trackmatches?.track?.[0]?.artist;
+				if (!artist) return false;
+			}
+		}
+
+		const url = `https://ws.audioscrobbler.com/2.0/?method=track.getSimilar&artist=${artist}&track=${title}&limit=10&autocorrect=1&api_key=${apiKey}&format=json`;
+		const response = await axios.get(url);
+
+		if (response.data.error || !response.data.similartracks?.track?.length) {
+			const retryUrl = `https://ws.audioscrobbler.com/2.0/?method=artist.getTopTracks&artist=${artist}&autocorrect=1&api_key=${apiKey}&format=json`;
+			const retryResponse = await axios.get(retryUrl);
+
+			if (retryResponse.data.error || !retryResponse.data.toptracks?.track?.length) return false;
+
+			const randomTrack = retryResponse.data.toptracks.track[Math.floor(Math.random() * retryResponse.data.toptracks.track.length)];
+			const res = await player.search(`${randomTrack.artist.name} - ${randomTrack.name}`, player.get("Internal_BotUser") as ClientUser);
+			if (res.loadType === "empty" || res.loadType === "error") return false;
+
+			const foundTrack = res.tracks.find((t) => t.uri !== track.uri);
+			if (!foundTrack) return false;
+
+			player.queue.add(foundTrack);
+			player.play();
+			return true;
+		}
+
+		const randomTrack = response.data.similartracks.track[Math.floor(Math.random() * response.data.similartracks.track.length)];
 		const res = await player.search(`${randomTrack.artist.name} - ${randomTrack.name}`, player.get("Internal_BotUser") as ClientUser);
 		if (res.loadType === "empty" || res.loadType === "error") return false;
 
-		const tracks = res.loadType === "playlist" ? res.playlist.tracks : res.tracks;
+		const foundTrack = res.tracks.find((t) => t.uri !== track.uri);
+		if (!foundTrack) return false;
 
-		if (tracks[0].uri === track.uri || (tracks[0].author === track.author && tracks[0].title === track.title)) return false;
-
-		player.queue.add(tracks[0]);
+		player.queue.add(foundTrack);
 		player.play();
-
 		return true;
 	}
 
@@ -584,7 +586,6 @@ export class Node {
 		let success = false;
 
 		while (attempts <= 3) {
-			console.log(attempts);
 			success = await this.handleAutoplay(player, track, attempts);
 			if (success) return;
 			attempts++;
