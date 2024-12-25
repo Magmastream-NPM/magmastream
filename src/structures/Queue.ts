@@ -85,7 +85,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 			}
 		}
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), "queueChange");
+		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), "queueTrackAdd");
 	}
 
 	/**
@@ -116,7 +116,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 
 			const removedTracks = this.splice(startOrPosition, end - startOrPosition);
 			this.manager.emit("debug", `[QUEUE] Removed ${removedTracks.length} track(s) from player: ${this.guild} from position ${startOrPosition} to ${end}.`);
-			this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), "queueChange");
+			this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), "queueTrackRemove");
 
 			return;
 		}
@@ -124,7 +124,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 		// Single item removal when no end specified
 		const removedTrack = this.splice(startOrPosition, 1);
 		this.manager.emit("debug", `[QUEUE] Removed 1 track from player: ${this.guild} from position ${startOrPosition}: ${JSON.stringify(removedTrack[0], null, 2)}`);
-		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), "queueChange");
+		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), "queueTrackRemoveSingle");
 
 		return;
 	}
@@ -133,7 +133,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 	public clear(): void {
 		const oldPlayer = { ...this.manager.players.get(this.guild) };
 		this.splice(0);
-		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), "queueChange");
+		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), "queueClear");
 		this.manager.emit("debug", `[QUEUE] Cleared the queue for: ${this.guild}`);
 	}
 
@@ -144,7 +144,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 			const j = Math.floor(Math.random() * (i + 1));
 			[this[i], this[j]] = [this[j], this[i]];
 		}
-		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), "queueChange");
+		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), "queueShuffle");
 		this.manager.emit("debug", `[QUEUE] Shuffled the queue for: ${this.guild}`);
 	}
 
@@ -175,7 +175,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 
 		this.splice(0);
 		this.add(shuffledQueue);
-		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), "queueChange");
+		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), "queueUserBlockShuffle");
 		this.manager.emit("debug", `[QUEUE] userBlockShuffled the queue for: ${this.guild}`);
 	}
 
@@ -216,7 +216,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 
 		this.splice(0);
 		this.add(shuffledQueue);
-		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), "queueChange");
+		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), "queueRobinShuffle");
 		this.manager.emit("debug", `[QUEUE] roundRobinShuffled the queue for: ${this.guild}`);
 	}
 }
