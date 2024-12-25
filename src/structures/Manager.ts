@@ -476,6 +476,8 @@ export class Manager extends EventEmitter {
 			if (res.loadType === "playlist") {
 				playlist = {
 					name: playlistData!.info.name,
+					playlistInfo: playlistData.pluginInfo,
+					requester: requester,
 					tracks: playlistData!.tracks.map((track) => TrackUtils.build(track, requester)),
 					duration: playlistData!.tracks.reduce((acc, cur) => acc + (cur.info.length || 0), 0),
 				};
