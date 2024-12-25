@@ -193,7 +193,7 @@ export class Player {
 		this.voiceChannel = channel;
 		this.connect();
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "channelChange");
+		this.manager.emit("playerStateUpdate", oldPlayer, this, "voiceChannelChange");
 		return this;
 	}
 
@@ -208,7 +208,7 @@ export class Player {
 
 		this.textChannel = channel;
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "channelChange");
+		this.manager.emit("playerStateUpdate", oldPlayer, this, "textChannelChange");
 		return this;
 	}
 
@@ -453,7 +453,7 @@ export class Player {
 			this.dynamicRepeat = false;
 		}
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "repeatChange");
+		this.manager.emit("playerStateUpdate", oldPlayer, this, "trackRepeatChange");
 		return this;
 	}
 
@@ -476,7 +476,7 @@ export class Player {
 			this.dynamicRepeat = false;
 		}
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "repeatChange");
+		this.manager.emit("playerStateUpdate", oldPlayer, this, "queueRepeatChange");
 		return this;
 	}
 
@@ -516,7 +516,7 @@ export class Player {
 			this.dynamicRepeat = false;
 		}
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "repeatChange");
+		this.manager.emit("playerStateUpdate", oldPlayer, this, "dynamicRepeatChange");
 		return this;
 	}
 
@@ -551,7 +551,7 @@ export class Player {
 			},
 		});
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "trackChange");
+		this.manager.emit("playerStateUpdate", oldPlayer, this, "trackChangeStop");
 		return this;
 	}
 
@@ -586,7 +586,7 @@ export class Player {
 		this.queue.unshift(this.queue.previous);
 		this.stop();
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "trackChange");
+		this.manager.emit("playerStateUpdate", oldPlayer, this, "trackChangePrevious");
 		return this;
 	}
 
@@ -614,7 +614,7 @@ export class Player {
 			},
 		});
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "trackChange");
+		this.manager.emit("playerStateUpdate", oldPlayer, this, "trackChangeSeek");
 		return this;
 	}
 }
