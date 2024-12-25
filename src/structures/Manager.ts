@@ -833,9 +833,26 @@ export interface PlaylistRawData {
 	tracks: TrackData[];
 }
 
+export interface PlaylistInfoData {
+	/** Url to playlist. */
+	url: string;
+	/** Type is always playlist in that case. */
+	type: string;
+	/** ArtworkUrl of playlist */
+	artworkUrl: string;
+	/** Number of total tracks in playlist */
+	totalTracks: number;
+	/** Author of playlist */
+	author: string;
+}
+
 export interface PlaylistData {
 	/** The playlist name. */
 	name: string;
+	/** Requester of playlist. */
+	requester: User | ClientUser;
+	/** More playlist information. */
+	playlistInfo: PlaylistInfoData[];
 	/** The length of the playlist. */
 	duration: number;
 	/** The songs of the playlist. */
