@@ -400,16 +400,22 @@ export class Manager extends EventEmitter {
 
 	/**
 	 * Initiates the Manager.
-	 * @param clientId
+	 * @param clientId - The Discord client ID (required).
 	 */
-	public init(clientId?: string): this {
-		if (this.initiated) return this;
-		if (typeof clientId !== "undefined") this.options.clientId = clientId;
+	public init(clientId: string): this {
+		if (this.initiated) {
+			return this;
+		}
 
-		if (typeof this.options.clientId !== "string") throw new Error('"clientId" set is not type of "string"');
+		// Validate clientId
+		if (typeof clientId !== "string" || !/^\d+$/.test(clientId)) {
+			throw new Error('"clientId" must be a valid Discord client ID.');
+		}
 
-		if (!this.options.clientId) throw new Error('"clientId" is not set. Pass it in Manager#init() or as a option in the constructor.');
+		// Set the validated clientId
+		this.options.clientId = clientId;
 
+		// Attempt to connect nodes
 		for (const node of this.nodes.values()) {
 			try {
 				node.connect();
@@ -768,7 +774,26 @@ export interface ManagerOptions {
 	send(id: string, payload: Payload): void;
 }
 
-export type SearchPlatform = "deezer" | "soundcloud" | "youtube music" | "youtube" | "spotify" | "jiosaavn" | "tidal" | "applemusic" | "bandcamp";
+export const UseNodeOptions = {
+	leastLoad: "leastLoad",
+	leastPlayers: "leastPlayers",
+} as const;
+
+export type UseNodeOption = keyof typeof UseNodeOptions;
+
+export const SearchPlatforms = {
+	deezer: "deezer",
+	soundcloud: "soundcloud",
+	"youtube music": "youtube music",
+	youtube: "youtube",
+	spotify: "spotify",
+	jiosaavn: "jiosaavn",
+	tidal: "tidal",
+	applemusic: "applemusic",
+	bandcamp: "bandcamp",
+} as const;
+
+export type SearchPlatform = keyof typeof SearchPlatforms;
 
 export type PlayerStateEventType =
 	| "connectionChange"
