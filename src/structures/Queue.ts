@@ -49,7 +49,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 		const trackInfo = Array.isArray(track) ? track.map((t) => JSON.stringify(t, null, 2)).join(", ") : JSON.stringify(track, null, 2);
 		this.manager.emit("debug", `[QUEUE] Added ${Array.isArray(track) ? track.length : 1} track(s) to queue: ${trackInfo}`);
 
-		const oldPlayer = { ...this.manager.players.get(this.guild) };
+		const oldPlayer = this.manager.players.get(this.guild) ? { ...this.manager.players.get(this.guild) } : null;
 		if (!TrackUtils.validate(track)) {
 			throw new RangeError('Track must be a "Track" or "Track[]".');
 		}
@@ -102,7 +102,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 	public remove(start: number, end: number): (Track | UnresolvedTrack)[];
 
 	public remove(startOrPosition = 0, end?: number): (Track | UnresolvedTrack)[] {
-		const oldPlayer = { ...this.manager.players.get(this.guild) };
+		const oldPlayer = this.manager.players.get(this.guild) ? { ...this.manager.players.get(this.guild) } : null;
 
 		if (typeof end !== "undefined") {
 			// Validate input for `start` and `end`
@@ -131,7 +131,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 
 	/** Clears the queue. */
 	public clear(): void {
-		const oldPlayer = { ...this.manager.players.get(this.guild) };
+		const oldPlayer = this.manager.players.get(this.guild) ? { ...this.manager.players.get(this.guild) } : null;
 		this.splice(0);
 		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), "queueClear");
 		this.manager.emit("debug", `[QUEUE] Cleared the queue for: ${this.guild}`);
@@ -139,7 +139,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 
 	/** Shuffles the queue. */
 	public shuffle(): void {
-		const oldPlayer = { ...this.manager.players.get(this.guild) };
+		const oldPlayer = this.manager.players.get(this.guild) ? { ...this.manager.players.get(this.guild) } : null;
 		for (let i = this.length - 1; i > 0; i--) {
 			const j = Math.floor(Math.random() * (i + 1));
 			[this[i], this[j]] = [this[j], this[i]];
@@ -149,7 +149,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 	}
 
 	public userBlockShuffle() {
-		const oldPlayer = { ...this.manager.players.get(this.guild) };
+		const oldPlayer = this.manager.players.get(this.guild) ? { ...this.manager.players.get(this.guild) } : null;
 		const userTracks = new Map<string, Array<Track | UnresolvedTrack>>();
 
 		this.forEach((track) => {
@@ -180,7 +180,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 	}
 
 	public roundRobinShuffle() {
-		const oldPlayer = { ...this.manager.players.get(this.guild) };
+		const oldPlayer = this.manager.players.get(this.guild) ? { ...this.manager.players.get(this.guild) } : null;
 		const userTracks = new Map<string, Array<Track | UnresolvedTrack>>();
 
 		this.forEach((track) => {
