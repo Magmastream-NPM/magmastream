@@ -1,40 +1,29 @@
-import { ManagerOptions } from "../structures/Manager";
+import { ManagerOptions, SearchPlatforms, UseNodeOptions } from "../structures/Manager";
 
 export default function managerCheck(options: ManagerOptions) {
 	if (!options) throw new TypeError("ManagerOptions must not be empty.");
 
-	const {
-		autoPlay,
-		clientId,
-		clientName,
-		defaultSearchPlatform,
-		nodes,
-		plugins,
-		send,
-		trackPartial,
-		usePriority,
-		useNode,
-		replaceYouTubeCredentials,
-		lastFmApiKey,
-	} = options;
+	const { autoPlay, clientName, defaultSearchPlatform, nodes, plugins, send, trackPartial, usePriority, useNode, replaceYouTubeCredentials, lastFmApiKey } =
+		options;
 
-	if (typeof autoPlay !== "undefined" && typeof autoPlay !== "boolean") {
+	if (typeof autoPlay !== "boolean") {
 		throw new TypeError('Manager option "autoPlay" must be a boolean.');
 	}
 
-	if (typeof clientId !== "undefined" && !/^\d+$/.test(clientId)) {
-		throw new TypeError('Manager option "clientId" must be a non-empty string.');
+	if (typeof clientName !== "undefined") {
+
+		if (typeof clientName !== "string" || clientName.trim().length === 0) {
+			throw new TypeError('Manager option "clientName" must be a non-empty string.');
+		}
 	}
 
-	if (typeof clientName !== "undefined" && typeof clientName !== "string") {
-		throw new TypeError('Manager option "clientName" must be a string.');
+	if (typeof defaultSearchPlatform !== "undefined") {
+		if (typeof defaultSearchPlatform !== "string" || !Object.values(SearchPlatforms).includes(defaultSearchPlatform)) {
+			throw new TypeError(`Manager option "defaultSearchPlatform" must be one of: ${Object.values(SearchPlatforms).join(", ")}.`);
+		}
 	}
 
-	if (typeof defaultSearchPlatform !== "undefined" && typeof defaultSearchPlatform !== "string") {
-		throw new TypeError('Manager option "defaultSearchPlatform" must be a string.');
-	}
-
-	if (typeof nodes !== "undefined" && !Array.isArray(nodes)) {
+	if (typeof nodes === "undefined" || !Array.isArray(nodes)) {
 		throw new TypeError('Manager option "nodes" must be an array.');
 	}
 
@@ -46,18 +35,24 @@ export default function managerCheck(options: ManagerOptions) {
 		throw new TypeError('Manager option "send" must be present and a function.');
 	}
 
-	if (typeof trackPartial !== "undefined" && !Array.isArray(trackPartial)) {
-		throw new TypeError('Manager option "trackPartial" must be a string array.');
+	if (typeof trackPartial !== "undefined") {
+		if (!Array.isArray(trackPartial)) {
+			throw new TypeError('Manager option "trackPartial" must be an array.');
+		}
+		if (!trackPartial.every(item => typeof item === "string")) {
+			throw new TypeError('Manager option "trackPartial" must be an array of strings.');
+		}
 	}
 
 	if (typeof usePriority !== "undefined" && typeof usePriority !== "boolean") {
 		throw new TypeError('Manager option "usePriority" must be a boolean.');
 	}
+	
 
 	if (usePriority) {
 		for (let index = 0; index < nodes.length; index++) {
-			if (!nodes[index].priority) {
-				throw new TypeError(`Missing node option "priority" at position ${index}`);
+			if (typeof nodes[index].priority !== 'number' || isNaN(nodes[index].priority)) {
+				throw new TypeError(`Missing or invalid node option "priority" at position ${index}`);
 			}
 		}
 	}
@@ -67,8 +62,8 @@ export default function managerCheck(options: ManagerOptions) {
 			throw new TypeError('Manager option "useNode" must be a string "leastLoad" or "leastPlayers".');
 		}
 
-		if (useNode !== "leastLoad" && useNode !== "leastPlayers") {
-			throw new TypeError('Manager option must be either "leastLoad" or "leastPlayers".');
+		if (!(useNode in UseNodeOptions)) {
+			throw new TypeError('Manager option "useNode" must be either "leastLoad" or "leastPlayers".');
 		}
 	}
 
@@ -77,6 +72,7 @@ export default function managerCheck(options: ManagerOptions) {
 	}
 
 	if (typeof lastFmApiKey !== "undefined" && (typeof lastFmApiKey !== "string" || lastFmApiKey.trim().length === 0)) {
-		throw new TypeError('Manager option "lastFmApiKey" must be a string.');
+		throw new TypeError('Manager option "lastFmApiKey" must be a non-empty string.');
 	}
+	
 }
