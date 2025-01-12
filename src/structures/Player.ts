@@ -46,6 +46,8 @@ export class Player {
 	public manager: Manager;
 	/** The autoplay state of the player. */
 	public isAutoplay: boolean = false;
+	/** The number of times to try autoplay before emitting queueEnd. */
+	public autoplayTries: number = 3;
 
 	private static _manager: Manager;
 	private readonly data: Record<string, unknown> = {};
@@ -284,7 +286,7 @@ export class Player {
 	 * @param autoplayState
 	 * @param botUser
 	 */
-	public setAutoplay(autoplayState: boolean, botUser: object) {
+	public setAutoplay(autoplayState: boolean, botUser: object, tries: number = 3) {
 		if (typeof autoplayState !== "boolean") {
 			throw new TypeError("autoplayState must be a boolean.");
 		}
@@ -292,9 +294,15 @@ export class Player {
 		if (typeof botUser !== "object") {
 			throw new TypeError("botUser must be a user-object.");
 		}
+
+		if (typeof tries !== "number" || tries < 1) {
+			tries = 3; // Default to 3 if invalid
+		}
+
 		const oldPlayer = this ? { ...this } : null;
 
 		this.isAutoplay = autoplayState;
+		this.autoplayTries = tries;
 		this.set("Internal_BotUser", botUser);
 
 		this.manager.emit("playerStateUpdate", oldPlayer, this, "autoplayChange");

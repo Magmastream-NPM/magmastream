@@ -427,8 +427,8 @@ export class Node {
 	}
 
 	// Handle autoplay
-	private async handleAutoplay(player: Player, track: Track, attempts: number = 0): Promise<boolean> {
-		if (!player.isAutoplay || attempts > 3 || !player.queue.previous) return false;
+	private async handleAutoplay(player: Player, track: Track, attempt: number = 0): Promise<boolean> {
+		if (!player.isAutoplay || attempt === player.autoplayTries || !player.queue.previous) return false;
 
 		const previousTrack = player.queue.previous;
 		const apiKey = this.manager.options.lastFmApiKey;
@@ -437,7 +437,10 @@ export class Node {
 		if (!apiKey && !this.info.sourceManagers.includes("youtube")) return false;
 
 		// Handle YouTube autoplay logic
-		if ((!apiKey && this.info.sourceManagers.includes("youtube")) || (attempts > 2 && this.info.sourceManagers.includes("youtube"))) {
+		if (
+			(!apiKey && this.info.sourceManagers.includes("youtube")) ||
+			(attempt === player.autoplayTries - 1 && !(apiKey && player.autoplayTries === 1) && this.info.sourceManagers.includes("youtube"))
+		) {
 			const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) => previousTrack.uri.includes(url));
 			const videoID = hasYouTubeURL
 				? previousTrack.uri.split("=").pop()
@@ -533,7 +536,10 @@ export class Node {
 		}
 
 		const randomTrack = response.data.similartracks.track[Math.floor(Math.random() * response.data.similartracks.track.length)];
-		const res = await player.search({ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: selectedSource }, player.get("Internal_BotUser") as ClientUser);
+		const res = await player.search(
+			{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: selectedSource },
+			player.get("Internal_BotUser") as ClientUser
+		);
 		if (res.loadType === "empty" || res.loadType === "error") return false;
 
 		const foundTrack = res.tracks.find((t) => t.uri !== track.uri);
@@ -604,7 +610,7 @@ export class Node {
 		let attempts = 1;
 		let success = false;
 
-		while (attempts <= 3) {
+		while (attempts <= player.autoplayTries) {
 			success = await this.handleAutoplay(player, track, attempts);
 			if (success) return;
 			attempts++;
