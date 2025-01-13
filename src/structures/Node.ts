@@ -12,7 +12,7 @@ import {
 	SponsorBlockSegmentsLoaded,
 	SponsorBlockSegmentSkipped,
 } from "./Utils";
-import { Manager } from "./Manager";
+import { Manager, PlayerStateEventTypes } from "./Manager";
 import { Player, Track, UnresolvedTrack } from "./Player";
 import { Rest } from "./Rest";
 import nodeCheck from "../utils/nodeCheck";
@@ -25,7 +25,7 @@ import axios from "axios";
 export const validSponsorBlocks = ["sponsor", "selfpromo", "interaction", "intro", "outro", "preview", "music_offtopic", "filler"];
 export type SponsorBlockSegment = "sponsor" | "selfpromo" | "interaction" | "intro" | "outro" | "preview" | "music_offtopic" | "filler";
 
-const sessionIdsFilePath = path.join(process.cwd(), "node_modules", "magmastream", "dist", "sessionData", "sessionIds.json");
+const sessionIdsFilePath = path.join(process.cwd(), "magmastream", "dist", "sessionData", "sessionIds.json");
 let sessionIdsMap: Map<string, string> = new Map();
 
 const configDir = path.dirname(sessionIdsFilePath);
@@ -124,6 +124,9 @@ export class Node {
 
 		this.createSessionIdsFile();
 		this.loadSessionIds();
+
+		// Create README file to inform the user about the magmastream folder
+		this.createReadmeFile();
 	}
 
 	/** Creates the sessionIds.json file if it doesn't exist. */
@@ -382,7 +385,13 @@ export class Node {
 		player.playing = true;
 		player.paused = false;
 		this.manager.emit("trackStart", player, track, payload);
-		this.manager.emit("playerStateUpdate", oldPlayer, player, "trackChange");
+		this.manager.emit("playerStateUpdate", oldPlayer, player, {
+			changeType: PlayerStateEventTypes.TRACK_CHANGE,
+			details: {
+				changeType: "start",
+				track: track,
+			},
+		});
 	}
 
 	protected async trackEnd(player: Player, track: Track, payload: TrackEndEvent): Promise<void> {
@@ -411,7 +420,13 @@ export class Node {
 		else {
 			await this.queueEnd(player, track, payload);
 		}
-		this.manager.emit("playerStateUpdate", oldPlayer, player, "trackChange");
+		this.manager.emit("playerStateUpdate", oldPlayer, player, {
+			changeType: PlayerStateEventTypes.TRACK_CHANGE,
+			details: {
+				changeType: "end",
+				track: track,
+			},
+		});
 	}
 
 	public extractSpotifyTrackID(url: string): string | null {
@@ -704,6 +719,17 @@ export class Node {
 
 		await this.rest.delete(`/v4/sessions/${this.sessionId}/players/${player.guild}/sponsorblock/categories`);
 		return;
+	}
+
+	// Creates a README.md or README.txt file in the magmastream directory
+	private createReadmeFile(): void {
+		const readmeFilePath = path.join(process.cwd(), "magmastream", "README.md");
+		const message = "Please do NOT delete the magmastream/ folder as it is used to store player data for autoresume etc.";
+
+		if (!fs.existsSync(readmeFilePath)) {
+			fs.writeFileSync(readmeFilePath, message, "utf-8");
+			this.manager.emit("debug", `[NODE] Created README file at: ${readmeFilePath}`);
+		}
 	}
 }
 
