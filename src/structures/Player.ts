@@ -1,5 +1,5 @@
 import { Filters } from "./Filters";
-import { LavalinkResponse, Manager, PlaylistRawData, SearchQuery, SearchResult } from "./Manager";
+import { LavalinkResponse, Manager, PlaylistRawData, SearchQuery, SearchResult, PlayerStateEventTypes } from "./Manager";
 import { LavalinkInfo, Node, SponsorBlockSegment } from "./Node";
 import { Queue } from "./Queue";
 import { Sizes, State, Structure, TrackSourceName, TrackUtils, VoiceState } from "./Utils";
@@ -125,7 +125,7 @@ export class Player {
 	public connect(): this {
 		if (!this.voiceChannel) throw new RangeError("No voice channel has been set.");
 		this.state = "CONNECTING";
-		
+
 		const oldPlayer = this ? { ...this } : null;
 
 		this.manager.options.send(this.guild, {
@@ -140,7 +140,14 @@ export class Player {
 
 		this.state = "CONNECTED";
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "connectionChange");
+		this.manager.emit("playerStateUpdate", oldPlayer, this, {
+			changeType: PlayerStateEventTypes.CONNECTION_CHANGE,
+			details: {
+				changeType: "connect",
+				previousConnection: oldPlayer.state === "CONNECTED",
+				currentConnection: true,
+			},
+		});
 		return this;
 	}
 
@@ -164,7 +171,14 @@ export class Player {
 		this.voiceChannel = null;
 		this.state = "DISCONNECTED";
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "connectionChange");
+		this.manager.emit("playerStateUpdate", oldPlayer, this, {
+			changeType: PlayerStateEventTypes.CONNECTION_CHANGE,
+			details: {
+				changeType: "disconnect",
+				previousConnection: oldPlayer.state === "CONNECTED",
+				currentConnection: false,
+			},
+		});
 		return this;
 	}
 
@@ -180,7 +194,9 @@ export class Player {
 		this.node.rest.destroyPlayer(this.guild);
 		this.manager.emit("playerDestroy", this);
 		this.manager.players.delete(this.guild);
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "playerDestroy");
+		this.manager.emit("playerStateUpdate", oldPlayer, this, {
+			changeType: PlayerStateEventTypes.PLAYER_DESTROY,
+		});
 	}
 
 	/**
@@ -195,7 +211,14 @@ export class Player {
 		this.voiceChannel = channel;
 		this.connect();
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "voiceChannelChange");
+		this.manager.emit("playerStateUpdate", oldPlayer, this, {
+			changeType: PlayerStateEventTypes.CHANNEL_CHANGE,
+			details: {
+				changeType: "voice",
+				previousChannel: oldPlayer.voiceChannel || null,
+				currentChannel: this.voiceChannel,
+			},
+		});
 		return this;
 	}
 
@@ -210,7 +233,14 @@ export class Player {
 
 		this.textChannel = channel;
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "textChannelChange");
+		this.manager.emit("playerStateUpdate", oldPlayer, this, {
+			changeType: PlayerStateEventTypes.CHANNEL_CHANGE,
+			details: {
+				changeType: "text",
+				previousChannel: oldPlayer.textChannel || null,
+				currentChannel: this.textChannel,
+			},
+		});
 		return this;
 	}
 
@@ -305,7 +335,13 @@ export class Player {
 		this.autoplayTries = tries;
 		this.set("Internal_BotUser", botUser);
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "autoplayChange");
+		this.manager.emit("playerStateUpdate", oldPlayer, this, {
+			changeType: PlayerStateEventTypes.AUTOPLAY_CHANGE,
+			details: {
+				previousAutoplay: oldPlayer.isAutoplay,
+				currentAutoplay: this.isAutoplay,
+			},
+		});
 		return this;
 	}
 
@@ -415,7 +451,10 @@ export class Player {
 		});
 
 		this.volume = volume;
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "volumeChange");
+		this.manager.emit("playerStateUpdate", oldPlayer, this, {
+			changeType: PlayerStateEventTypes.VOLUME_CHANGE,
+			details: { previousVolume: oldPlayer.volume || null, currentVolume: this.volume },
+		});
 
 		return this;
 	}
@@ -461,7 +500,14 @@ export class Player {
 			this.dynamicRepeat = false;
 		}
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "trackRepeatChange");
+		this.manager.emit("playerStateUpdate", oldPlayer, this, {
+			changeType: PlayerStateEventTypes.REPEAT_CHANGE,
+			detail: {
+				changeType: "track",
+				previousRepeat: this.getRepeatState(oldPlayer),
+				currentRepeat: this.getRepeatState(this),
+			},
+		});
 		return this;
 	}
 
@@ -484,7 +530,14 @@ export class Player {
 			this.dynamicRepeat = false;
 		}
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "queueRepeatChange");
+		this.manager.emit("playerStateUpdate", oldPlayer, this, {
+			changeType: PlayerStateEventTypes.REPEAT_CHANGE,
+			detail: {
+				changeType: "queue",
+				previousRepeat: this.getRepeatState(oldPlayer),
+				currentRepeat: this.getRepeatState(this),
+			},
+		});
 		return this;
 	}
 
@@ -524,7 +577,14 @@ export class Player {
 			this.dynamicRepeat = false;
 		}
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "dynamicRepeatChange");
+		this.manager.emit("playerStateUpdate", oldPlayer, this, {
+			changeType: PlayerStateEventTypes.REPEAT_CHANGE,
+			detail: {
+				changeType: "dynamic",
+				previousRepeat: this.getRepeatState(oldPlayer),
+				currentRepeat: this.getRepeatState(this),
+			},
+		});
 		return this;
 	}
 
@@ -547,9 +607,21 @@ export class Player {
 	/** Stops the current track, optionally give an amount to skip to, e.g 5 would play the 5th song. */
 	public stop(amount?: number): this {
 		const oldPlayer = this ? { ...this } : null;
+
+		let removedTracks: (Track | UnresolvedTrack)[] = [];
+
 		if (typeof amount === "number" && amount > 1) {
-			if (amount > this.queue.length) throw new RangeError("Cannot skip more than the queue length.");
+			if (amount > this.queue.length) {
+				throw new RangeError("Cannot skip more than the queue length.");
+			}
+
+			removedTracks = this.queue.slice(0, amount - 1);
 			this.queue.splice(0, amount - 1);
+		} else {
+			if (this.queue.current) {
+				removedTracks.push(this.queue.current);
+			}
+			this.queue.clear();
 		}
 
 		this.node.rest.updatePlayer({
@@ -559,7 +631,14 @@ export class Player {
 			},
 		});
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "trackChangeStop");
+		this.manager.emit("playerStateUpdate", oldPlayer, this, {
+			changeType: PlayerStateEventTypes.QUEUE_CHANGE,
+			details: {
+				changeType: "remove",
+				tracks: removedTracks,
+			},
+		});
+
 		return this;
 	}
 
@@ -584,7 +663,13 @@ export class Player {
 			},
 		});
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "pauseChange");
+		this.manager.emit("playerStateUpdate", oldPlayer, this, {
+			changeType: PlayerStateEventTypes.PAUSE_CHANGE,
+			details: {
+				previousPause: oldPlayer.paused,
+				currentPause: this.paused,
+			},
+		});
 		return this;
 	}
 
@@ -594,7 +679,13 @@ export class Player {
 		this.queue.unshift(this.queue.previous);
 		this.stop();
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "trackChangePrevious");
+		this.manager.emit("playerStateUpdate", oldPlayer, this, {
+			changeType: PlayerStateEventTypes.TRACK_CHANGE,
+			details: {
+				changeType: "previous",
+				track: this.queue.previous,
+			},
+		});
 		return this;
 	}
 
@@ -622,8 +713,22 @@ export class Player {
 			},
 		});
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "trackChangeSeek");
+		this.manager.emit("playerStateUpdate", oldPlayer, this, {
+			changeType: PlayerStateEventTypes.TRACK_CHANGE,
+			details: {
+				changeType: "timeUpdate",
+				previousTime: oldPlayer.position,
+				currentTime: this.position,
+			},
+		});
 		return this;
+	}
+
+	private getRepeatState(player: Player): string | null {
+		if (player.queueRepeat) return "queue";
+		if (player.trackRepeat) return "track";
+		if (player.dynamicRepeat) return "dynamic";
+		return null;
 	}
 }
 
