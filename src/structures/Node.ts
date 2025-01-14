@@ -750,7 +750,7 @@ export interface NodeOptions {
 	retryDelay?: number;
 	/** Whether to resume the previous session. */
 	resumeStatus?: boolean;
-	/** The time the manager will wait before trying to resume the previous session. */
+	/** The time the lavalink server will wait before it removes the player. */
 	resumeTimeout?: number;
 	/** The timeout used for api calls. */
 	requestTimeout?: number;
