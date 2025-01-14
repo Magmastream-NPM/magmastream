@@ -621,7 +621,6 @@ export class Player {
 			if (this.queue.current) {
 				removedTracks.push(this.queue.current);
 			}
-			this.queue.clear();
 		}
 
 		this.node.rest.updatePlayer({
