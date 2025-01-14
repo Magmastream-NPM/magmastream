@@ -3,7 +3,7 @@ import { NodeOptions } from "../structures/Node";
 export default function nodeCheck(options: NodeOptions) {
 	if (!options) throw new TypeError("NodeOptions must not be empty.");
 
-	const { host, identifier, password, port, requestTimeout, resumeStatus, resumeTimeout, retryAmount, retryDelay, secure, priority } = options;
+	const { host, identifier, password, port, resumeStatus, resumeTimeout, retryAmount, retryDelay, secure, priority } = options;
 
 	if (typeof host !== "string" || !/.+/.test(host)) {
 		throw new TypeError('Node option "host" must be present and be a non-empty string.');
@@ -19,10 +19,6 @@ export default function nodeCheck(options: NodeOptions) {
 
 	if (typeof port !== "undefined" && typeof port !== "number") {
 		throw new TypeError('Node option "port" must be a number.');
-	}
-
-	if (typeof requestTimeout !== "undefined" && typeof requestTimeout !== "number") {
-		throw new TypeError('Node option "requestTimeout" must be a number.');
 	}
 
 	if (typeof resumeStatus !== "undefined" && typeof resumeStatus !== "boolean") {

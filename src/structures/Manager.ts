@@ -62,7 +62,7 @@ export class Manager extends EventEmitter {
 
 		const info = (await node.rest.getAllPlayers()) as LavaPlayer[];
 
-		const playerStatesDir = path.join(process.cwd(), "node_modules", "magmastream", "dist", "sessionData", "players");
+		const playerStatesDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
 
 		if (!fs.existsSync(playerStatesDir)) {
 			fs.mkdirSync(playerStatesDir, { recursive: true });
@@ -182,7 +182,7 @@ export class Manager extends EventEmitter {
 
 	/** Gets each player's JSON file */
 	private getPlayerFilePath(guildId: string): string {
-		const playerStateFilePath = path.join(process.cwd(), "node_modules", "magmastream", "dist", "sessionData", "players", `${guildId}.json`);
+		const playerStateFilePath = path.join(process.cwd(), "magmastream", "dist", "sessionData", "players", `${guildId}.json`);
 		const configDir = path.dirname(playerStateFilePath);
 		if (!fs.existsSync(configDir)) {
 			fs.mkdirSync(configDir, { recursive: true });
@@ -236,7 +236,7 @@ export class Manager extends EventEmitter {
 
 	/** Check for players that are no longer active */
 	private cleanupInactivePlayers(): void {
-		const playerStatesDir = path.join(process.cwd(), "node_modules", "magmastream", "dist", "sessionData", "players");
+		const playerStatesDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
 
 		// Create the directory if it does not exist
 		if (!fs.existsSync(playerStatesDir)) {
@@ -795,17 +795,77 @@ export const SearchPlatforms = {
 
 export type SearchPlatform = keyof typeof SearchPlatforms;
 
-export type PlayerStateEventType =
-	| "connectionChange"
-	| "playerCreate"
-	| "playerDestroy"
-	| "channelChange"
-	| "volumeChange"
-	| "pauseChange"
-	| "queueChange"
-	| "trackChange"
-	| "repeatChange"
-	| "autoplayChange";
+export enum PlayerStateEventTypes {
+	AUTOPLAY_CHANGE = "playerAutoplay",
+	CONNECTION_CHANGE = "playerConnection",
+	REPEAT_CHANGE = "playerRepeat",
+	PAUSE_CHANGE = "playerPause",
+	PLAYER_CREATE = "playerCreate",
+	PLAYER_DESTROY = "playerDestroy",
+	QUEUE_CHANGE = "queueChange",
+	TRACK_CHANGE = "trackChange",
+	VOLUME_CHANGE = "volumeChange",
+	CHANNEL_CHANGE = "channelChange",
+}
+
+interface PlayerStateUpdateEvent {
+	changeType: PlayerStateEventTypes;
+	details?:
+		| AutoplayChangeEvent
+		| ConnectionChangeEvent
+		| RepeatChangeEvent
+		| PauseChangeEvent
+		| QueueChangeEvent
+		| TrackChangeEvent
+		| VolumeChangeEvent
+		| ChannelChangeEvent;
+}
+
+interface AutoplayChangeEvent {
+	previousAutoplay: boolean;
+	currentAutoplay: boolean;
+}
+
+interface ConnectionChangeEvent {
+	changeType: "connect" | "disconnect";
+	previousConnection: boolean;
+	currentConnection: boolean;
+}
+
+interface RepeatChangeEvent {
+	changeType: "dynamic" | "track" | "queue" | null;
+	previousRepeat: string | null;
+	currentRepeat: string | null;
+}
+
+interface PauseChangeEvent {
+	previousPause: boolean | null;
+	currentPause: boolean | null;
+}
+
+interface QueueChangeEvent {
+    changeType: "add" | "remove" | "clear" | "shuffle" | "roundRobin" | "userBlock";
+    tracks?: (Track | UnresolvedTrack)[];
+}
+
+
+interface TrackChangeEvent {
+	changeType: "start" | "end" | "previous" | "timeUpdate";
+	track: Track;
+	previousTime?: number | null;
+	currentTime?: number | null;
+}
+
+interface VolumeChangeEvent {
+	previousVolume: number | null;
+	currentVolume: number | null;
+}
+
+interface ChannelChangeEvent {
+	changeType: "text" | "voice";
+	previousChannel: string | null;
+	currentChannel: string | null;
+}
 
 export interface SearchQuery {
 	/** The source to search from. */
@@ -895,7 +955,7 @@ export interface ManagerEvents {
 	nodeRaw: [payload: unknown];
 	playerCreate: [player: Player];
 	playerDestroy: [player: Player];
-	playerStateUpdate: [oldPlayer: Player, newPlayer: Player, changeType: PlayerStateEventType];
+	playerStateUpdate: [oldPlayer: Player, newPlayer: Player, event: PlayerStateUpdateEvent];
 	playerMove: [player: Player, initChannel: string, newChannel: string];
 	playerDisconnect: [player: Player, oldChannel: string];
 	queueEnd: [player: Player, track: Track | UnresolvedTrack, payload: TrackEndEvent];
