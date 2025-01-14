@@ -753,7 +753,6 @@ export interface NodeOptions {
 	/** The time the lavalink server will wait before it removes the player. */
 	resumeTimeout?: number;
 	/** The timeout used for api calls. */
-	requestTimeout?: number;
 	/** Priority of the node. */
 	priority?: number;
 }
