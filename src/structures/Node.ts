@@ -12,7 +12,7 @@ import {
 	SponsorBlockSegmentsLoaded,
 	SponsorBlockSegmentSkipped,
 } from "./Utils";
-import { Manager, PlayerStateEventTypes } from "./Manager";
+import { Manager, PlayerStateEventTypes, SearchPlatform } from "./Manager";
 import { Player, Track, UnresolvedTrack } from "./Player";
 import { Rest } from "./Rest";
 import nodeCheck from "../utils/nodeCheck";
@@ -490,10 +490,10 @@ export class Node {
 		const isSpotifyEnabled = enabledSources.includes("spotify");
 		const isSpotifyUri = uri.includes("spotify.com");
 
-		let selectedSource: string | null = null;
+		let selectedSource: SearchPlatform | null = null;
 
 		if (isSpotifyEnabled && isSpotifyUri) {
-			selectedSource = "spotify";
+			selectedSource = SearchPlatform.Spotify;
 		} else {
 			selectedSource = this.manager.options.defaultSearchPlatform;
 		}
