@@ -745,7 +745,7 @@ export interface ManagerOptions {
 	autoPlay?: boolean;
 	/** An array of track properties to keep. `track` will always be present. */
 	trackPartial?: string[];
-	/** The default search platform to use, can be "youtube", "youtube music", "soundcloud" or deezer. */
+	/** The default search platform to use. Use enum `SearchPlatform`. */
 	defaultSearchPlatform?: SearchPlatform;
 	/** Whether the YouTube video titles should be replaced if the Author does not exactly match. */
 	replaceYouTubeCredentials?: boolean;
