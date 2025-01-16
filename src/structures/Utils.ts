@@ -423,6 +423,21 @@ export interface SponsorBlockChaptersLoaded extends PlayerEvent {
 	}[];
 }
 
+export type TrackPartial =
+	"encoded"
+	| "pluginInfo"
+	| "identifier"
+	| "isSeekable"
+	| "author"
+	| "length"
+	| "isrc"
+	| "isStream"
+	| "title"
+	| "uri"
+	| "artworkUrl"
+	| "sourceName";
+
+
 export interface PlayerUpdate {
 	op: "playerUpdate";
 	/** The guild id of the player. */

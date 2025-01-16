@@ -5,13 +5,13 @@ import {
 	Structure,
 	TrackData,
 	TrackEndEvent,
-	TrackExceptionEvent,
+	TrackExceptionEvent, TrackPartial,
 	TrackStartEvent,
 	TrackStuckEvent,
 	TrackUtils,
 	VoicePacket,
 	VoiceServer,
-	WebSocketClosedEvent,
+	WebSocketClosedEvent
 } from "./Utils";
 import { Collection } from "@discordjs/collection";
 import { SponsorBlockChapterStarted, SponsorBlockChaptersLoaded, SponsorBlockSegmentSkipped, SponsorBlockSegmentsLoaded } from "./Utils";
@@ -26,8 +26,8 @@ import fs from "fs";
 import path from "path";
 
 /**
- * The main hub for interacting with Lavalink and using Magmastream,
- */
+	* The main hub for interacting with Lavalink and using Magmastream,
+	*/
 export class Manager extends EventEmitter {
 	public on<T extends keyof ManagerEvents>(event: T, listener: (...args: ManagerEvents[T]) => void): this {
 		return super.on(event, listener);
@@ -337,9 +337,9 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-	 * Initiates the Manager class.
-	 * @param options
-	 */
+		* Initiates the Manager class.
+		* @param options
+		*/
 	constructor(options: ManagerOptions) {
 		super();
 
@@ -387,9 +387,9 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-	 * Initiates the Manager.
-	 * @param clientId - The Discord client ID (required).
-	 */
+		* Initiates the Manager.
+		* @param clientId - The Discord client ID (required).
+		*/
 	public init(clientId: string): this {
 		if (this.initiated) {
 			return this;
@@ -417,11 +417,11 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-	 * Searches the enabled sources based off the URL or the `source` property.
-	 * @param query
-	 * @param requester
-	 * @returns The search result.
-	 */
+		* Searches the enabled sources based off the URL or the `source` property.
+		* @param query
+		* @param requester
+		* @returns The search result.
+		*/
 	public async search<T = User | ClientUser>(query: string | SearchQuery, requester?: T): Promise<SearchResult> {
 		const node = this.useableNodes;
 
@@ -583,9 +583,9 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-	 * Decodes the base64 encoded tracks and returns a TrackData array.
-	 * @param tracks
-	 */
+		* Decodes the base64 encoded tracks and returns a TrackData array.
+		* @param tracks
+		*/
 	public decodeTracks(tracks: string[]): Promise<TrackData[]> {
 		this.emit("debug", `[MANAGER] Decoding tracks: ${JSON.stringify(tracks)}`);
 		return new Promise(async (resolve, reject) => {
@@ -603,18 +603,18 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-	 * Decodes the base64 encoded track and returns a TrackData.
-	 * @param track
-	 */
+		* Decodes the base64 encoded track and returns a TrackData.
+		* @param track
+		*/
 	public async decodeTrack(track: string): Promise<TrackData> {
 		const res = await this.decodeTracks([track]);
 		return res[0];
 	}
 
 	/**
-	 * Creates a player or returns one if it already exists.
-	 * @param options
-	 */
+		* Creates a player or returns one if it already exists.
+		* @param options
+		*/
 	public create(options: PlayerOptions): Player {
 		if (this.players.has(options.guild)) {
 			return this.players.get(options.guild);
@@ -625,17 +625,17 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-	 * Returns a player or undefined if it does not exist.
-	 * @param guild
-	 */
+		* Returns a player or undefined if it does not exist.
+		* @param guild
+		*/
 	public get(guild: string): Player | undefined {
 		return this.players.get(guild);
 	}
 
 	/**
-	 * Destroys a player if it exists.
-	 * @param guild
-	 */
+		* Destroys a player if it exists.
+		* @param guild
+		*/
 	public destroy(guild: string): void {
 		this.emit("debug", `[MANAGER] Destroying player: ${guild}`);
 		this.players.delete(guild);
@@ -643,9 +643,9 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-	 * Creates a node or returns one if it already exists.
-	 * @param options
-	 */
+		* Creates a node or returns one if it already exists.
+		* @param options
+		*/
 	public createNode(options: NodeOptions): Node {
 		if (this.nodes.has(options.identifier || options.host)) {
 			return this.nodes.get(options.identifier || options.host);
@@ -656,9 +656,9 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-	 * Destroys a node if it exists.
-	 * @param identifier
-	 */
+		* Destroys a node if it exists.
+		* @param identifier
+		*/
 	public destroyNode(identifier: string): void {
 		const node = this.nodes.get(identifier);
 		if (!node) return;
@@ -668,9 +668,9 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-	 * Sends voice data to the Lavalink server.
-	 * @param data
-	 */
+		* Sends voice data to the Lavalink server.
+		* @param data
+		*/
 	public async updateVoiceState(data: VoicePacket | VoiceServer | VoiceState): Promise<void> {
 		if ("t" in data && !["VOICE_STATE_UPDATE", "VOICE_SERVER_UPDATE"].includes(data.t)) return;
 
@@ -732,7 +732,7 @@ export interface ManagerOptions {
 	/** Use priority mode over least amount of player or load? */
 	usePriority?: boolean;
 	/** Use the least amount of players or least load? */
-	useNode?: "leastLoad" | "leastPlayers";
+	useNode?: UseNodeOption;
 	/** The array of nodes to connect to. */
 	nodes?: NodeOptions[];
 	/** The client ID to use. */
@@ -744,21 +744,21 @@ export interface ManagerOptions {
 	/** Whether players should automatically play the next song. */
 	autoPlay?: boolean;
 	/** An array of track properties to keep. `track` will always be present. */
-	trackPartial?: string[];
-	/** The default search platform to use. Use enum `SearchPlatform`. */
+	trackPartial?: TrackPartial[];
+	/** The default search platform to use, can be "youtube", "youtube music", "soundcloud" or deezer. */
 	defaultSearchPlatform?: SearchPlatform;
 	/** Whether the YouTube video titles should be replaced if the Author does not exactly match. */
 	replaceYouTubeCredentials?: boolean;
 	/** The last.fm API key.
-	 * If you need to create one go here: https://www.last.fm/api/account/create.
-	 * If you already have one, get it from here: https://www.last.fm/api/accounts.
-	 */
+		* If you need to create one go here: https://www.last.fm/api/account/create.
+		* If you already have one, get it from here: https://www.last.fm/api/accounts.
+		*/
 	lastFmApiKey: string;
 	/**
-	 * Function to send data to the websocket.
-	 * @param id
-	 * @param payload
-	 */
+		* Function to send data to the websocket.
+		* @param id
+		* @param payload
+		*/
 	send(id: string, payload: Payload): void;
 }
 
@@ -768,20 +768,6 @@ export const UseNodeOptions = {
 } as const;
 
 export type UseNodeOption = keyof typeof UseNodeOptions;
-
-export const SearchPlatforms = {
-	deezer: "deezer",
-	soundcloud: "soundcloud",
-	"youtube music": "youtube music",
-	youtube: "youtube",
-	spotify: "spotify",
-	jiosaavn: "jiosaavn",
-	tidal: "tidal",
-	applemusic: "applemusic",
-	bandcamp: "bandcamp",
-} as const;
-
-// export type SearchPlatform = keyof typeof SearchPlatforms;
 
 export enum SearchPlatform {
 	YouTubeMusic = "ytmsearch",

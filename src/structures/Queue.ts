@@ -32,7 +32,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 	public manager: Manager;
 
 	/** The guild property. */
-	guild: string;
+	public guild: string;
 
 	constructor(guild: string, manager: Manager) {
 		super();
@@ -44,6 +44,8 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 	 * Adds a track to the queue.
 	 * @param track
 	 * @param [offset=null]
+		*
+		* @returns	void
 	 */
 	public add(track: (Track | UnresolvedTrack) | (Track | UnresolvedTrack)[], offset?: number): void {
 		const trackInfo = Array.isArray(track) ? track.map((t) => JSON.stringify(t, null, 2)).join(", ") : JSON.stringify(track, null, 2);
@@ -155,7 +157,10 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 		return removedTrack;
 	}
 
-	/** Clears the queue. */
+	/** Clears the queue.
+		*
+		* @returns	void
+		*/
 	public clear(): void {
 		const oldPlayer = this.manager.players.get(this.guild) ? { ...this.manager.players.get(this.guild) } : null;
 		this.splice(0);
@@ -169,7 +174,10 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 		this.manager.emit("debug", `[QUEUE] Cleared the queue for: ${this.guild}`);
 	}
 
-	/** Shuffles the queue. */
+	/** Shuffles the queue.
+		*
+		* @returns	void
+		*/
 	public shuffle(): void {
 		const oldPlayer = this.manager.players.get(this.guild) ? { ...this.manager.players.get(this.guild) } : null;
 		for (let i = this.length - 1; i > 0; i--) {
@@ -185,7 +193,11 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 		this.manager.emit("debug", `[QUEUE] Shuffled the queue for: ${this.guild}`);
 	}
 
-	public userBlockShuffle() {
+	/** Shuffles the user block
+		*
+		* @returns	void
+		* */
+	public userBlockShuffle(): void {
 		const oldPlayer = this.manager.players.get(this.guild) ? { ...this.manager.players.get(this.guild) } : null;
 		const userTracks = new Map<string, Array<Track | UnresolvedTrack>>();
 
@@ -221,7 +233,11 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 		this.manager.emit("debug", `[QUEUE] userBlockShuffled the queue for: ${this.guild}`);
 	}
 
-	public roundRobinShuffle() {
+	/** Round-robin shuffle
+		*
+		* @returns	void
+		* */
+	public roundRobinShuffle(): void {
 		const oldPlayer = this.manager.players.get(this.guild) ? { ...this.manager.players.get(this.guild) } : null;
 		const userTracks = new Map<string, Array<Track | UnresolvedTrack>>();
 

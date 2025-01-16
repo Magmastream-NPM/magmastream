@@ -171,7 +171,7 @@ export class Filters {
 		return this.applyFilter({ property: "distortion", value: distortion });
 	}
 
-	/** Removes the audio effects and resets the filter status. */
+	/** Removes the audio effects and resets the filters status. */
 	public async clearFilters(): Promise<this> {
 		this.filterStatus = {
 			bassboost: false,
@@ -198,7 +198,7 @@ export class Filters {
 		return this;
 	}
 
-	/** Returns the status of the specified filter . */
+	/** Returns the status of the specified filter. */
 	public getFilterStatus(filter: keyof availableFilters): boolean {
 		return this.filterStatus[filter];
 	}
@@ -240,26 +240,46 @@ interface karaokeOptions {
 	filterWidth?: number;
 }
 
+/** Options for applying distortion effect to audio. */
 interface distortionOptions {
+	/** The offset value for the sine wave distortion. */
 	sinOffset?: number;
+	/** The scale factor for the sine wave distortion. */
 	sinScale?: number;
+	/** The offset value for the cosine wave distortion. */
 	cosOffset?: number;
+	/** The scale factor for the cosine wave distortion. */
 	cosScale?: number;
+	/** The offset value for the tangent wave distortion. */
 	tanOffset?: number;
+	/** The scale factor for the tangent wave distortion. */
 	tanScale?: number;
+	/** The general offset applied to the distortion effect. */
 	offset?: number;
+	/** The general scale factor applied to the distortion effect. */
 	scale?: number;
 }
 
+/** Available filters */
 interface availableFilters {
+	/** Bass boost filter. */
 	bassboost: boolean;
+	/** Distortion filter. */
 	distort: boolean;
+	/** 8D audio filter. */
 	eightD: boolean;
+	/** Karaoke filter. */
 	karaoke: boolean;
+	/** ENightcore filter. */
 	nightcore: boolean;
+	/** Slow motion filter. */
 	slowmo: boolean;
+	/** Soft audio filter. */
 	soft: boolean;
+	/** Treble and bass boost filter. */
 	trebleBass: boolean;
+	/** TV effect filter. */
 	tv: boolean;
+	/** Vaporwave filter. */
 	vaporwave: boolean;
 }
