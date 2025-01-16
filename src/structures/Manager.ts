@@ -769,20 +769,6 @@ export const UseNodeOptions = {
 
 export type UseNodeOption = keyof typeof UseNodeOptions;
 
-export const SearchPlatforms = {
-	deezer: "deezer",
-	soundcloud: "soundcloud",
-	"youtube music": "youtube music",
-	youtube: "youtube",
-	spotify: "spotify",
-	jiosaavn: "jiosaavn",
-	tidal: "tidal",
-	applemusic: "applemusic",
-	bandcamp: "bandcamp",
-} as const;
-
-// export type SearchPlatform = keyof typeof SearchPlatforms;
-
 export enum SearchPlatform {
 	YouTubeMusic = "ytmsearch",
 	YouTube = "ytsearch",
