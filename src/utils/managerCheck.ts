@@ -1,4 +1,4 @@
-import { ManagerOptions, SearchPlatforms, UseNodeOptions } from "../structures/Manager";
+import { ManagerOptions, SearchPlatform, UseNodeOptions } from "../structures/Manager";
 
 export default function managerCheck(options: ManagerOptions) {
 	if (!options) throw new TypeError("ManagerOptions must not be empty.");
@@ -11,15 +11,14 @@ export default function managerCheck(options: ManagerOptions) {
 	}
 
 	if (typeof clientName !== "undefined") {
-
 		if (typeof clientName !== "string" || clientName.trim().length === 0) {
 			throw new TypeError('Manager option "clientName" must be a non-empty string.');
 		}
 	}
 
 	if (typeof defaultSearchPlatform !== "undefined") {
-		if (typeof defaultSearchPlatform !== "string" || !Object.values(SearchPlatforms).includes(defaultSearchPlatform)) {
-			throw new TypeError(`Manager option "defaultSearchPlatform" must be one of: ${Object.values(SearchPlatforms).join(", ")}.`);
+		if (!Object.values(SearchPlatform).includes(defaultSearchPlatform)) {
+			throw new TypeError(`Manager option "defaultSearchPlatform" must be one of: ${Object.values(SearchPlatform).join(", ")}.`);
 		}
 	}
 
@@ -39,7 +38,7 @@ export default function managerCheck(options: ManagerOptions) {
 		if (!Array.isArray(trackPartial)) {
 			throw new TypeError('Manager option "trackPartial" must be an array.');
 		}
-		if (!trackPartial.every(item => typeof item === "string")) {
+		if (!trackPartial.every((item) => typeof item === "string")) {
 			throw new TypeError('Manager option "trackPartial" must be an array of strings.');
 		}
 	}
@@ -47,11 +46,10 @@ export default function managerCheck(options: ManagerOptions) {
 	if (typeof usePriority !== "undefined" && typeof usePriority !== "boolean") {
 		throw new TypeError('Manager option "usePriority" must be a boolean.');
 	}
-	
 
 	if (usePriority) {
 		for (let index = 0; index < nodes.length; index++) {
-			if (typeof nodes[index].priority !== 'number' || isNaN(nodes[index].priority)) {
+			if (typeof nodes[index].priority !== "number" || isNaN(nodes[index].priority)) {
 				throw new TypeError(`Missing or invalid node option "priority" at position ${index}`);
 			}
 		}
@@ -74,5 +72,4 @@ export default function managerCheck(options: ManagerOptions) {
 	if (typeof lastFmApiKey !== "undefined" && (typeof lastFmApiKey !== "string" || lastFmApiKey.trim().length === 0)) {
 		throw new TypeError('Manager option "lastFmApiKey" must be a non-empty string.');
 	}
-	
 }
