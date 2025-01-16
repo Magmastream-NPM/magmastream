@@ -33,18 +33,6 @@ export class Manager extends EventEmitter {
 		return super.on(event, listener);
 	}
 
-	public static readonly DEFAULT_SOURCES: Record<SearchPlatform, string> = {
-		"youtube music": "ytmsearch",
-		youtube: "ytsearch",
-		spotify: "spsearch",
-		jiosaavn: "jssearch",
-		soundcloud: "scsearch",
-		deezer: "dzsearch",
-		tidal: "tdsearch",
-		applemusic: "amsearch",
-		bandcamp: "bcsearch",
-	};
-
 	/** The map of players. */
 	public readonly players = new Collection<string, Player>();
 	/** The map of nodes. */
@@ -381,7 +369,7 @@ export class Manager extends EventEmitter {
 			autoPlay: true,
 			usePriority: false,
 			clientName: "Magmastream",
-			defaultSearchPlatform: "youtube",
+			defaultSearchPlatform: SearchPlatform.YouTube,
 			useNode: "leastPlayers",
 			...options,
 		};
@@ -442,7 +430,7 @@ export class Manager extends EventEmitter {
 		}
 
 		const _query: SearchQuery = typeof query === "string" ? { query } : query;
-		const _source = Manager.DEFAULT_SOURCES[_query.source ?? this.options.defaultSearchPlatform] ?? _query.source;
+		const _source = _query.source ?? this.options.defaultSearchPlatform;
 
 		let search = _query.query;
 
@@ -793,7 +781,19 @@ export const SearchPlatforms = {
 	bandcamp: "bandcamp",
 } as const;
 
-export type SearchPlatform = keyof typeof SearchPlatforms;
+// export type SearchPlatform = keyof typeof SearchPlatforms;
+
+export enum SearchPlatform {
+	YouTubeMusic = "ytmsearch",
+	YouTube = "ytsearch",
+	Spotify = "spsearch",
+	Jiosaavn = "jssearch",
+	SoundCloud = "scsearch",
+	Deezer = "dzsearch",
+	Tidal = "tdsearch",
+	AppleMusic = "amsearch",
+	Bandcamp = "bcsearch",
+}
 
 export enum PlayerStateEventTypes {
 	AUTOPLAY_CHANGE = "playerAutoplay",
@@ -844,10 +844,9 @@ interface PauseChangeEvent {
 }
 
 interface QueueChangeEvent {
-    changeType: "add" | "remove" | "clear" | "shuffle" | "roundRobin" | "userBlock";
-    tracks?: (Track | UnresolvedTrack)[];
+	changeType: "add" | "remove" | "clear" | "shuffle" | "roundRobin" | "userBlock";
+	tracks?: (Track | UnresolvedTrack)[];
 }
-
 
 interface TrackChangeEvent {
 	changeType: "start" | "end" | "previous" | "timeUpdate";
@@ -869,7 +868,7 @@ interface ChannelChangeEvent {
 
 export interface SearchQuery {
 	/** The source to search from. */
-	source?: SearchPlatform | string;
+	source?: SearchPlatform;
 	/** The query to search for. */
 	query: string;
 }
