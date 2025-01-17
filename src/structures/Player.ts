@@ -190,9 +190,7 @@ export class Player {
 	 * @throws {TypeError} If the player is not connected.
 	 */
 	public disconnect(): this {
-		if (this.voiceChannel === null) {
-			throw new TypeError("The player is not connected.");
-		}
+		if (this.voiceChannel === null) return this;
 
 		this.state = "DISCONNECTING";
 
@@ -232,7 +230,6 @@ export class Player {
 	 * @emits {playerStateUpdate} - The old and new player states after the destruction.
 	 */
 	public destroy(disconnect: boolean = true): void {
-		if (typeof disconnect !== "boolean") throw new TypeError("Disconnect must be a boolean.");
 
 		const oldPlayer = this ? { ...this } : null;
 		this.state = "DESTROYING";
@@ -527,7 +524,6 @@ export class Player {
 	 */
 	public setVolume(volume: number): this {
 		if (isNaN(volume)) throw new TypeError("Volume must be a number.");
-		if (volume < 0 || volume > 100) throw new RangeError("Volume must be between 0 and 100.");
 
 		const oldPlayer = this ? { ...this } : null;
 		this.node.rest.updatePlayer({
