@@ -11,61 +11,100 @@ const TRACK_SYMBOL = Symbol("track"),
 	UNRESOLVED_TRACK_SYMBOL = Symbol("unresolved"),
 	SIZES = ["0", "1", "2", "3", "default", "mqdefault", "hqdefault", "maxresdefault"];
 
-/** @hidden */
+/**
+ * Escapes a string by replacing special regex characters with their escaped counterparts.
+ * @param str The string to escape.
+ * @returns The escaped string.
+ * @hidden
+ */
 const escapeRegExp = (str: string): string => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 export abstract class TrackUtils {
 	static trackPartial: string[] | null = null;
 	private static manager: Manager;
 
-	/** @hidden */
+	/**
+	 * Initializes the TrackUtils class with the given manager.
+	 * @param manager The manager instance to use.
+	 * @hidden
+	 */
 	public static init(manager: Manager): void {
+		// Set the manager instance for TrackUtils.
 		this.manager = manager;
 	}
 
+	/**
+	 * Sets the partial properties for the Track class. If a Track has some of its properties removed by the partial,
+	 * it will be considered a partial Track.
+	 * @param partial The array of string property names to remove from the Track class.
+	 */
 	static setTrackPartial(partial: string[]): void {
 		if (!Array.isArray(partial) || !partial.every((str) => typeof str === "string")) throw new Error("Provided partial is not an array or not a string array.");
 
 		const defaultProperties = [
+			/** The base64 encoded string of the track */
 			"encoded",
+			/** The plugin info of the track */
 			"pluginInfo",
+			/** The track identifier */
 			"identifier",
+			/** Whether the track is seekable */
 			"isSeekable",
+			/** The author of the track */
 			"author",
+			/** The length of the track in milliseconds */
 			"length",
+			/** The ISRC of the track */
 			"isrc",
+			/** Whether the track is a stream */
 			"isStream",
+			/** The title of the track */
 			"title",
+			/** The URI of the track */
 			"uri",
+			/** The artwork URL of the track */
 			"artworkUrl",
+			/** The source name of the track */
 			"sourceName",
 		];
 
+		/** The array of property names that will be removed from the Track class */
 		this.trackPartial = Array.from(new Set([...defaultProperties, ...partial]));
 
+		/** Make sure that the "track" property is always included */
 		if (!this.trackPartial.includes("track")) this.trackPartial.unshift("track");
 	}
 
 	/**
-	 * Checks if the provided argument is a valid Track or UnresolvedTrack, if provided an array then every element will be checked.
-	 * @param trackOrTracks
+	 * Checks if the provided argument is a valid Track or UnresolvedTrack.
+	 * If provided an array then every element will be checked.
+	 * @param trackOrTracks The Track, UnresolvedTrack or array of Track/UnresolvedTrack to check.
+	 * @returns {boolean} Whether the provided argument is a valid Track or UnresolvedTrack.
 	 */
 	static validate(trackOrTracks: unknown): boolean {
+		/* istanbul ignore next */
 		if (typeof trackOrTracks === "undefined") throw new RangeError("Provided argument must be present.");
 
+		/* If the provided argument is an array */
 		if (Array.isArray(trackOrTracks) && trackOrTracks.length) {
+			/* Iterate through the array */
 			for (const track of trackOrTracks) {
+				/* If any element is not a valid Track or UnresolvedTrack, return false */
 				if (!(track[TRACK_SYMBOL] || track[UNRESOLVED_TRACK_SYMBOL])) return false;
 			}
+			/* If all elements are valid Track or UnresolvedTrack, return true */
 			return true;
 		}
 
+		/* If the provided argument is not an array */
 		return (trackOrTracks[TRACK_SYMBOL] || trackOrTracks[UNRESOLVED_TRACK_SYMBOL]) === true;
 	}
 
 	/**
 	 * Checks if the provided argument is a valid UnresolvedTrack.
-	 * @param track
+	 * A valid UnresolvedTrack is an object that has the symbol UNRESOLVED_TRACK_SYMBOL set to true.
+	 * @param track The object to check.
+	 * @returns {boolean} Whether the provided object is a valid UnresolvedTrack.
 	 */
 	static isUnresolvedTrack(track: unknown): boolean {
 		if (typeof track === "undefined") throw new RangeError("Provided argument must be present.");
@@ -74,7 +113,9 @@ export abstract class TrackUtils {
 
 	/**
 	 * Checks if the provided argument is a valid Track.
-	 * @param track
+	 * A valid Track is an object that has the symbol TRACK_SYMBOL set to true.
+	 * @param track The object to check.
+	 * @returns {boolean} Whether the provided object is a valid Track.
 	 */
 	static isTrack(track: unknown): boolean {
 		if (typeof track === "undefined") throw new RangeError("Provided argument must be present.");
@@ -83,8 +124,9 @@ export abstract class TrackUtils {
 
 	/**
 	 * Builds a Track from the raw data from Lavalink and a optional requester.
-	 * @param data
-	 * @param requester
+	 * @param data The raw data from Lavalink to build the Track from.
+	 * @param requester The user who requested the track, if any.
+	 * @returns The built Track.
 	 */
 	static build<T = User | ClientUser>(data: TrackData, requester?: T): Track {
 		if (typeof data === "undefined") throw new RangeError('Argument "data" must be present.');
@@ -134,8 +176,9 @@ export abstract class TrackUtils {
 
 	/**
 	 * Builds a UnresolvedTrack to be resolved before being played  .
-	 * @param query
-	 * @param requester
+	 * @param query The query to resolve the track from, can be a string or an UnresolvedQuery object.
+	 * @param requester The user who requested the track, if any.
+	 * @returns The built UnresolvedTrack.
 	 */
 	static buildUnresolved<T = User | ClientUser>(query: string | UnresolvedQuery, requester?: T): UnresolvedTrack {
 		if (typeof query === "undefined") throw new RangeError('Argument "query" must be present.');
@@ -160,6 +203,20 @@ export abstract class TrackUtils {
 		return unresolvedTrack as UnresolvedTrack;
 	}
 
+	/**
+	 * Resolves the closest matching Track for a given UnresolvedTrack.
+	 * 
+	 * @param unresolvedTrack The UnresolvedTrack object to resolve.
+	 * 
+	 * @returns A Promise that resolves to a Track object.
+	 * 
+	 * @throws {RangeError} If the manager has not been initialized or the provided track is not an UnresolvedTrack.
+	 * 
+	 * The method performs a search using the track's URI or a combination of its author and title.
+	 * It attempts to find an exact match for the author and title, or a track with a similar duration.
+	 * If no exact or similar match is found, it returns the first track from the search results.
+	 * The customData from the UnresolvedTrack is retained in the final resolved Track.
+	 */
 	static async getClosestTrack(unresolvedTrack: UnresolvedTrack): Promise<Track> {
 		if (!TrackUtils.manager) throw new RangeError("Manager has not been initiated.");
 

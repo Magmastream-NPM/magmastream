@@ -1,8 +1,8 @@
 /** Represents an equalizer band. */
 export interface Band {
-	/** The index of the equalizer band. */
+	/** The index of the equalizer band (0-12). */
 	band: number;
-	/** The gain value of the equalizer band. */
+	/** The gain value of the equalizer band (in decibels). */
 	gain: number;
 }
 

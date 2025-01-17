@@ -12,7 +12,7 @@ import {
 	SponsorBlockSegmentsLoaded,
 	SponsorBlockSegmentSkipped,
 } from "./Utils";
-import { Manager } from "./Manager";
+import { Manager, PlayerStateEventTypes, SearchPlatform } from "./Manager";
 import { Player, Track, UnresolvedTrack } from "./Player";
 import { Rest } from "./Rest";
 import nodeCheck from "../utils/nodeCheck";
@@ -25,7 +25,7 @@ import axios from "axios";
 export const validSponsorBlocks = ["sponsor", "selfpromo", "interaction", "intro", "outro", "preview", "music_offtopic", "filler"];
 export type SponsorBlockSegment = "sponsor" | "selfpromo" | "interaction" | "intro" | "outro" | "preview" | "music_offtopic" | "filler";
 
-const sessionIdsFilePath = path.join(process.cwd(), "node_modules", "magmastream", "dist", "sessionData", "sessionIds.json");
+const sessionIdsFilePath = path.join(process.cwd(), "magmastream", "dist", "sessionData", "sessionIds.json");
 let sessionIdsMap: Map<string, string> = new Map();
 
 const configDir = path.dirname(sessionIdsFilePath);
@@ -124,33 +124,69 @@ export class Node {
 
 		this.createSessionIdsFile();
 		this.loadSessionIds();
+
+		// Create README file to inform the user about the magmastream folder
+		this.createReadmeFile();
 	}
 
-	/** Creates the sessionIds.json file if it doesn't exist. */
+	/**
+	 * Creates the sessionIds.json file if it doesn't exist. This file is used to
+	 * store the session IDs for each node. The session IDs are used to identify
+	 * the node when resuming a session.
+	 */
 	public createSessionIdsFile(): void {
+		// If the sessionIds.json file does not exist, create it
 		if (!fs.existsSync(sessionIdsFilePath)) {
 			this.manager.emit("debug", `[NODE] Creating sessionId file at: ${sessionIdsFilePath}`);
+			// Create the file with an empty object as the content
 			fs.writeFileSync(sessionIdsFilePath, JSON.stringify({}), "utf-8");
 		}
 	}
 
-	/** Loads session IDs from the sessionIds.json file. */
+	/**
+	 * Loads session IDs from the sessionIds.json file if it exists.
+	 * The session IDs are used to resume sessions for each node.
+	 */
 	public loadSessionIds(): void {
+		// Check if the sessionIds.json file exists
 		if (fs.existsSync(sessionIdsFilePath)) {
+			// Emit a debug event indicating that session IDs are being loaded
 			this.manager.emit("debug", `[NODE] Loading sessionIds from file: ${sessionIdsFilePath}`);
+			
+			// Read the content of the sessionIds.json file as a string
 			const sessionIdsData = fs.readFileSync(sessionIdsFilePath, "utf-8");
+			
+			// Parse the JSON string into an object and convert it into a Map
 			sessionIdsMap = new Map(Object.entries(JSON.parse(sessionIdsData)));
 		}
 	}
 
-	/** Updates the session ID in the sessionIds.json file. */
+	/**
+	 * Updates the session ID in the sessionIds.json file.
+	 *
+	 * This method is called after the session ID has been updated, and it
+	 * writes the new session ID to the sessionIds.json file.
+	 */
 	public updateSessionId(): void {
+		// Emit a debug event indicating that the session IDs are being updated
 		this.manager.emit("debug", `[NODE] Updating sessionIds to file: ${sessionIdsFilePath}`);
+
+		// Update the session IDs Map with the new session ID
 		sessionIdsMap.set(this.options.identifier, this.sessionId);
+
+		// Write the updated session IDs Map to the sessionIds.json file
 		fs.writeFileSync(sessionIdsFilePath, JSON.stringify(Object.fromEntries(sessionIdsMap)));
 	}
 
-	/** Connects to the Node. */
+	/**
+	 * Connects to the Node.
+	 *
+	 * @remarks
+	 * If the node is already connected, this method will do nothing.
+	 * If the node has a session ID, it will be sent in the headers of the WebSocket connection.
+	 * If the node has no session ID but the `resumeStatus` option is true, it will use the session ID
+	 * stored in the sessionIds.json file if it exists.
+	 */
 	public connect(): void {
 		if (this.connected) return;
 
@@ -188,10 +224,22 @@ export class Node {
 		this.manager.emit("debug", `[NODE] Connecting ${JSON.stringify(debugInfo)}`);
 	}
 
-	/** Destroys the Node and all players connected with it. */
+	/**
+	 * Destroys the Node and all players connected with it.
+	 *
+	 * @remarks
+	 * This method will:
+	 * - Destroy all players connected to the node
+	 * - Close the WebSocket connection
+	 * - Remove all event listeners on the WebSocket
+	 * - Clear the reconnect timeout
+	 * - Emit a "nodeDestroy" event with the node as the argument
+	 * - Destroy the node from the manager
+	 */
 	public destroy(): void {
 		if (!this.connected) return;
 
+		// Emit a debug event indicating that the node is being destroyed
 		const debugInfo = {
 			connected: this.connected,
 			identifier: this.options.identifier,
@@ -202,21 +250,37 @@ export class Node {
 
 		this.manager.emit("debug", `[NODE] Destroying node: ${JSON.stringify(debugInfo)}`);
 
+		// Destroy all players connected to the node
 		const players = this.manager.players.filter((p) => p.node == this);
 		if (players.size) players.forEach((p) => p.destroy());
 
+		// Close the WebSocket connection
 		this.socket.close(1000, "destroy");
-		this.socket.removeAllListeners();
-		this.socket = null;
 
+		// Remove all event listeners on the WebSocket
+		this.socket.removeAllListeners();
+
+		// Clear the reconnect timeout
 		this.reconnectAttempts = 1;
 		clearTimeout(this.reconnectTimeout);
 
+		// Emit a "nodeDestroy" event with the node as the argument
 		this.manager.emit("nodeDestroy", this);
+
+		// Destroy the node from the manager
 		this.manager.destroyNode(this.options.identifier);
 	}
 
+
+	/**
+	 * Attempts to reconnect the node if the connection is lost.
+	 *
+	 * This method will emit a debug event with the current state of the node and
+	 * schedule a reconnection attempt. If the maximum number of retry attempts is reached,
+	 * an error event is emitted and the node is destroyed.
+	 */
 	private reconnect(): void {
+		// Collect debug information regarding the current state of the node
 		const debugInfo = {
 			identifier: this.options.identifier,
 			connected: this.connected,
@@ -225,54 +289,108 @@ export class Node {
 			retryDelay: this.options.retryDelay,
 		};
 
+		// Emit a debug event indicating the node is attempting to reconnect
 		this.manager.emit("debug", `[NODE] Reconnecting node: ${JSON.stringify(debugInfo)}`);
 
+		// Schedule the reconnection attempt after the specified retry delay
 		this.reconnectTimeout = setTimeout(() => {
+			// Check if the maximum number of retry attempts has been reached
 			if (this.reconnectAttempts >= this.options.retryAmount) {
+				// Emit an error event and destroy the node if retries are exhausted
 				const error = new Error(`Unable to connect after ${this.options.retryAmount} attempts.`);
 				this.manager.emit("nodeError", this, error);
 				return this.destroy();
 			}
 
+			// Remove all listeners from the current WebSocket and reset it
 			this.socket?.removeAllListeners();
 			this.socket = null;
+
+			// Emit a nodeReconnect event and attempt to connect again
 			this.manager.emit("nodeReconnect", this);
 			this.connect();
+
+			// Increment the reconnect attempts counter
 			this.reconnectAttempts++;
 		}, this.options.retryDelay);
 	}
 
+	/**
+	 * Handles the "open" event emitted by the WebSocket connection.
+	 *
+	 * This method is called when the WebSocket connection is established.
+	 * It clears any existing reconnect timeouts, emits a debug event
+	 * indicating the node is connected, and emits a "nodeConnect" event
+	 * with the node as the argument.
+	 */
 	protected open(): void {
+		// Clear any existing reconnect timeouts
 		if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
+
+		// Collect debug information regarding the current state of the node
 		const debugInfo = {
 			identifier: this.options.identifier,
 			connected: this.connected,
 		};
-		this.manager.emit("nodeConnect", this);
+
+		// Emit a debug event indicating the node is connected
 		this.manager.emit("debug", `[NODE] Connected node: ${JSON.stringify(debugInfo)}`);
+
+		// Emit a "nodeConnect" event with the node as the argument
+		this.manager.emit("nodeConnect", this);
 	}
 
+	/**
+	 * Handles the "close" event emitted by the WebSocket connection.
+	 *
+	 * This method is called when the WebSocket connection is closed.
+	 * It emits a "nodeDisconnect" event with the node and the close event
+	 * as arguments and a debug event indicating the node is disconnected.
+	 * If the close event was not initiated by the user (i.e. the code is
+	 * not 1000 or the reason is not "destroy"), it will attempt to reconnect
+	 * to the node.
+	 * @param {number} code The close code.
+	 * @param {string} reason The close reason.
+	 */
 	protected close(code: number, reason: string): void {
 		const debugInfo = {
 			identifier: this.options.identifier,
 			code,
 			reason,
 		};
+		// Emit a "nodeDisconnect" event with the node and the close event as arguments
 		this.manager.emit("nodeDisconnect", this, { code, reason });
+		// Emit a debug event indicating the node is disconnected
 		this.manager.emit("debug", `[NODE] Disconnected node: ${JSON.stringify(debugInfo)}`);
+		// If the close event was not initiated by the user, attempt to reconnect
 		if (code !== 1000 || reason !== "destroy") this.reconnect();
 	}
 
+	/**
+	 * Handles the "error" event emitted by the WebSocket connection.
+	 *
+	 * This method is called when an error occurs on the WebSocket connection.
+	 * It emits a "nodeError" event with the node and the error as arguments and
+	 * a debug event indicating the error on the node.
+	 * @param {Error} error The error that occurred.
+	 */
 	protected error(error: Error): void {
 		if (!error) return;
+		// Collect debug information regarding the error
 		const debugInfo = {
 			identifier: this.options.identifier,
 			error: error.message,
 		};
+		// Emit a debug event indicating the error on the node
 		this.manager.emit("debug", `[NODE] Error on node: ${JSON.stringify(debugInfo)}`);
+		// Emit a "nodeError" event with the node and the error as arguments
 		this.manager.emit("nodeError", this, error);
 	}
 
+	/**
+	 * Handles an incoming message from the Lavalink node.
+	 * @param {Buffer | string} d The incoming message.
+	 */
 	protected async message(d: Buffer | string): Promise<void> {
 		if (Array.isArray(d)) d = Buffer.concat(d);
 		else if (d instanceof ArrayBuffer) d = Buffer.from(d);
@@ -322,6 +440,12 @@ export class Node {
 		}
 	}
 
+	/**
+	 * Handles an event emitted from the Lavalink node.
+	 * @param {PlayerEvent & PlayerEvents} payload The event emitted from the node.
+	 * @returns {Promise<void>} A promise that resolves when the event has been handled.
+	 * @private
+	 */
 	protected async handleEvent(payload: PlayerEvent & PlayerEvents): Promise<void> {
 		if (!payload.guildId) return;
 
@@ -377,14 +501,42 @@ export class Node {
 		}
 	}
 
+	/**
+	 * Emitted when a new track starts playing.
+	 * @param {Player} player The player that started playing the track.
+	 * @param {Track} track The track that started playing.
+	 * @param {TrackStartEvent} payload The payload of the event emitted by the node.
+	 * @private
+	 */
 	protected trackStart(player: Player, track: Track, payload: TrackStartEvent): void {
 		const oldPlayer = player;
+
 		player.playing = true;
 		player.paused = false;
+
 		this.manager.emit("trackStart", player, track, payload);
-		this.manager.emit("playerStateUpdate", oldPlayer, player, "trackChange");
+
+		this.manager.emit("playerStateUpdate", oldPlayer, player, {
+			changeType: PlayerStateEventTypes.TRACK_CHANGE,
+			details: {
+				changeType: "start",
+				track: track,
+			},
+		});
 	}
 
+	/**
+	 * Handles the event when a track ends.
+	 * Depending on the reason for the track ending, it may handle failed tracks, replaced tracks, 
+	 * repeated tracks, play the next track in the queue, or end the queue if there are no more tracks.
+	 * Emits a `trackEnd` event and a `playerStateUpdate` event.
+	 *
+	 * @param {Player} player - The player associated with the track.
+	 * @param {Track} track - The track that has ended.
+	 * @param {TrackEndEvent} payload - The event payload containing additional data about the track end event.
+	 * @returns {Promise<void>} A promise that resolves when the track end processing is complete.
+	 * @protected
+	 */
 	protected async trackEnd(player: Player, track: Track, payload: TrackEndEvent): Promise<void> {
 		const { reason } = payload;
 
@@ -411,22 +563,46 @@ export class Node {
 		else {
 			await this.queueEnd(player, track, payload);
 		}
-		this.manager.emit("playerStateUpdate", oldPlayer, player, "trackChange");
+
+		this.manager.emit("playerStateUpdate", oldPlayer, player, {
+			changeType: PlayerStateEventTypes.TRACK_CHANGE,
+			details: {
+				changeType: "end",
+				track: track,
+			},
+		});
 	}
 
+	/**
+	 * Extracts the Spotify track ID from a URL.
+	 * @param {string} url The URL to extract the track ID from.
+	 * @returns {string | null} The track ID or null if the URL is invalid.
+	 */
 	public extractSpotifyTrackID(url: string): string | null {
 		const regex = /https:\/\/open\.spotify\.com\/track\/([a-zA-Z0-9]+)/;
 		const match = url.match(regex);
 		return match ? match[1] : null;
 	}
 
+	/**
+	 * Extracts the Spotify artist ID from a URL.
+	 * @param {string} url - The URL to extract the artist ID from.
+	 * @returns {string | null} - The artist ID or null if the URL is invalid.
+	 */
 	public extractSpotifyArtistID(url: string): string | null {
 		const regex = /https:\/\/open\.spotify\.com\/artist\/([a-zA-Z0-9]+)/;
 		const match = url.match(regex);
 		return match ? match[1] : null;
 	}
 
-	// Handle autoplay
+	/**
+	 * Handles autoplay logic for a player.
+	 * @param {Player} player - The player to handle autoplay for.
+	 * @param {Track} track - The track that has ended.
+	 * @param {number} attempt - The current attempt number of the autoplay.
+	 * @returns {Promise<boolean>} A promise that resolves to a boolean indicating if autoplay was successful.
+	 * @private
+	 */
 	private async handleAutoplay(player: Player, track: Track, attempt: number = 0): Promise<boolean> {
 		if (!player.isAutoplay || attempt === player.autoplayTries || !player.queue.previous) return false;
 
@@ -475,10 +651,10 @@ export class Node {
 		const isSpotifyEnabled = enabledSources.includes("spotify");
 		const isSpotifyUri = uri.includes("spotify.com");
 
-		let selectedSource: string | null = null;
+		let selectedSource: SearchPlatform | null = null;
 
 		if (isSpotifyEnabled && isSpotifyUri) {
-			selectedSource = "spotify";
+			selectedSource = SearchPlatform.Spotify;
 		} else {
 			selectedSource = this.manager.options.defaultSearchPlatform;
 		}
@@ -549,7 +725,6 @@ export class Node {
 		player.play();
 		return true;
 	}
-
 	// Handle the case when a track failed to load or was cleaned up
 	private handleFailedTrack(player: Player, track: Track, payload: TrackEndEvent): void {
 		player.queue.previous = player.queue.current;
@@ -564,39 +739,78 @@ export class Node {
 		if (this.manager.options.autoPlay) player.play();
 	}
 
-	// Handle the case when a track ended and it's set to repeat (track or queue)
+	/**
+	 * Handles the case when a track ended and it's set to repeat (track or queue)
+	 * @param {Player} player - The player that ended the track
+	 * @param {Track} track - The track that ended
+	 * @param {TrackEndEvent} payload - The track end event payload
+	 * @returns {void}
+	 * @private
+	 */
 	private handleRepeatedTrack(player: Player, track: Track, payload: TrackEndEvent): void {
 		const { queue, trackRepeat, queueRepeat } = player;
 		const { autoPlay } = this.manager.options;
 
+		// If the track is set to repeat, put it at the beginning of the queue
 		if (trackRepeat) {
 			queue.unshift(queue.current);
-		} else if (queueRepeat) {
+		}
+		// If the queue is set to repeat, add the current track back to the end of the queue
+		else if (queueRepeat) {
 			queue.add(queue.current);
 		}
 
+		// Update the previous and current tracks in the queue
 		queue.previous = queue.current;
 		queue.current = queue.shift();
 
+		// Emit the track end event
 		this.manager.emit("trackEnd", player, track, payload);
 
+		// If the track was stopped manually and there are no more tracks in the queue, end the queue
 		if (payload.reason === "stopped" && !(queue.current = queue.shift())) {
 			this.queueEnd(player, track, payload);
 			return;
 		}
 
+		// If autoplay is enabled, play the next track
 		if (autoPlay) player.play();
 	}
 
-	// Handle the case when there's another track in the queue
+	/**
+	 * Plays the next track in the queue.
+	 * Updates the queue by shifting the current track to the previous track
+	 * and plays the next track if autoplay is enabled.
+	 *
+	 * @param {Player} player - The player associated with the track.
+	 * @param {Track} track - The track that has ended.
+	 * @param {TrackEndEvent} payload - The event payload containing additional data about the track end event.
+	 * @returns {void}
+	 * @private
+	 */
 	private playNextTrack(player: Player, track: Track, payload: TrackEndEvent): void {
+		// Update the previous track to the current one
 		player.queue.previous = player.queue.current;
+
+		// Shift the queue to set the next track as current
 		player.queue.current = player.queue.shift();
 
+		// Emit the track end event
 		this.manager.emit("trackEnd", player, track, payload);
+
+		// If autoplay is enabled, play the next track
 		if (this.manager.options.autoPlay) player.play();
 	}
 
+	/**
+	 * Handles the event when a queue ends.
+	 * If autoplay is enabled, attempts to play the next track in the queue using the autoplay logic.
+	 * If all attempts fail, resets the player state and emits the `queueEnd` event.
+	 * @param {Player} player - The player associated with the track.
+	 * @param {Track} track - The track that has ended.
+	 * @param {TrackEndEvent} payload - The event payload containing additional data about the track end event.
+	 * @returns {Promise<void>} A promise that resolves when the queue end processing is complete.
+	 */
 	public async queueEnd(player: Player, track: Track, payload: TrackEndEvent): Promise<void> {
 		player.queue.previous = player.queue.current;
 		player.queue.current = null;
@@ -622,40 +836,105 @@ export class Node {
 		this.manager.emit("queueEnd", player, track, payload);
 	}
 
+	/**
+	 * Handles the event when a track gets stuck during playback.
+	 * Stops the current track and emits a `trackStuck` event.
+	 * 
+	 * @param {Player} player - The player associated with the stuck track.
+	 * @param {Track} track - The track that has encountered a stuck event.
+	 * @param {TrackStuckEvent} payload - The event payload containing additional data about the track stuck event.
+	 * @returns {void}
+	 * @protected
+	 */
 	protected trackStuck(player: Player, track: Track, payload: TrackStuckEvent): void {
 		player.stop();
 		this.manager.emit("trackStuck", player, track, payload);
 	}
 
+	/**
+	 * Handles the event when a track encounters an error during playback.
+	 * Stops the current track and emits a `trackError` event.
+	 * 
+	 * @param {Player} player - The player associated with the track that encountered an error.
+	 * @param {Track | UnresolvedTrack} track - The track that encountered an error.
+	 * @param {TrackExceptionEvent} payload - The event payload containing additional data about the track error event.
+	 * @returns {void}
+	 * @protected
+	 */
 	protected trackError(player: Player, track: Track | UnresolvedTrack, payload: TrackExceptionEvent): void {
 		player.stop();
 		this.manager.emit("trackError", player, track, payload);
 	}
 
+	/**
+	 * Emitted when the WebSocket connection for a player closes.
+	 * The payload of the event will contain the close code and reason if provided.
+	 * @param {Player} player - The player associated with the WebSocket connection.
+	 * @param {WebSocketClosedEvent} payload - The event payload containing additional data about the WebSocket close event.
+	 */
 	protected socketClosed(player: Player, payload: WebSocketClosedEvent): void {
 		this.manager.emit("socketClosed", player, payload);
 		this.manager.emit("debug", `[NODE] Websocket closed for player: ${player.guild} with payload: ${JSON.stringify(payload)}`);
 	}
 
+	/**
+	 * Emitted when the segments for a track are loaded.
+	 * The payload of the event will contain the segments.
+	 * @param {Player} player - The player associated with the segments.
+	 * @param {Track} track - The track associated with the segments.
+	 * @param {SponsorBlockSegmentsLoaded} payload - The event payload containing additional data about the segments loaded event.
+	 */
 	private sponsorBlockSegmentLoaded(player: Player, track: Track, payload: SponsorBlockSegmentsLoaded) {
 		return this.manager.emit("segmentsLoaded", player, track, payload);
 	}
 
+	/**
+	 * Emitted when a segment of a track is skipped using the sponsorblock plugin.
+	 * The payload of the event will contain the skipped segment.
+	 * @param {Player} player - The player associated with the skipped segment.
+	 * @param {Track} track - The track associated with the skipped segment.
+	 * @param {SponsorBlockSegmentSkipped} payload - The event payload containing additional data about the segment skipped event.
+	 */
 	private sponsorBlockSegmentSkipped(player: Player, track: Track, payload: SponsorBlockSegmentSkipped) {
 		return this.manager.emit("segmentSkipped", player, track, payload);
 	}
 
+	/**
+	 * Emitted when chapters for a track are loaded using the sponsorblock plugin.
+	 * The payload of the event will contain the chapters.
+	 * @param {Player} player - The player associated with the chapters.
+	 * @param {Track} track - The track associated with the chapters.
+	 * @param {SponsorBlockChaptersLoaded} payload - The event payload containing additional data about the chapters loaded event.
+	 */
 	private sponsorBlockChaptersLoaded(player: Player, track: Track, payload: SponsorBlockChaptersLoaded) {
 		return this.manager.emit("chaptersLoaded", player, track, payload);
 	}
 
+	/**
+	 * Emitted when a chapter of a track is started using the sponsorblock plugin.
+	 * The payload of the event will contain the started chapter.
+	 * @param {Player} player - The player associated with the started chapter.
+	 * @param {Track} track - The track associated with the started chapter.
+	 * @param {SponsorBlockChapterStarted} payload - The event payload containing additional data about the chapter started event.
+	 */
 	private sponsorBlockChapterStarted(player: Player, track: Track, payload: SponsorBlockChapterStarted) {
 		return this.manager.emit("chapterStarted", player, track, payload);
 	}
-	public async fetchInfo() {
+	
+	/**
+	 * Fetches Lavalink node information.
+	 * @returns {Promise<LavalinkInfo>} A promise that resolves to the Lavalink node information.
+	 */
+	public async fetchInfo(): Promise<LavalinkInfo> {
 		return (await this.rest.get(`/v4/info`)) as LavalinkInfo;
 	}
 
+	/**
+	 * Gets the current sponsorblock segments for a player.
+	 * @param {Player} player - The player to get the sponsorblocks for.
+	 * @returns {Promise<SponsorBlockSegment[]>} A promise that resolves to the sponsorblock segments.
+	 * @throws {RangeError} If the sponsorblock-plugin is not available in the Lavalink node.
+	 */
 	public async getSponsorBlock(player: Player): Promise<SponsorBlockSegment[]> {
 		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "sponsorblock-plugin"))
 			throw new RangeError(`there is no sponsorblock-plugin available in the lavalink node: ${this.options.identifier}`);
@@ -664,14 +943,17 @@ export class Node {
 	}
 
 	/**
-	 * Set the current sponsorblocks for the sponsorblock plugin
-	 * @param player passthrough the player
-	 * @returns void
-	 *
+	 * Sets the sponsorblock segments for a player.
+	 * @param {Player} player - The player to set the sponsorblocks for.
+	 * @param {SponsorBlockSegment[]} segments - The sponsorblock segments to set. Defaults to `["sponsor", "selfpromo"]` if not provided.
+	 * @returns {Promise<void>} The promise is resolved when the operation is complete.
+	 * @throws {RangeError} If the sponsorblock-plugin is not available in the Lavalink node.
+	 * @throws {RangeError} If no segments are provided.
+	 * @throws {SyntaxError} If an invalid sponsorblock is provided.
 	 * @example
 	 * ```ts
 	 * // use it on the player via player.setSponsorBlock();
-	 * const sponsorBlockSegments = await player.node.setSponsorBlock(player, ["sponsor", "selfpromo"]);
+	 * player.setSponsorBlock(["sponsor", "selfpromo"]);
 	 * ```
 	 */
 	public async setSponsorBlock(player: Player, segments: SponsorBlockSegment[] = ["sponsor", "selfpromo"]): Promise<void> {
@@ -687,16 +969,12 @@ export class Node {
 		return;
 	}
 
+	
 	/**
-	 * Delete the sponsorblock plugins
-	 * @param player passthrough the player
-	 * @returns void
-	 *
-	 * @example
-	 * ```ts
-	 * // use it on the player via player.deleteSponsorBlock();
-	 * const sponsorBlockSegments = await player.node.deleteSponsorBlock(player);
-	 * ```
+	 * Deletes the sponsorblock segments for a player.
+	 * @param {Player} player - The player to delete the sponsorblocks for.
+	 * @returns {Promise<void>} The promise is resolved when the operation is complete.
+	 * @throws {RangeError} If the sponsorblock-plugin is not available in the Lavalink node.
 	 */
 	public async deleteSponsorBlock(player: Player): Promise<void> {
 		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "sponsorblock-plugin"))
@@ -704,6 +982,22 @@ export class Node {
 
 		await this.rest.delete(`/v4/sessions/${this.sessionId}/players/${player.guild}/sponsorblock/categories`);
 		return;
+	}
+
+	/**
+	 * Creates a README.md or README.txt file in the magmastream directory
+	 * if it doesn't already exist. This file is used to store player data
+	 * for autoresume and other features.
+	 * @private
+	 */
+	private createReadmeFile(): void {
+		const readmeFilePath = path.join(process.cwd(), "magmastream", "README.md");
+		const message = "Please do NOT delete the magmastream/ folder as it is used to store player data for autoresume etc.";
+
+		if (!fs.existsSync(readmeFilePath)) {
+			fs.writeFileSync(readmeFilePath, message, "utf-8");
+			this.manager.emit("debug", `[NODE] Created README file at: ${readmeFilePath}`);
+		}
 	}
 }
 
@@ -724,7 +1018,7 @@ export interface NodeOptions {
 	retryDelay?: number;
 	/** Whether to resume the previous session. */
 	resumeStatus?: boolean;
-	/** The time the manager will wait before trying to resume the previous session. */
+	/** The time the lavalink server will wait before it removes the player. */
 	resumeTimeout?: number;
 	/** The timeout used for api calls. */
 	requestTimeout?: number;
