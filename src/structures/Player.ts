@@ -1,5 +1,5 @@
 import { Filters } from "./Filters";
-import { LavalinkResponse, Manager, PlaylistRawData, SearchQuery, SearchResult } from "./Manager";
+import { LavalinkResponse, Manager, PlaylistRawData, SearchQuery, SearchResult, PlayerStateEventTypes } from "./Manager";
 import { LavalinkInfo, Node, SponsorBlockSegment } from "./Node";
 import { Queue } from "./Queue";
 import { Sizes, State, Structure, TrackSourceName, TrackUtils, VoiceState } from "./Utils";
@@ -51,64 +51,88 @@ export class Player {
 
 	private static _manager: Manager;
 	private readonly data: Record<string, unknown> = {};
-	private dynamicLoopInterval: NodeJS.Timeout;
+	private dynamicLoopInterval: NodeJS.Timeout | null = null;
 
 	/**
 	 * Set custom data.
-	 * @param key
-	 * @param value
+	 * @param key - The key to set the data for.
+	 * @param value - The value to set the data to.
 	 */
 	public set(key: string, value: unknown): void {
+		// Store the data in the data object using the key.
 		this.data[key] = value;
 	}
 
 	/**
-	 * Get custom data.
-	 * @param key
+	 * Retrieves custom data associated with a given key.
+	 * @template T - The expected type of the data.
+	 * @param {string} key - The key to retrieve the data for.
+	 * @returns {T} - The data associated with the key, cast to the specified type.
 	 */
 	public get<T>(key: string): T {
+		// Access the data object using the key and cast it to the specified type T.
 		return this.data[key] as T;
 	}
 
-	/** @hidden */
+	/**
+	 * Initializes the static properties of the Player class.
+	 * @hidden
+	 * @param manager The Manager to use.
+	 */
 	public static init(manager: Manager): void {
+		// Set the Manager to use.
 		this._manager = manager;
 	}
 
 	/**
 	 * Creates a new player, returns one if it already exists.
-	 * @param options
+	 * @param options The player options.
+	 * @see https://docs.magmastream.com/main/introduction/getting-started
 	 */
 	constructor(public options: PlayerOptions) {
+		// If the Manager is not initiated, throw an error.
 		if (!this.manager) this.manager = Structure.get("Player")._manager;
 		if (!this.manager) throw new RangeError("Manager has not been initiated.");
 
+		// If a player with the same guild ID already exists, return it.
 		if (this.manager.players.has(options.guild)) {
 			return this.manager.players.get(options.guild);
 		}
 
+		// Check the player options for errors.
 		playerCheck(options);
 
+		// Set the guild ID and voice state.
 		this.guild = options.guild;
 		this.voiceState = Object.assign({
 			op: "voiceUpdate",
 			guild_id: options.guild,
 		});
 
+		// Set the voice and text channels if they exist.
 		if (options.voiceChannel) this.voiceChannel = options.voiceChannel;
 		if (options.textChannel) this.textChannel = options.textChannel;
 
+		// Set the node to use, either the specified node or the first available node.
 		const node = this.manager.nodes.get(options.node);
 		this.node = node || this.manager.useableNodes;
 
+		// If no node is available, throw an error.
 		if (!this.node) throw new RangeError("No available nodes.");
 
-		// Initialize the queue with guild and manager
+		// Initialize the queue with the guild and manager.
 		this.queue = new Queue(this.guild, this.manager);
 
+		// Add the player to the manager's player collection.
 		this.manager.players.set(options.guild, this);
+
+		// Emit the playerCreate event.
 		this.manager.emit("playerCreate", this);
+
+		// Set the initial volume.
 		this.setVolume(options.volume ?? 100);
+
+		// Initialize the filters.
 		this.filters = new Filters(this);
 	}
 
@@ -121,13 +145,19 @@ export class Player {
 		return this.manager.search(query, requester);
 	}
 
-	/** Connect to the voice channel. */
+	/**
+	 * Connect to the voice channel.
+	 * @returns {this} - The player instance.
+	 * @throws {RangeError} If no voice channel has been set.
+	 */
 	public connect(): this {
 		if (!this.voiceChannel) throw new RangeError("No voice channel has been set.");
+
 		this.state = "CONNECTING";
-		
+
 		const oldPlayer = this ? { ...this } : null;
 
+		// Send the voice state update to the gateway
 		this.manager.options.send(this.guild, {
 			op: 4,
 			d: {
@@ -138,15 +168,32 @@ export class Player {
 			},
 		});
 
+		// Set the player state to connected
 		this.state = "CONNECTED";
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "connectionChange");
+		// Emit the player state update event
+		this.manager.emit("playerStateUpdate", oldPlayer, this, {
+			changeType: PlayerStateEventTypes.CONNECTION_CHANGE,
+			details: {
+				changeType: "connect",
+				previousConnection: oldPlayer?.state === "CONNECTED",
+				currentConnection: true,
+			},
+		});
+
 		return this;
 	}
 
-	/** Disconnect from the voice channel. */
+	/**
+	 * Disconnects the player from the voice channel.
+	 * @returns {this} - The player instance.
+	 * @throws {TypeError} If the player is not connected.
+	 */
 	public disconnect(): this {
-		if (this.voiceChannel === null) return this;
+		if (this.voiceChannel === null) {
+			throw new TypeError("The player is not connected.");
+		}
+
 		this.state = "DISCONNECTING";
 
 		const oldPlayer = this ? { ...this } : null;
@@ -164,12 +211,29 @@ export class Player {
 		this.voiceChannel = null;
 		this.state = "DISCONNECTED";
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "connectionChange");
+		this.manager.emit("playerStateUpdate", oldPlayer, this, {
+			changeType: PlayerStateEventTypes.CONNECTION_CHANGE,
+			details: {
+				changeType: "disconnect",
+				previousConnection: oldPlayer.state === "CONNECTED",
+				currentConnection: false,
+			},
+		});
+
 		return this;
 	}
 
-	/** Destroys the player. */
-	public destroy(disconnect = true): void {
+	/**
+	 * Destroys the player.
+	 * @param {boolean} [disconnect=true] - If `true`, disconnects the player from the voice channel before destroying it.
+	 * @returns {void}
+	 * @throws {TypeError} If the `disconnect` parameter is not a boolean.
+	 * @emits {playerDestroy} - The player that was destroyed.
+	 * @emits {playerStateUpdate} - The old and new player states after the destruction.
+	 */
+	public destroy(disconnect: boolean = true): void {
+		if (typeof disconnect !== "boolean") throw new TypeError("Disconnect must be a boolean.");
+
 		const oldPlayer = this ? { ...this } : null;
 		this.state = "DESTROYING";
 
@@ -180,41 +244,81 @@ export class Player {
 		this.node.rest.destroyPlayer(this.guild);
 		this.manager.emit("playerDestroy", this);
 		this.manager.players.delete(this.guild);
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "playerDestroy");
+		this.manager.emit("playerStateUpdate", oldPlayer, this, {
+			changeType: PlayerStateEventTypes.PLAYER_DESTROY,
+		});
 	}
 
 	/**
 	 * Sets the player voice channel.
-	 * @param channel
+	 * @param {string} channel - The new voice channel ID.
+	 * @returns {this} - The player instance.
+	 * @throws {TypeError} If the channel parameter is not a string.
 	 */
 	public setVoiceChannel(channel: string): this {
+		// Validate the channel parameter
 		if (typeof channel !== "string") throw new TypeError("Channel must be a non-empty string.");
 
+		// Clone the current player state for comparison
 		const oldPlayer = this ? { ...this } : null;
 
+		// Update the player voice channel
 		this.voiceChannel = channel;
 		this.connect();
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "voiceChannelChange");
+		// Emit a player state update event
+		this.manager.emit("playerStateUpdate", oldPlayer, this, {
+			changeType: PlayerStateEventTypes.CHANNEL_CHANGE,
+			details: {
+				changeType: "voice",
+				previousChannel: oldPlayer.voiceChannel || null,
+				currentChannel: this.voiceChannel,
+			},
+		});
+
 		return this;
 	}
 
 	/**
 	 * Sets the player text channel.
-	 * @param channel
+	 *
+	 * This method updates the text channel associated with the player. It also
+	 * emits a player state update event indicating the change in the channel.
+	 *
+	 * @param {string} channel - The new text channel ID.
+	 * @returns {this} - The player instance for method chaining.
+	 * @throws {TypeError} If the channel parameter is not a string.
 	 */
 	public setTextChannel(channel: string): this {
+		// Validate the channel parameter
 		if (typeof channel !== "string") throw new TypeError("Channel must be a non-empty string.");
 
+		// Clone the current player state for comparison
 		const oldPlayer = this ? { ...this } : null;
 
+		// Update the text channel property
 		this.textChannel = channel;
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "textChannelChange");
+		// Emit a player state update event with channel change details
+		this.manager.emit("playerStateUpdate", oldPlayer, this, {
+			changeType: PlayerStateEventTypes.CHANNEL_CHANGE,
+			details: {
+				changeType: "text",
+				previousChannel: oldPlayer.textChannel || null,
+				currentChannel: this.textChannel,
+			},
+		});
+
+		// Return the player instance for chaining
 		return this;
 	}
 
-	/** Sets the now playing message. */
+	/**
+	 * Sets the now playing message.
+	 *
+	 * @param message - The message of the now playing message.
+	 * @returns The now playing message.
+	 */
 	public setNowPlayingMessage<T = Message>(message: T): Message {
 		if (!message) {
 			throw new TypeError("You must provide the message of the now playing message.");
@@ -225,26 +329,19 @@ export class Player {
 		return this.nowPlayingMessage;
 	}
 
-	/** Plays the next track. */
+	/**
+	 * Plays the next track.
+	 *
+	 * If a track is provided, it will be played. Otherwise, the next track in the queue will be played.
+	 * If the queue is not empty, but the current track has not finished yet, it will be replaced with the provided track.
+	 *
+	 * @param {object} [optionsOrTrack] - The track to play or the options to play with.
+	 * @param {object} [playOptions] - The options to play with.
+	 * @returns {Promise<void>}
+	 */
 	public async play(): Promise<void>;
-
-	/**
-	 * Plays the specified track.
-	 * @param track
-	 */
 	public async play(track: Track | UnresolvedTrack): Promise<void>;
-
-	/**
-	 * Plays the next track with some options.
-	 * @param options
-	 */
 	public async play(options: PlayOptions): Promise<void>;
-
-	/**
-	 * Plays the specified track with some options.
-	 * @param track
-	 * @param options
-	 */
 	public async play(track: Track | UnresolvedTrack, options: PlayOptions): Promise<void>;
 	public async play(optionsOrTrack?: PlayOptions | Track | UnresolvedTrack, playOptions?: PlayOptions): Promise<void> {
 		if (typeof optionsOrTrack !== "undefined" && TrackUtils.validate(optionsOrTrack)) {
@@ -283,8 +380,15 @@ export class Player {
 
 	/**
 	 * Sets the autoplay-state of the player.
-	 * @param autoplayState
-	 * @param botUser
+	 *
+	 * Autoplay is a feature that makes the player play a recommended
+	 * track when the current track ends.
+	 *
+	 * @param {boolean} autoplayState - Whether or not autoplay should be enabled.
+	 * @param {object} botUser - The user-object that should be used as the bot-user.
+	 * @param {number} [tries=3] - The number of times the player should try to find a
+	 * recommended track if the first one doesn't work.
+	 * @returns {this} - The player instance.
 	 */
 	public setAutoplay(autoplayState: boolean, botUser: object, tries: number = 3) {
 		if (typeof autoplayState !== "boolean") {
@@ -305,16 +409,24 @@ export class Player {
 		this.autoplayTries = tries;
 		this.set("Internal_BotUser", botUser);
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "autoplayChange");
+		this.manager.emit("playerStateUpdate", oldPlayer, this, {
+			changeType: PlayerStateEventTypes.AUTOPLAY_CHANGE,
+			details: {
+				previousAutoplay: oldPlayer.isAutoplay,
+				currentAutoplay: this.isAutoplay,
+			},
+		});
+
 		return this;
 	}
 
 	/**
 	 * Gets recommended tracks and returns an array of tracks.
-	 * @param track
-	 * @param requester
+	 * @param {Track} track - The track to find recommendations for.
+	 * @param {User | ClientUser} requester - The user who requested the track.
+	 * @returns {Promise<Track[]>} - Array of recommended tracks.
 	 */
-	public async getRecommended<T = User | ClientUser>(track: Track, requester?: T) {
+	public async getRecommended<T = User | ClientUser>(track: Track, requester?: T): Promise<Track[]> {
 		const node = this.manager.useableNodes;
 
 		if (!node) {
@@ -324,10 +436,18 @@ export class Player {
 		const hasSpotifyURL = ["spotify.com", "open.spotify.com"].some((url) => track.uri.includes(url));
 		const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) => track.uri.includes(url));
 
+		/**
+		 * If the track has a Spotify URL, use the Spotify plugin to get recommendations.
+		 * @see {@link https://github.com/topi314/LavaSrc}
+		 */
 		if (hasSpotifyURL) {
 			const res = await node.rest.get(`/v4/info`);
 			const info = res as LavalinkInfo;
 
+			/**
+			 * Check if the Spotify plugin is enabled and if the Spotify source manager is enabled.
+			 * @see {@link https://lavalink.dev/api/rest.html#info-response}
+			 */
 			const isSpotifyPluginEnabled = info.plugins.some((plugin: { name: string }) => plugin.name === "lavasrc-plugin");
 			const isSpotifySourceManagerEnabled = info.sourceManagers.includes("spotify");
 
@@ -361,6 +481,7 @@ export class Player {
 			}
 		}
 
+		// If the track has a YouTube URL, use YouTube to get recommendations.
 		let videoID = track.uri.substring(track.uri.indexOf("=") + 1);
 
 		if (!hasYouTubeURL) {
@@ -401,10 +522,12 @@ export class Player {
 
 	/**
 	 * Sets the player volume.
-	 * @param volume
+	 * @param {number} volume - The volume to set the player to. Must be between 0 and 100.
+	 * @returns {this} - The player instance.
 	 */
 	public setVolume(volume: number): this {
 		if (isNaN(volume)) throw new TypeError("Volume must be a number.");
+		if (volume < 0 || volume > 100) throw new RangeError("Volume must be between 0 and 100.");
 
 		const oldPlayer = this ? { ...this } : null;
 		this.node.rest.updatePlayer({
@@ -415,65 +538,95 @@ export class Player {
 		});
 
 		this.volume = volume;
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "volumeChange");
+
+		this.manager.emit("playerStateUpdate", oldPlayer, this, {
+			changeType: PlayerStateEventTypes.VOLUME_CHANGE,
+			details: { previousVolume: oldPlayer.volume || null, currentVolume: this.volume },
+		});
 
 		return this;
 	}
 
 	/**
-	 * Sets the sponsorblock for the player.
-	 * @param segments
+	 * Sets the sponsorblock for the player. This will set the sponsorblock segments for the player to the given segments.
+	 * @param {SponsorBlockSegment[]} segments - The sponsorblock segments to set. Defaults to `["sponsor", "selfpromo"]` if not provided.
+	 * @returns {Promise<void>} The promise is resolved when the operation is complete.
 	 */
-	public async setSponsorBlock(segments: SponsorBlockSegment[] = ["sponsor", "selfpromo"]) {
+	public async setSponsorBlock(segments: SponsorBlockSegment[] = ["sponsor", "selfpromo"]): Promise<void> {
 		return this.node.setSponsorBlock(this, segments);
 	}
 
 	/**
 	 * Gets the sponsorblock for the player.
+	 * @returns {Promise<SponsorBlockSegment[]>} The sponsorblock segments.
 	 */
-	public async getSponsorBlock() {
+	public async getSponsorBlock(): Promise<SponsorBlockSegment[]> {
 		return this.node.getSponsorBlock(this);
 	}
 
 	/**
-	 * Deletes the sponsorblock for the player.
+	 * Deletes the sponsorblock for the player. This will remove all sponsorblock segments that have been set for the player.
+	 * @returns {Promise<void>}
 	 */
-	public async deleteSponsorBlock() {
+	public async deleteSponsorBlock(): Promise<void> {
 		return this.node.deleteSponsorBlock(this);
 	}
 
 	/**
-	 * Sets the track repeat.
-	 * @param repeat
+	 * Sets the track repeat mode.
+	 * When track repeat is enabled, the current track will replay after it ends.
+	 * Disables queueRepeat and dynamicRepeat modes if enabled.
+	 *
+	 * @param repeat - A boolean indicating whether to enable track repeat.
+	 * @returns {this} - The player instance.
+	 * @throws {TypeError} If the repeat parameter is not a boolean.
 	 */
 	public setTrackRepeat(repeat: boolean): this {
+		// Ensure the repeat parameter is a boolean
 		if (typeof repeat !== "boolean") throw new TypeError('Repeat can only be "true" or "false".');
 
+		// Clone the current player state for event emission
 		const oldPlayer = this ? { ...this } : null;
 
 		if (repeat) {
+			// Enable track repeat and disable other repeat modes
 			this.trackRepeat = true;
 			this.queueRepeat = false;
 			this.dynamicRepeat = false;
 		} else {
+			// Disable all repeat modes
 			this.trackRepeat = false;
 			this.queueRepeat = false;
 			this.dynamicRepeat = false;
 		}
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "trackRepeatChange");
+		// Emit an event indicating the repeat mode has changed
+		this.manager.emit("playerStateUpdate", oldPlayer, this, {
+			changeType: PlayerStateEventTypes.REPEAT_CHANGE,
+			detail: {
+				changeType: "track",
+				previousRepeat: this.getRepeatState(oldPlayer),
+				currentRepeat: this.getRepeatState(this),
+			},
+		});
+
 		return this;
 	}
 
 	/**
 	 * Sets the queue repeat.
-	 * @param repeat
+	 * @param repeat Whether to repeat the queue or not
+	 * @returns {this} - The player instance.
+	 * @throws {TypeError} If the repeat parameter is not a boolean
 	 */
 	public setQueueRepeat(repeat: boolean): this {
+		// Ensure the repeat parameter is a boolean
 		if (typeof repeat !== "boolean") throw new TypeError('Repeat can only be "true" or "false".');
 
+		// Get the current player state
 		const oldPlayer = this ? { ...this } : null;
 
+		// Update the player state
 		if (repeat) {
 			this.trackRepeat = false;
 			this.queueRepeat = true;
@@ -484,7 +637,17 @@ export class Player {
 			this.dynamicRepeat = false;
 		}
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "queueRepeatChange");
+		// Emit the player state update event
+		this.manager.emit("playerStateUpdate", oldPlayer, this, {
+			changeType: PlayerStateEventTypes.REPEAT_CHANGE,
+			detail: {
+				changeType: "queue",
+				previousRepeat: this.getRepeatState(oldPlayer),
+				currentRepeat: this.getRepeatState(this),
+			},
+		});
+
+		// Return the current instance for chaining
 		return this;
 	}
 
@@ -492,25 +655,34 @@ export class Player {
 	 * Sets the queue to repeat and shuffles the queue after each song.
 	 * @param repeat "true" or "false".
 	 * @param ms After how many milliseconds to trigger dynamic repeat.
+	 * @returns {this} - The player instance.
+	 * @throws {TypeError} If the repeat parameter is not a boolean.
+	 * @throws {RangeError} If the queue size is less than or equal to 1.
 	 */
 	public setDynamicRepeat(repeat: boolean, ms: number): this {
+		// Validate the repeat parameter
 		if (typeof repeat !== "boolean") {
 			throw new TypeError('Repeat can only be "true" or "false".');
 		}
 
+		// Ensure the queue has more than one track for dynamic repeat
 		if (this.queue.size <= 1) {
 			throw new RangeError("The queue size must be greater than 1.");
 		}
 
+		// Clone the current player state for comparison
 		const oldPlayer = this ? { ...this } : null;
 
 		if (repeat) {
+			// Disable other repeat modes when dynamic repeat is enabled
 			this.trackRepeat = false;
 			this.queueRepeat = false;
 			this.dynamicRepeat = true;
 
+			// Set an interval to shuffle the queue periodically
 			this.dynamicLoopInterval = setInterval(() => {
 				if (!this.dynamicRepeat) return;
+				// Shuffle the queue and replace it with the shuffled tracks
 				const shuffled = _.shuffle(this.queue);
 				this.queue.clear();
 				shuffled.forEach((track) => {
@@ -518,23 +690,39 @@ export class Player {
 				});
 			}, ms);
 		} else {
+			// Clear the interval and reset repeat states
 			clearInterval(this.dynamicLoopInterval);
 			this.trackRepeat = false;
 			this.queueRepeat = false;
 			this.dynamicRepeat = false;
 		}
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "dynamicRepeatChange");
+		// Emit a player state update event
+		this.manager.emit("playerStateUpdate", oldPlayer, this, {
+			changeType: PlayerStateEventTypes.REPEAT_CHANGE,
+			detail: {
+				changeType: "dynamic",
+				previousRepeat: this.getRepeatState(oldPlayer),
+				currentRepeat: this.getRepeatState(this),
+			},
+		});
+
 		return this;
 	}
 
-	/** Restarts the current track to the start. */
+	/**
+	 * Restarts the current track to the start.
+	 * If there's no current track and there are tracks in the queue, it plays the next track.
+	 */
 	public restart(): void {
+		// Check if there is a current track in the queue
 		if (!this.queue.current?.track) {
+			// If the queue has tracks, play the next one
 			if (this.queue.length) this.play();
 			return;
 		}
 
+		// Reset the track's position to the start
 		this.node.rest.updatePlayer({
 			guildId: this.guild,
 			data: {
@@ -544,14 +732,32 @@ export class Player {
 		});
 	}
 
-	/** Stops the current track, optionally give an amount to skip to, e.g 5 would play the 5th song. */
+	/**
+	 * Stops the current track, optionally give an amount to skip to, e.g 5 would play the 5th song.
+	 * @param amount - The amount of tracks to skip, e.g 5 would play the 5th song.
+	 * @returns {this} - The player instance.
+	 */
 	public stop(amount?: number): this {
 		const oldPlayer = this ? { ...this } : null;
+
+		let removedTracks: (Track | UnresolvedTrack)[] = [];
+
+		// If an amount is provided, remove that many tracks from the queue.
 		if (typeof amount === "number" && amount > 1) {
-			if (amount > this.queue.length) throw new RangeError("Cannot skip more than the queue length.");
+			if (amount > this.queue.length) {
+				throw new RangeError("Cannot skip more than the queue length.");
+			}
+
+			removedTracks = this.queue.slice(0, amount - 1);
 			this.queue.splice(0, amount - 1);
+		} else {
+			// If no amount is provided, remove the current track if it exists.
+			if (this.queue.current) {
+				removedTracks.push(this.queue.current);
+			}
 		}
 
+		// Stop the player and send an event to the manager.
 		this.node.rest.updatePlayer({
 			guildId: this.guild,
 			data: {
@@ -559,24 +765,37 @@ export class Player {
 			},
 		});
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "trackChangeStop");
+		this.manager.emit("playerStateUpdate", oldPlayer, this, {
+			changeType: PlayerStateEventTypes.QUEUE_CHANGE,
+			details: {
+				changeType: "remove",
+				tracks: removedTracks,
+			},
+		});
+
 		return this;
 	}
 
 	/**
-	 * Pauses the current track.
-	 * @param pause
+	 * Pauses or resumes the current track.
+	 * @param pause - A boolean indicating whether to pause (true) or resume (false) the track.
+	 * @returns {this} - The player instance.
 	 */
 	public pause(pause: boolean): this {
+		// Validate the pause parameter to ensure it's a boolean.
 		if (typeof pause !== "boolean") throw new RangeError('Pause can only be "true" or "false".');
 
+		// If the pause state is already as desired or there are no tracks, return early.
 		if (this.paused === pause || !this.queue.totalSize) return this;
 
+		// Create a copy of the current player state for event emission.
 		const oldPlayer = this ? { ...this } : null;
 
+		// Update the playing and paused states.
 		this.playing = !pause;
 		this.paused = pause;
 
+		// Send an update to the backend to change the pause state of the player.
 		this.node.rest.updatePlayer({
 			guildId: this.guild,
 			data: {
@@ -584,37 +803,71 @@ export class Player {
 			},
 		});
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "pauseChange");
-		return this;
-	}
+		// Emit an event indicating the pause state has changed.
+		this.manager.emit("playerStateUpdate", oldPlayer, this, {
+			changeType: PlayerStateEventTypes.PAUSE_CHANGE,
+			details: {
+				previousPause: oldPlayer.paused,
+				currentPause: this.paused,
+			},
+		});
 
-	/** Go back to the previous song. */
-	public previous(): this {
-		const oldPlayer = this ? { ...this } : null;
-		this.queue.unshift(this.queue.previous);
-		this.stop();
-
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "trackChangePrevious");
 		return this;
 	}
 
 	/**
-	 * Seeks to the position in the current track.
-	 * @param position
+	 * Goes back to the previous song in the queue.
+	 * @returns {this} - The player instance.
+	 */
+	public previous(): this {
+		// Capture the current state of the player before making changes.
+		const oldPlayer = this ? { ...this } : null;
+
+		// Move the previous track to the beginning of the queue.
+		this.queue.unshift(this.queue.previous);
+
+		// Stop the current track to allow playing the previous track.
+		this.stop();
+
+		// Emit a player state update event indicating the track change to previous.
+		this.manager.emit("playerStateUpdate", oldPlayer, this, {
+			changeType: PlayerStateEventTypes.TRACK_CHANGE,
+			details: {
+				changeType: "previous",
+				track: this.queue.previous,
+			},
+		});
+
+		// Return the player instance for method chaining.
+		return this;
+	}
+
+	/**
+	 * Seeks to the specified position in the current track.
+	 * @param position The position in milliseconds to seek to.
+	 * @returns {this} - The player instance.
 	 */
 	public seek(position: number): this {
 		if (!this.queue.current) return undefined;
 		position = Number(position);
 
+		// Check if the position is valid.
 		if (isNaN(position)) {
 			throw new RangeError("Position must be a number.");
 		}
 
+		// Get the old player state.
 		const oldPlayer = this ? { ...this } : null;
-		if (position < 0 || position > this.queue.current.duration) position = Math.max(Math.min(position, this.queue.current.duration), 0);
 
+		// Clamp the position to ensure it is within the valid range.
+		if (position < 0 || position > this.queue.current.duration) {
+			position = Math.max(Math.min(position, this.queue.current.duration), 0);
+		}
+
+		// Update the player's position.
 		this.position = position;
 
+		// Send the seek request to the node.
 		this.node.rest.updatePlayer({
 			guildId: this.guild,
 			data: {
@@ -622,8 +875,36 @@ export class Player {
 			},
 		});
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, "trackChangeSeek");
+		// Emit an event to notify the manager of the track change.
+		this.manager.emit("playerStateUpdate", oldPlayer, this, {
+			changeType: PlayerStateEventTypes.TRACK_CHANGE,
+			details: {
+				changeType: "timeUpdate",
+				previousTime: oldPlayer.position,
+				currentTime: this.position,
+			},
+		});
+
 		return this;
+	}
+
+	/**
+	 * Returns the current repeat state of the player.
+	 * @param player The player to get the repeat state from.
+	 * @returns The repeat state of the player, or null if it is not repeating.
+	 */
+	private getRepeatState(player: Player): string | null {
+		// If the queue is repeating, return the queue repeat state.
+		if (player.queueRepeat) return "queue";
+
+		// If the track is repeating, return the track repeat state.
+		if (player.trackRepeat) return "track";
+
+		// If the dynamic repeat is enabled, return the dynamic repeat state.
+		if (player.dynamicRepeat) return "dynamic";
+
+		// If none of the above conditions are met, return null.
+		return null;
 	}
 }
 
