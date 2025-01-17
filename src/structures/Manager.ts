@@ -749,30 +749,17 @@ export class Manager extends EventEmitter {
 	 */
 	public decodeTracks(tracks: string[]): Promise<TrackData[]> {
 		this.emit("debug", `[MANAGER] Decoding tracks: ${JSON.stringify(tracks)}`);
-
 		return new Promise(async (resolve, reject) => {
-			// Get the first available node for processing the decode request
 			const node = this.nodes.first();
-			if (!node) {
-				// Reject the promise if no nodes are available
-				return reject(new Error("No available nodes."));
+			if (!node) throw new Error("No available nodes.");
+
+			const res = (await node.rest.post("/v4/decodetracks", JSON.stringify(tracks)).catch((err) => reject(err))) as TrackData[];
+
+			if (!res) {
+				return reject(new Error("No data returned from query."));
 			}
 
-			try {
-				// Send a POST request to the Lavalink API to decode tracks
-				const res = await node.rest.post("/v4/decodetracks", JSON.stringify(tracks)) as TrackData[];
-
-				// Check if a valid response is received
-				if (!res) {
-					return reject(new Error("No data returned from query."));
-				}
-
-				// Resolve the promise with the decoded track data
-				resolve(res);
-			} catch (err) {
-				// Reject the promise if an error occurs during the API request
-				reject(err);
-			}
+			return resolve(res);
 		});
 	}
 
