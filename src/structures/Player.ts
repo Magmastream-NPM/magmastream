@@ -1,8 +1,8 @@
 import { Filters } from "./Filters";
-import { LavalinkResponse, Manager, PlaylistRawData, SearchQuery, SearchResult, PlayerStateEventTypes } from "./Manager";
+import { LavalinkResponse, Manager, PlaylistRawData, SearchQuery, SearchResult, PlayerStateEventTypes, ManagerEventTypes } from "./Manager";
 import { LavalinkInfo, Node, SponsorBlockSegment } from "./Node";
 import { Queue } from "./Queue";
-import { Sizes, State, Structure, TrackSourceName, TrackUtils, VoiceState } from "./Utils";
+import { LoadTypes, Sizes, State, Structure, TrackSourceName, TrackUtils, VoiceState } from "./Utils";
 import * as _ from "lodash";
 import playerCheck from "../utils/playerCheck";
 import { ClientUser, Message, User } from "discord.js";
@@ -127,7 +127,7 @@ export class Player {
 		this.manager.players.set(options.guild, this);
 
 		// Emit the playerCreate event.
-		this.manager.emit("playerCreate", this);
+		this.manager.emit(ManagerEventTypes.PlayerCreate, this);
 
 		// Set the initial volume.
 		this.setVolume(options.volume ?? 100);
@@ -172,8 +172,8 @@ export class Player {
 		this.state = "CONNECTED";
 
 		// Emit the player state update event
-		this.manager.emit("playerStateUpdate", oldPlayer, this, {
-			changeType: PlayerStateEventTypes.CONNECTION_CHANGE,
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
+			changeType: PlayerStateEventTypes.ConnectionChange,
 			details: {
 				changeType: "connect",
 				previousConnection: oldPlayer?.state === "CONNECTED",
@@ -209,8 +209,8 @@ export class Player {
 		this.voiceChannel = null;
 		this.state = "DISCONNECTED";
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, {
-			changeType: PlayerStateEventTypes.CONNECTION_CHANGE,
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
+			changeType: PlayerStateEventTypes.ConnectionChange,
 			details: {
 				changeType: "disconnect",
 				previousConnection: oldPlayer.state === "CONNECTED",
@@ -239,10 +239,10 @@ export class Player {
 		}
 
 		this.node.rest.destroyPlayer(this.guild);
-		this.manager.emit("playerDestroy", this);
+		this.manager.emit(ManagerEventTypes.PlayerDestroy, this);
 		this.manager.players.delete(this.guild);
-		this.manager.emit("playerStateUpdate", oldPlayer, this, {
-			changeType: PlayerStateEventTypes.PLAYER_DESTROY,
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
+			changeType: PlayerStateEventTypes.PlayerDestroy,
 		});
 	}
 
@@ -264,8 +264,8 @@ export class Player {
 		this.connect();
 
 		// Emit a player state update event
-		this.manager.emit("playerStateUpdate", oldPlayer, this, {
-			changeType: PlayerStateEventTypes.CHANNEL_CHANGE,
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
+			changeType: PlayerStateEventTypes.ChannelChange,
 			details: {
 				changeType: "voice",
 				previousChannel: oldPlayer.voiceChannel || null,
@@ -297,8 +297,8 @@ export class Player {
 		this.textChannel = channel;
 
 		// Emit a player state update event with channel change details
-		this.manager.emit("playerStateUpdate", oldPlayer, this, {
-			changeType: PlayerStateEventTypes.CHANNEL_CHANGE,
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
+			changeType: PlayerStateEventTypes.ChannelChange,
 			details: {
 				changeType: "text",
 				previousChannel: oldPlayer.textChannel || null,
@@ -358,7 +358,7 @@ export class Player {
 			try {
 				this.queue.current = await TrackUtils.getClosestTrack(this.queue.current as UnresolvedTrack);
 			} catch (error) {
-				this.manager.emit("trackError", this, this.queue.current, error);
+				this.manager.emit(ManagerEventTypes.TrackError, this, this.queue.current, error);
 				if (this.queue[0]) return this.play(this.queue[0]);
 				return;
 			}
@@ -406,8 +406,8 @@ export class Player {
 		this.autoplayTries = tries;
 		this.set("Internal_BotUser", botUser);
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, {
-			changeType: PlayerStateEventTypes.AUTOPLAY_CHANGE,
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
+			changeType: PlayerStateEventTypes.AutoPlayChange,
 			details: {
 				previousAutoplay: oldPlayer.isAutoplay,
 				currentAutoplay: this.isAutoplay,
@@ -491,11 +491,11 @@ export class Player {
 
 		const res = await this.manager.search(searchURI);
 
-		if (res.loadType === "empty" || res.loadType === "error") return;
+		if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return;
 
 		let tracks = res.tracks;
 
-		if (res.loadType === "playlist") {
+		if (res.loadType === LoadTypes.Playlist) {
 			tracks = res.playlist.tracks;
 		}
 
@@ -535,8 +535,8 @@ export class Player {
 
 		this.volume = volume;
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, {
-			changeType: PlayerStateEventTypes.VOLUME_CHANGE,
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
+			changeType: PlayerStateEventTypes.VolumeChange,
 			details: { previousVolume: oldPlayer.volume || null, currentVolume: this.volume },
 		});
 
@@ -597,8 +597,8 @@ export class Player {
 		}
 
 		// Emit an event indicating the repeat mode has changed
-		this.manager.emit("playerStateUpdate", oldPlayer, this, {
-			changeType: PlayerStateEventTypes.REPEAT_CHANGE,
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
+			changeType: PlayerStateEventTypes.RepeatChange,
 			detail: {
 				changeType: "track",
 				previousRepeat: this.getRepeatState(oldPlayer),
@@ -634,8 +634,8 @@ export class Player {
 		}
 
 		// Emit the player state update event
-		this.manager.emit("playerStateUpdate", oldPlayer, this, {
-			changeType: PlayerStateEventTypes.REPEAT_CHANGE,
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
+			changeType: PlayerStateEventTypes.RepeatChange,
 			detail: {
 				changeType: "queue",
 				previousRepeat: this.getRepeatState(oldPlayer),
@@ -694,8 +694,8 @@ export class Player {
 		}
 
 		// Emit a player state update event
-		this.manager.emit("playerStateUpdate", oldPlayer, this, {
-			changeType: PlayerStateEventTypes.REPEAT_CHANGE,
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
+			changeType: PlayerStateEventTypes.RepeatChange,
 			detail: {
 				changeType: "dynamic",
 				previousRepeat: this.getRepeatState(oldPlayer),
@@ -761,8 +761,8 @@ export class Player {
 			},
 		});
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this, {
-			changeType: PlayerStateEventTypes.QUEUE_CHANGE,
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
+			changeType: PlayerStateEventTypes.QueueChange,
 			details: {
 				changeType: "remove",
 				tracks: removedTracks,
@@ -800,8 +800,8 @@ export class Player {
 		});
 
 		// Emit an event indicating the pause state has changed.
-		this.manager.emit("playerStateUpdate", oldPlayer, this, {
-			changeType: PlayerStateEventTypes.PAUSE_CHANGE,
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
+			changeType: PlayerStateEventTypes.PauseChange,
 			details: {
 				previousPause: oldPlayer.paused,
 				currentPause: this.paused,
@@ -826,8 +826,8 @@ export class Player {
 		this.stop();
 
 		// Emit a player state update event indicating the track change to previous.
-		this.manager.emit("playerStateUpdate", oldPlayer, this, {
-			changeType: PlayerStateEventTypes.TRACK_CHANGE,
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
+			changeType: PlayerStateEventTypes.TrackChange,
 			details: {
 				changeType: "previous",
 				track: this.queue.previous,
@@ -872,8 +872,8 @@ export class Player {
 		});
 
 		// Emit an event to notify the manager of the track change.
-		this.manager.emit("playerStateUpdate", oldPlayer, this, {
-			changeType: PlayerStateEventTypes.TRACK_CHANGE,
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
+			changeType: PlayerStateEventTypes.TrackChange,
 			details: {
 				changeType: "timeUpdate",
 				previousTime: oldPlayer.position,

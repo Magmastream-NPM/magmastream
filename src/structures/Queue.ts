@@ -1,6 +1,6 @@
 import { Track, UnresolvedTrack } from "./Player";
 import { TrackUtils } from "./Utils";
-import { Manager, PlayerStateEventTypes } from "./Manager"; // Import Manager to access emit method
+import { Manager, ManagerEventTypes, PlayerStateEventTypes } from "./Manager"; // Import Manager to access emit method
 
 /**
  * The player's queue, the `current` property is the currently playing track, think of the rest as the up-coming tracks.
@@ -70,7 +70,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 		const trackInfo = Array.isArray(track) ? track.map((t) => JSON.stringify(t, null, 2)).join(", ") : JSON.stringify(track, null, 2);
 
 		// Emit a debug message
-		this.manager.emit("debug", `[QUEUE] Added ${Array.isArray(track) ? track.length : 1} track(s) to queue: ${trackInfo}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Added ${Array.isArray(track) ? track.length : 1} track(s) to queue: ${trackInfo}`);
 
 		const oldPlayer = this.manager.players.get(this.guild) ? { ...this.manager.players.get(this.guild) } : null;
 
@@ -78,7 +78,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 		if (!TrackUtils.validate(track)) {
 			throw new RangeError('Track must be a "Track" or "Track[]".');
 
-		// If the track is valid, add it to the queue
+			// If the track is valid, add it to the queue
 		} else {
 			// If the queue is empty, set the track as the current track
 			if (!this.current) {
@@ -119,15 +119,15 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 		}
 
 		// Emit a player state update event with the added track(s)
-		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), {
-			changeType: PlayerStateEventTypes.QUEUE_CHANGE,
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guild), {
+			changeType: PlayerStateEventTypes.QueueChange,
 			details: {
 				changeType: "add",
 				tracks: Array.isArray(track) ? track : [track],
 			},
 		});
 	}
-	
+
 	/**
 	 * Removes track(s) from the queue.
 	 * @param startOrPosition If a single number is provided, it will be treated as the position of the track to remove.
@@ -151,10 +151,13 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 			}
 
 			const removedTracks = this.splice(startOrPosition, end - startOrPosition);
-			this.manager.emit("debug", `[QUEUE] Removed ${removedTracks.length} track(s) from player: ${this.guild} from position ${startOrPosition} to ${end}.`);
+			this.manager.emit(
+				ManagerEventTypes.Debug,
+				`[QUEUE] Removed ${removedTracks.length} track(s) from player: ${this.guild} from position ${startOrPosition} to ${end}.`
+			);
 
-			this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), {
-				changeType: PlayerStateEventTypes.QUEUE_CHANGE,
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guild), {
+				changeType: PlayerStateEventTypes.QueueChange,
 				details: {
 					changeType: "remove",
 					tracks: removedTracks,
@@ -167,15 +170,15 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 		// Single item removal when no end specified
 		const removedTrack = this.splice(startOrPosition, 1);
 		this.manager.emit(
-			"debug",
+			ManagerEventTypes.Debug,
 			`[QUEUE] Removed 1 track from player: ${this.guild} from position ${startOrPosition}: ${JSON.stringify(removedTrack[0], null, 2)}`
 		);
 
 		// Ensure removedTrack is an array for consistency
 		const tracksToEmit = removedTrack.length > 0 ? removedTrack : [];
 
-		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), {
-			changeType: PlayerStateEventTypes.QUEUE_CHANGE,
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guild), {
+			changeType: PlayerStateEventTypes.QueueChange,
 			details: {
 				changeType: "remove",
 				tracks: tracksToEmit,
@@ -197,8 +200,8 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 		this.splice(0);
 
 		// Emit an event to update the player state indicating the queue has been cleared.
-		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), {
-			changeType: PlayerStateEventTypes.QUEUE_CHANGE,
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guild), {
+			changeType: PlayerStateEventTypes.QueueChange,
 			details: {
 				changeType: "clear",
 				tracks: [], // No tracks are left after clearing
@@ -206,7 +209,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 		});
 
 		// Emit a debug message indicating the queue has been cleared for a specific guild.
-		this.manager.emit("debug", `[QUEUE] Cleared the queue for: ${this.guild}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Cleared the queue for: ${this.guild}`);
 	}
 
 	/**
@@ -224,15 +227,15 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 		}
 
 		// Emit an event to update the player state indicating the queue has been shuffled.
-		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), {
-			changeType: PlayerStateEventTypes.QUEUE_CHANGE,
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guild), {
+			changeType: PlayerStateEventTypes.QueueChange,
 			details: {
 				changeType: "shuffle",
 			},
 		});
 
 		// Emit a debug message indicating the queue has been shuffled for a specific guild.
-		this.manager.emit("debug", `[QUEUE] Shuffled the queue for: ${this.guild}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Shuffled the queue for: ${this.guild}`);
 	}
 
 	/**
@@ -273,15 +276,15 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 		this.add(shuffledQueue);
 
 		// Emit an event to update the player state indicating the queue has been shuffled.
-		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), {
-			changeType: PlayerStateEventTypes.QUEUE_CHANGE,
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guild), {
+			changeType: PlayerStateEventTypes.QueueChange,
 			details: {
 				changeType: "userBlock",
 			},
 		});
 
 		// Emit a debug message indicating the queue has been shuffled for a specific guild.
-		this.manager.emit("debug", `[QUEUE] userBlockShuffled the queue for: ${this.guild}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] userBlockShuffled the queue for: ${this.guild}`);
 	}
 
 	/**
@@ -332,14 +335,14 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 		this.add(shuffledQueue);
 
 		// Emit an event to update the player state indicating the queue has been shuffled.
-		this.manager.emit("playerStateUpdate", oldPlayer, this.manager.players.get(this.guild), {
-			changeType: PlayerStateEventTypes.QUEUE_CHANGE,
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guild), {
+			changeType: PlayerStateEventTypes.QueueChange,
 			details: {
 				changeType: "roundRobin",
 			},
 		});
 
 		// Emit a debug message indicating the queue has been shuffled for a specific guild.
-		this.manager.emit("debug", `[QUEUE] roundRobinShuffled the queue for: ${this.guild}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] roundRobinShuffled the queue for: ${this.guild}`);
 	}
 }

@@ -11,8 +11,9 @@ import {
 	SponsorBlockChaptersLoaded,
 	SponsorBlockSegmentsLoaded,
 	SponsorBlockSegmentSkipped,
+	LoadTypes,
 } from "./Utils";
-import { Manager, PlayerStateEventTypes, SearchPlatform } from "./Manager";
+import { Manager, ManagerEventTypes, PlayerStateEventTypes, SearchPlatform } from "./Manager";
 import { Player, Track, UnresolvedTrack } from "./Player";
 import { Rest } from "./Rest";
 import nodeCheck from "../utils/nodeCheck";
@@ -119,7 +120,7 @@ export class Node {
 		};
 
 		this.manager.nodes.set(this.options.identifier, this);
-		this.manager.emit("nodeCreate", this);
+		this.manager.emit(ManagerEventTypes.NodeCreate, this);
 		this.rest = new Rest(this, this.manager);
 
 		this.createSessionIdsFile();
@@ -137,7 +138,7 @@ export class Node {
 	public createSessionIdsFile(): void {
 		// If the sessionIds.json file does not exist, create it
 		if (!fs.existsSync(sessionIdsFilePath)) {
-			this.manager.emit("debug", `[NODE] Creating sessionId file at: ${sessionIdsFilePath}`);
+			this.manager.emit(ManagerEventTypes.Debug, `[NODE] Creating sessionId file at: ${sessionIdsFilePath}`);
 			// Create the file with an empty object as the content
 			fs.writeFileSync(sessionIdsFilePath, JSON.stringify({}), "utf-8");
 		}
@@ -151,11 +152,11 @@ export class Node {
 		// Check if the sessionIds.json file exists
 		if (fs.existsSync(sessionIdsFilePath)) {
 			// Emit a debug event indicating that session IDs are being loaded
-			this.manager.emit("debug", `[NODE] Loading sessionIds from file: ${sessionIdsFilePath}`);
-			
+			this.manager.emit(ManagerEventTypes.Debug, `[NODE] Loading sessionIds from file: ${sessionIdsFilePath}`);
+
 			// Read the content of the sessionIds.json file as a string
 			const sessionIdsData = fs.readFileSync(sessionIdsFilePath, "utf-8");
-			
+
 			// Parse the JSON string into an object and convert it into a Map
 			sessionIdsMap = new Map(Object.entries(JSON.parse(sessionIdsData)));
 		}
@@ -169,7 +170,7 @@ export class Node {
 	 */
 	public updateSessionId(): void {
 		// Emit a debug event indicating that the session IDs are being updated
-		this.manager.emit("debug", `[NODE] Updating sessionIds to file: ${sessionIdsFilePath}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Updating sessionIds to file: ${sessionIdsFilePath}`);
 
 		// Update the session IDs Map with the new session ID
 		sessionIdsMap.set(this.options.identifier, this.sessionId);
@@ -221,7 +222,7 @@ export class Node {
 			},
 		};
 
-		this.manager.emit("debug", `[NODE] Connecting ${JSON.stringify(debugInfo)}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Connecting ${JSON.stringify(debugInfo)}`);
 	}
 
 	/**
@@ -248,7 +249,7 @@ export class Node {
 			playerCount: this.manager.players.filter((p) => p.node == this).size,
 		};
 
-		this.manager.emit("debug", `[NODE] Destroying node: ${JSON.stringify(debugInfo)}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Destroying node: ${JSON.stringify(debugInfo)}`);
 
 		// Destroy all players connected to the node
 		const players = this.manager.players.filter((p) => p.node == this);
@@ -265,12 +266,11 @@ export class Node {
 		clearTimeout(this.reconnectTimeout);
 
 		// Emit a "nodeDestroy" event with the node as the argument
-		this.manager.emit("nodeDestroy", this);
+		this.manager.emit(ManagerEventTypes.NodeDestroy, this);
 
 		// Destroy the node from the manager
 		this.manager.destroyNode(this.options.identifier);
 	}
-
 
 	/**
 	 * Attempts to reconnect the node if the connection is lost.
@@ -290,7 +290,7 @@ export class Node {
 		};
 
 		// Emit a debug event indicating the node is attempting to reconnect
-		this.manager.emit("debug", `[NODE] Reconnecting node: ${JSON.stringify(debugInfo)}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Reconnecting node: ${JSON.stringify(debugInfo)}`);
 
 		// Schedule the reconnection attempt after the specified retry delay
 		this.reconnectTimeout = setTimeout(() => {
@@ -298,7 +298,7 @@ export class Node {
 			if (this.reconnectAttempts >= this.options.retryAmount) {
 				// Emit an error event and destroy the node if retries are exhausted
 				const error = new Error(`Unable to connect after ${this.options.retryAmount} attempts.`);
-				this.manager.emit("nodeError", this, error);
+				this.manager.emit(ManagerEventTypes.NodeError, this, error);
 				return this.destroy();
 			}
 
@@ -307,7 +307,7 @@ export class Node {
 			this.socket = null;
 
 			// Emit a nodeReconnect event and attempt to connect again
-			this.manager.emit("nodeReconnect", this);
+			this.manager.emit(ManagerEventTypes.NodeReconnect, this);
 			this.connect();
 
 			// Increment the reconnect attempts counter
@@ -334,10 +334,10 @@ export class Node {
 		};
 
 		// Emit a debug event indicating the node is connected
-		this.manager.emit("debug", `[NODE] Connected node: ${JSON.stringify(debugInfo)}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Connected node: ${JSON.stringify(debugInfo)}`);
 
 		// Emit a "nodeConnect" event with the node as the argument
-		this.manager.emit("nodeConnect", this);
+		this.manager.emit(ManagerEventTypes.NodeConnect, this);
 	}
 
 	/**
@@ -359,9 +359,9 @@ export class Node {
 			reason,
 		};
 		// Emit a "nodeDisconnect" event with the node and the close event as arguments
-		this.manager.emit("nodeDisconnect", this, { code, reason });
+		this.manager.emit(ManagerEventTypes.NodeDisconnect, this, { code, reason });
 		// Emit a debug event indicating the node is disconnected
-		this.manager.emit("debug", `[NODE] Disconnected node: ${JSON.stringify(debugInfo)}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Disconnected node: ${JSON.stringify(debugInfo)}`);
 		// If the close event was not initiated by the user, attempt to reconnect
 		if (code !== 1000 || reason !== "destroy") this.reconnect();
 	}
@@ -382,9 +382,9 @@ export class Node {
 			error: error.message,
 		};
 		// Emit a debug event indicating the error on the node
-		this.manager.emit("debug", `[NODE] Error on node: ${JSON.stringify(debugInfo)}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Error on node: ${JSON.stringify(debugInfo)}`);
 		// Emit a "nodeError" event with the node and the error as arguments
-		this.manager.emit("nodeError", this, error);
+		this.manager.emit(ManagerEventTypes.NodeError, this, error);
 	}
 
 	/**
@@ -398,7 +398,7 @@ export class Node {
 		const payload = JSON.parse(d.toString());
 
 		if (!payload.op) return;
-		this.manager.emit("nodeRaw", payload);
+		this.manager.emit(ManagerEventTypes.NodeRaw, payload);
 
 		let player: Player;
 
@@ -412,11 +412,11 @@ export class Node {
 				if (player) player.position = payload.state.position || 0;
 				break;
 			case "event":
-				this.manager.emit("debug", `[NODE] Node message: ${JSON.stringify(payload)}`);
+				this.manager.emit(ManagerEventTypes.Debug, `[NODE] Node message: ${JSON.stringify(payload)}`);
 				this.handleEvent(payload);
 				break;
 			case "ready":
-				this.manager.emit("debug", `[NODE] Node message: ${JSON.stringify(payload)}`);
+				this.manager.emit(ManagerEventTypes.Debug, `[NODE] Node message: ${JSON.stringify(payload)}`);
 				this.rest.setSessionId(payload.sessionId);
 				this.sessionId = payload.sessionId;
 				this.updateSessionId(); // Call to update session ID
@@ -435,7 +435,7 @@ export class Node {
 				}
 				break;
 			default:
-				this.manager.emit("nodeError", this, new Error(`Unexpected op "${payload.op}" with data: ${payload.message}`));
+				this.manager.emit(ManagerEventTypes.NodeError, this, new Error(`Unexpected op "${payload.op}" with data: ${payload.message}`));
 				return;
 		}
 	}
@@ -496,7 +496,7 @@ export class Node {
 
 			default:
 				error = new Error(`Node#event unknown event '${type}'.`);
-				this.manager.emit("nodeError", this, error);
+				this.manager.emit(ManagerEventTypes.NodeError, this, error);
 				break;
 		}
 	}
@@ -514,10 +514,10 @@ export class Node {
 		player.playing = true;
 		player.paused = false;
 
-		this.manager.emit("trackStart", player, track, payload);
+		this.manager.emit(ManagerEventTypes.TrackStart, player, track, payload);
 
-		this.manager.emit("playerStateUpdate", oldPlayer, player, {
-			changeType: PlayerStateEventTypes.TRACK_CHANGE,
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, player, {
+			changeType: PlayerStateEventTypes.TrackChange,
 			details: {
 				changeType: "start",
 				track: track,
@@ -527,7 +527,7 @@ export class Node {
 
 	/**
 	 * Handles the event when a track ends.
-	 * Depending on the reason for the track ending, it may handle failed tracks, replaced tracks, 
+	 * Depending on the reason for the track ending, it may handle failed tracks, replaced tracks,
 	 * repeated tracks, play the next track in the queue, or end the queue if there are no more tracks.
 	 * Emits a `trackEnd` event and a `playerStateUpdate` event.
 	 *
@@ -548,7 +548,7 @@ export class Node {
 		}
 		// If the track was forcibly replaced
 		else if (reason === "replaced") {
-			this.manager.emit("trackEnd", player, track, payload);
+			this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
 			player.queue.previous = player.queue.current;
 		}
 		// If the track ended and it's set to repeat (track or queue)
@@ -564,8 +564,8 @@ export class Node {
 			await this.queueEnd(player, track, payload);
 		}
 
-		this.manager.emit("playerStateUpdate", oldPlayer, player, {
-			changeType: PlayerStateEventTypes.TRACK_CHANGE,
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, player, {
+			changeType: PlayerStateEventTypes.TrackChange,
 			details: {
 				changeType: "end",
 				track: track,
@@ -632,7 +632,7 @@ export class Node {
 			} while (track.uri.includes(searchURI));
 
 			const res = await player.search(searchURI, player.get("Internal_BotUser") as ClientUser);
-			if (res.loadType === "empty" || res.loadType === "error") return false;
+			if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
 
 			const foundTrack = res.tracks.find((t) => t.uri !== track.uri && t.author !== track.author && t.title !== track.title);
 			if (!foundTrack) return false;
@@ -671,7 +671,7 @@ export class Node {
 					{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: selectedSource },
 					player.get("Internal_BotUser") as ClientUser
 				);
-				if (res.loadType === "empty" || res.loadType === "error") return false;
+				if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
 
 				const foundTrack = res.tracks.find((t) => t.uri !== track.uri);
 				if (!foundTrack) return false;
@@ -688,7 +688,13 @@ export class Node {
 		}
 
 		const url = `https://ws.audioscrobbler.com/2.0/?method=track.getSimilar&artist=${artist}&track=${title}&limit=10&autocorrect=1&api_key=${apiKey}&format=json`;
-		const response = await axios.get(url);
+		let response: axios.AxiosResponse;
+
+		try {
+			response = await axios.get(url);
+		} catch (error) {
+			return false;
+		}
 
 		if (response.data.error || !response.data.similartracks?.track?.length) {
 			const retryUrl = `https://ws.audioscrobbler.com/2.0/?method=artist.getTopTracks&artist=${artist}&autocorrect=1&api_key=${apiKey}&format=json`;
@@ -701,7 +707,7 @@ export class Node {
 				{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: selectedSource },
 				player.get("Internal_BotUser") as ClientUser
 			);
-			if (res.loadType === "empty" || res.loadType === "error") return false;
+			if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
 
 			const foundTrack = res.tracks.find((t) => t.uri !== track.uri);
 			if (!foundTrack) return false;
@@ -716,7 +722,7 @@ export class Node {
 			{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: selectedSource },
 			player.get("Internal_BotUser") as ClientUser
 		);
-		if (res.loadType === "empty" || res.loadType === "error") return false;
+		if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
 
 		const foundTrack = res.tracks.find((t) => t.uri !== track.uri);
 		if (!foundTrack) return false;
@@ -735,7 +741,7 @@ export class Node {
 			return;
 		}
 
-		this.manager.emit("trackEnd", player, track, payload);
+		this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
 		if (this.manager.options.autoPlay) player.play();
 	}
 
@@ -765,7 +771,7 @@ export class Node {
 		queue.current = queue.shift();
 
 		// Emit the track end event
-		this.manager.emit("trackEnd", player, track, payload);
+		this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
 
 		// If the track was stopped manually and there are no more tracks in the queue, end the queue
 		if (payload.reason === "stopped" && !(queue.current = queue.shift())) {
@@ -796,7 +802,7 @@ export class Node {
 		player.queue.current = player.queue.shift();
 
 		// Emit the track end event
-		this.manager.emit("trackEnd", player, track, payload);
+		this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
 
 		// If autoplay is enabled, play the next track
 		if (this.manager.options.autoPlay) player.play();
@@ -817,7 +823,7 @@ export class Node {
 
 		if (!player.isAutoplay) {
 			player.playing = false;
-			this.manager.emit("queueEnd", player, track, payload);
+			this.manager.emit(ManagerEventTypes.QueueEnd, player, track, payload);
 			return;
 		}
 
@@ -833,13 +839,13 @@ export class Node {
 		// If all attempts fail, reset the player state and emit queueEnd
 		player.queue.previous = null;
 		player.playing = false;
-		this.manager.emit("queueEnd", player, track, payload);
+		this.manager.emit(ManagerEventTypes.QueueEnd, player, track, payload);
 	}
 
 	/**
 	 * Handles the event when a track gets stuck during playback.
 	 * Stops the current track and emits a `trackStuck` event.
-	 * 
+	 *
 	 * @param {Player} player - The player associated with the stuck track.
 	 * @param {Track} track - The track that has encountered a stuck event.
 	 * @param {TrackStuckEvent} payload - The event payload containing additional data about the track stuck event.
@@ -848,13 +854,13 @@ export class Node {
 	 */
 	protected trackStuck(player: Player, track: Track, payload: TrackStuckEvent): void {
 		player.stop();
-		this.manager.emit("trackStuck", player, track, payload);
+		this.manager.emit(ManagerEventTypes.TrackStuck, player, track, payload);
 	}
 
 	/**
 	 * Handles the event when a track encounters an error during playback.
 	 * Stops the current track and emits a `trackError` event.
-	 * 
+	 *
 	 * @param {Player} player - The player associated with the track that encountered an error.
 	 * @param {Track | UnresolvedTrack} track - The track that encountered an error.
 	 * @param {TrackExceptionEvent} payload - The event payload containing additional data about the track error event.
@@ -863,7 +869,7 @@ export class Node {
 	 */
 	protected trackError(player: Player, track: Track | UnresolvedTrack, payload: TrackExceptionEvent): void {
 		player.stop();
-		this.manager.emit("trackError", player, track, payload);
+		this.manager.emit(ManagerEventTypes.TrackError, player, track, payload);
 	}
 
 	/**
@@ -873,8 +879,8 @@ export class Node {
 	 * @param {WebSocketClosedEvent} payload - The event payload containing additional data about the WebSocket close event.
 	 */
 	protected socketClosed(player: Player, payload: WebSocketClosedEvent): void {
-		this.manager.emit("socketClosed", player, payload);
-		this.manager.emit("debug", `[NODE] Websocket closed for player: ${player.guild} with payload: ${JSON.stringify(payload)}`);
+		this.manager.emit(ManagerEventTypes.SocketClosed, player, payload);
+		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Websocket closed for player: ${player.guild} with payload: ${JSON.stringify(payload)}`);
 	}
 
 	/**
@@ -885,7 +891,7 @@ export class Node {
 	 * @param {SponsorBlockSegmentsLoaded} payload - The event payload containing additional data about the segments loaded event.
 	 */
 	private sponsorBlockSegmentLoaded(player: Player, track: Track, payload: SponsorBlockSegmentsLoaded) {
-		return this.manager.emit("segmentsLoaded", player, track, payload);
+		return this.manager.emit(ManagerEventTypes.SegmentsLoaded, player, track, payload);
 	}
 
 	/**
@@ -896,7 +902,7 @@ export class Node {
 	 * @param {SponsorBlockSegmentSkipped} payload - The event payload containing additional data about the segment skipped event.
 	 */
 	private sponsorBlockSegmentSkipped(player: Player, track: Track, payload: SponsorBlockSegmentSkipped) {
-		return this.manager.emit("segmentSkipped", player, track, payload);
+		return this.manager.emit(ManagerEventTypes.SegmentSkipped, player, track, payload);
 	}
 
 	/**
@@ -907,7 +913,7 @@ export class Node {
 	 * @param {SponsorBlockChaptersLoaded} payload - The event payload containing additional data about the chapters loaded event.
 	 */
 	private sponsorBlockChaptersLoaded(player: Player, track: Track, payload: SponsorBlockChaptersLoaded) {
-		return this.manager.emit("chaptersLoaded", player, track, payload);
+		return this.manager.emit(ManagerEventTypes.ChaptersLoaded, player, track, payload);
 	}
 
 	/**
@@ -918,9 +924,9 @@ export class Node {
 	 * @param {SponsorBlockChapterStarted} payload - The event payload containing additional data about the chapter started event.
 	 */
 	private sponsorBlockChapterStarted(player: Player, track: Track, payload: SponsorBlockChapterStarted) {
-		return this.manager.emit("chapterStarted", player, track, payload);
+		return this.manager.emit(ManagerEventTypes.ChapterStarted, player, track, payload);
 	}
-	
+
 	/**
 	 * Fetches Lavalink node information.
 	 * @returns {Promise<LavalinkInfo>} A promise that resolves to the Lavalink node information.
@@ -969,7 +975,6 @@ export class Node {
 		return;
 	}
 
-	
 	/**
 	 * Deletes the sponsorblock segments for a player.
 	 * @param {Player} player - The player to delete the sponsorblocks for.
@@ -996,7 +1001,7 @@ export class Node {
 
 		if (!fs.existsSync(readmeFilePath)) {
 			fs.writeFileSync(readmeFilePath, message, "utf-8");
-			this.manager.emit("debug", `[NODE] Created README file at: ${readmeFilePath}`);
+			this.manager.emit(ManagerEventTypes.Debug, `[NODE] Created README file at: ${readmeFilePath}`);
 		}
 	}
 }
