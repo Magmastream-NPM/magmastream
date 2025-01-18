@@ -1,6 +1,6 @@
 /* eslint-disable no-async-promise-executor */
 import {
-	LoadType,
+	LoadTypes,
 	Plugin,
 	Structure,
 	TrackData,
@@ -272,7 +272,6 @@ export class Manager extends EventEmitter {
 		return serializedPlayer;
 	}
 
-
 	/**
 	 * Checks for players that are no longer active and deletes their saved state files.
 	 * This is done to prevent stale state files from accumulating on the file system.
@@ -395,9 +394,9 @@ export class Manager extends EventEmitter {
 		// The events to listen for
 		const events: (keyof ManagerEvents)[] = [
 			// The player state has been updated
-			"playerStateUpdate",
+			ManagerEventTypes.PlayerStateUpdate,
 			// The player has been destroyed
-			"playerDestroy",
+			ManagerEventTypes.PlayerDestroy,
 		];
 
 		// Register the events
@@ -454,7 +453,6 @@ export class Manager extends EventEmitter {
 		// Clear the latest player states after processing
 		this.latestPlayerStates.clear();
 	}
-
 
 	/**
 	 * Initiates the Manager class.
@@ -550,7 +548,6 @@ export class Manager extends EventEmitter {
 		return this;
 	}
 
-
 	/**
 	 * Searches the enabled sources based off the URL or the `source` property.
 	 * @param query
@@ -586,15 +583,15 @@ export class Manager extends EventEmitter {
 			let playlistData: PlaylistRawData | undefined;
 
 			switch (res.loadType) {
-				case "search":
+				case LoadTypes.Search:
 					searchData = res.data as TrackData[];
 					break;
 
-				case "track":
+				case LoadTypes.Track:
 					searchData = [res.data as TrackData[]];
 					break;
 
-				case "playlist":
+				case LoadTypes.Playlist:
 					playlistData = res.data as PlaylistRawData;
 					break;
 			}
@@ -602,7 +599,7 @@ export class Manager extends EventEmitter {
 			const tracks = searchData.map((track) => TrackUtils.build(track, requester));
 			let playlist = null;
 
-			if (res.loadType === "playlist") {
+			if (res.loadType === LoadTypes.Playlist) {
 				playlist = {
 					name: playlistData!.info.name,
 					playlistInfo: playlistData.pluginInfo,
@@ -630,7 +627,7 @@ export class Manager extends EventEmitter {
 					return track;
 				};
 
-				if (result.loadType === "playlist") {
+				if (result.loadType === LoadTypes.Playlist) {
 					result.playlist.tracks = result.playlist.tracks.map(processTrack);
 				} else {
 					result.tracks = result.tracks.map(processTrack);
@@ -707,14 +704,14 @@ export class Manager extends EventEmitter {
 			if (openBrackets.includes(char)) {
 				stack.push(char);
 				result += char;
-			} 
+			}
 			// If the character is a close bracket, check if it balances with the last open bracket
 			else if (closeBrackets.includes(char)) {
 				if (stack.length > 0 && openBrackets.indexOf(stack[stack.length - 1]) === closeBrackets.indexOf(char)) {
 					stack.pop();
 					result += char;
 				}
-			} 
+			}
 			// If it's neither, just add the character to the result
 			else {
 				result += char;
@@ -964,16 +961,16 @@ export enum SearchPlatform {
 }
 
 export enum PlayerStateEventTypes {
-	AUTOPLAY_CHANGE = "playerAutoplay",
-	CONNECTION_CHANGE = "playerConnection",
-	REPEAT_CHANGE = "playerRepeat",
-	PAUSE_CHANGE = "playerPause",
-	PLAYER_CREATE = "playerCreate",
-	PLAYER_DESTROY = "playerDestroy",
-	QUEUE_CHANGE = "queueChange",
-	TRACK_CHANGE = "trackChange",
-	VOLUME_CHANGE = "volumeChange",
-	CHANNEL_CHANGE = "channelChange",
+	AutoPlayChange = "playerAutoplay",
+	ConnectionChange = "playerConnection",
+	RepeatChange = "playerRepeat",
+	PauseChange = "playerPause",
+	QueueChange = "queueChange",
+	TrackChange = "trackChange",
+	VolumeChange = "volumeChange",
+	ChannelChange = "channelChange",
+	PlayerCreate = "playerCreate",
+	PlayerDestroy = "playerDestroy",
 }
 
 interface PlayerStateUpdateEvent {
@@ -1042,7 +1039,7 @@ export interface SearchQuery {
 }
 
 export interface LavalinkResponse {
-	loadType: LoadType;
+	loadType: LoadTypes;
 	data: TrackData[] | PlaylistRawData;
 }
 
@@ -1067,7 +1064,7 @@ interface LavaPlayer {
 
 export interface SearchResult {
 	/** The load type of the result. */
-	loadType: LoadType;
+	loadType: LoadTypes;
 	/** The array of tracks from the result. */
 	tracks: Track[];
 	/** The playlist info if the load type is 'playlist'. */
@@ -1111,28 +1108,56 @@ export interface PlaylistData {
 	tracks: Track[];
 }
 
+export enum ManagerEventTypes {
+	Debug = "debug",
+	NodeCreate = "nodeCreate",
+	NodeDestroy = "nodeDestroy",
+	NodeConnect = "nodeConnect",
+	NodeReconnect = "nodeReconnect",
+	NodeDisconnect = "nodeDisconnect",
+	NodeError = "nodeError",
+	NodeRaw = "nodeRaw",
+	PlayerCreate = "playerCreate",
+	PlayerDestroy = "playerDestroy",
+	PlayerStateUpdate = "playerStateUpdate",
+	PlayerMove = "playerMove",
+	PlayerDisconnect = "playerDisconnect",
+	QueueEnd = "queueEnd",
+	SocketClosed = "socketClosed",
+	TrackStart = "trackStart",
+	TrackEnd = "trackEnd",
+	TrackEndReason = "trackEndReason",
+	TrackEndReasonRaw = "trackEndReasonRaw",
+	TrackEndReasonData = "trackEndReasonData",
+	TrackStuck = "trackStuck",
+	TrackError = "trackError",
+	SegmentsLoaded = "segmentsLoaded",
+	SegmentSkipped = "segmentSkipped",
+	ChapterStarted = "chapterStarted",
+	ChaptersLoaded = "chaptersLoaded",
+}
 export interface ManagerEvents {
-	debug: [info: string];
-	nodeCreate: [node: Node];
-	nodeDestroy: [node: Node];
-	nodeConnect: [node: Node];
-	nodeReconnect: [node: Node];
-	nodeDisconnect: [node: Node, reason: { code?: number; reason?: string }];
-	nodeError: [node: Node, error: Error];
-	nodeRaw: [payload: unknown];
-	playerCreate: [player: Player];
-	playerDestroy: [player: Player];
-	playerStateUpdate: [oldPlayer: Player, newPlayer: Player, changeType: PlayerStateUpdateEvent];
-	playerMove: [player: Player, initChannel: string, newChannel: string];
-	playerDisconnect: [player: Player, oldChannel: string];
-	queueEnd: [player: Player, track: Track | UnresolvedTrack, payload: TrackEndEvent];
-	socketClosed: [player: Player, payload: WebSocketClosedEvent];
-	trackStart: [player: Player, track: Track, payload: TrackStartEvent];
-	trackEnd: [player: Player, track: Track, payload: TrackEndEvent];
-	trackStuck: [player: Player, track: Track, payload: TrackStuckEvent];
-	trackError: [player: Player, track: Track | UnresolvedTrack, payload: TrackExceptionEvent];
-	segmentsLoaded: [player: Player, track: Track | UnresolvedTrack, payload: SponsorBlockSegmentsLoaded];
-	segmentSkipped: [player: Player, track: Track | UnresolvedTrack, payload: SponsorBlockSegmentSkipped];
-	chapterStarted: [player: Player, track: Track | UnresolvedTrack, payload: SponsorBlockChapterStarted];
-	chaptersLoaded: [player: Player, track: Track | UnresolvedTrack, payload: SponsorBlockChaptersLoaded];
+	[ManagerEventTypes.Debug]: [info: string];
+	[ManagerEventTypes.NodeCreate]: [node: Node];
+	[ManagerEventTypes.NodeDestroy]: [node: Node];
+	[ManagerEventTypes.NodeConnect]: [node: Node];
+	[ManagerEventTypes.NodeReconnect]: [node: Node];
+	[ManagerEventTypes.NodeDisconnect]: [node: Node, reason: { code?: number; reason?: string }];
+	[ManagerEventTypes.NodeError]: [node: Node, error: Error];
+	[ManagerEventTypes.NodeRaw]: [payload: unknown];
+	[ManagerEventTypes.PlayerCreate]: [player: Player];
+	[ManagerEventTypes.PlayerDestroy]: [player: Player];
+	[ManagerEventTypes.PlayerStateUpdate]: [oldPlayer: Player, newPlayer: Player, changeType: PlayerStateUpdateEvent];
+	[ManagerEventTypes.PlayerMove]: [player: Player, initChannel: string, newChannel: string];
+	[ManagerEventTypes.PlayerDisconnect]: [player: Player, oldChannel: string];
+	[ManagerEventTypes.QueueEnd]: [player: Player, track: Track | UnresolvedTrack, payload: TrackEndEvent];
+	[ManagerEventTypes.SocketClosed]: [player: Player, payload: WebSocketClosedEvent];
+	[ManagerEventTypes.TrackStart]: [player: Player, track: Track, payload: TrackStartEvent];
+	[ManagerEventTypes.TrackEnd]: [player: Player, track: Track, payload: TrackEndEvent];
+	[ManagerEventTypes.TrackStuck]: [player: Player, track: Track, payload: TrackStuckEvent];
+	[ManagerEventTypes.TrackError]: [player: Player, track: Track | UnresolvedTrack, payload: TrackExceptionEvent];
+	[ManagerEventTypes.SegmentsLoaded]: [player: Player, track: Track | UnresolvedTrack, payload: SponsorBlockSegmentsLoaded];
+	[ManagerEventTypes.SegmentSkipped]: [player: Player, track: Track | UnresolvedTrack, payload: SponsorBlockSegmentSkipped];
+	[ManagerEventTypes.ChapterStarted]: [player: Player, track: Track | UnresolvedTrack, payload: SponsorBlockChapterStarted];
+	[ManagerEventTypes.ChaptersLoaded]: [player: Player, track: Track | UnresolvedTrack, payload: SponsorBlockChaptersLoaded];
 }

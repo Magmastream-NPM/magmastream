@@ -1,6 +1,6 @@
 import { Node } from "./Node";
 import axios, { AxiosRequestConfig } from "axios";
-import { Manager } from "./Manager";
+import { Manager, ManagerEventTypes } from "./Manager";
 
 /** Handles the requests sent to the Lavalink REST API. */
 export class Rest {
@@ -43,7 +43,7 @@ export class Rest {
 		const result = await this.get(`/v4/sessions/${this.sessionId}/players`);
 
 		// Log the result of the request.
-		this.manager.emit("debug", `[REST] Getting all players on node: ${this.node.options.identifier} : ${JSON.stringify(result)}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[REST] Getting all players on node: ${this.node.options.identifier} : ${JSON.stringify(result)}`);
 
 		// Return the result of the request.
 		return result;
@@ -56,7 +56,7 @@ export class Rest {
 	 */
 	public async updatePlayer(options: playOptions): Promise<unknown> {
 		// Log the request.
-		this.manager.emit("debug", `[REST] Updating player: ${options.guildId}: ${JSON.stringify(options)}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[REST] Updating player: ${options.guildId}: ${JSON.stringify(options)}`);
 
 		// Send the PATCH request.
 		return await this.patch(`/v4/sessions/${this.sessionId}/players/${options.guildId}?noReplace=false`, options.data);
@@ -69,7 +69,7 @@ export class Rest {
 	 */
 	public async destroyPlayer(guildId: string): Promise<unknown> {
 		// Log the request.
-		this.manager.emit("debug", `[REST] Destroying player: ${guildId}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[REST] Destroying player: ${guildId}`);
 		// Send the DELETE request.
 		return await this.delete(`/v4/sessions/${this.sessionId}/players/${guildId}`);
 	}
@@ -77,14 +77,14 @@ export class Rest {
 	/**
 	 * Updates the session status for resuming.
 	 * This method sends a PATCH request to update the session's resuming status and timeout.
-	 * 
+	 *
 	 * @param {boolean} resuming - Indicates whether the session should be set to resuming.
 	 * @param {number} timeout - The timeout duration for the session resume.
 	 * @returns {Promise<unknown>} The result of the PATCH request.
 	 */
 	public async updateSession(resuming: boolean, timeout: number): Promise<unknown> {
 		// Emit a debug event with information about the session being updated
-		this.manager.emit("debug", `[REST] Updating session: ${this.sessionId}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[REST] Updating session: ${this.sessionId}`);
 
 		// Send a PATCH request to update the session with the provided resuming status and timeout
 		return await this.patch(`/v4/sessions/${this.sessionId}`, { resuming, timeout });
@@ -98,7 +98,7 @@ export class Rest {
 	 * @returns {Promise<unknown>} The response data of the request.
 	 */
 	private async request(method: string, endpoint: string, body?: unknown): Promise<unknown> {
-		this.manager.emit("debug", `[REST] ${method} api call for endpoint: ${endpoint} with data: ${JSON.stringify(body)}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[REST] ${method} api call for endpoint: ${endpoint} with data: ${JSON.stringify(body)}`);
 		const config: AxiosRequestConfig = {
 			method,
 			url: this.url + endpoint,

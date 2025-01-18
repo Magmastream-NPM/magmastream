@@ -298,7 +298,15 @@ export interface UnresolvedQuery {
 
 export type Sizes = "0" | "1" | "2" | "3" | "default" | "mqdefault" | "hqdefault" | "maxresdefault";
 
-export type LoadType = "track" | "playlist" | "search" | "empty" | "error";
+export enum LoadTypes {
+	Track = "track",
+	Playlist = "playlist",
+	Search = "search",
+	Empty = "empty",
+	Error = "error",
+}
+
+export type LoadType = keyof typeof LoadTypes;
 
 export type State = "CONNECTED" | "CONNECTING" | "DISCONNECTED" | "DISCONNECTING" | "DESTROYING";
 
