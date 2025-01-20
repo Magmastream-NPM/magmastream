@@ -2,6 +2,7 @@
 import {
 	LoadTypes,
 	Plugin,
+	StateTypes,
 	Structure,
 	TrackData,
 	TrackEndEvent,
@@ -215,7 +216,7 @@ export class Manager extends EventEmitter {
 		const player = this.players.get(guildId);
 
 		// If the player does not exist or is disconnected, or the voice channel is not specified, do not save the player state
-		if (!player || player.state === "DISCONNECTED" || !player.voiceChannel) {
+		if (!player || player.state === StateTypes.Disconnected || !player.voiceChannel) {
 			// Clean up any inactive players
 			return this.cleanupInactivePlayers();
 		}
@@ -367,7 +368,7 @@ export class Manager extends EventEmitter {
 		}
 
 		// If no node has a cumulative weight greater than or equal to the random number, return the node with the lowest load
-		return this.options.useNode === "leastLoad" ? this.leastLoadNode.first() : this.leastPlayersNode.first();
+		return this.options.useNode === UseNodeOptions.LeastLoad ? this.leastLoadNode.first() : this.leastPlayersNode.first();
 	}
 
 	/**
@@ -378,7 +379,11 @@ export class Manager extends EventEmitter {
 	 * @returns {Node} The node to use.
 	 */
 	public get useableNodes(): Node {
-		return this.options.usePriority ? this.priorityNode : this.options.useNode === "leastLoad" ? this.leastLoadNode.first() : this.leastPlayersNode.first();
+		return this.options.usePriority
+			? this.priorityNode
+			: this.options.useNode === UseNodeOptions.LeastLoad
+			? this.leastLoadNode.first()
+			: this.leastPlayersNode.first();
 	}
 
 	private lastSaveTimes: Map<string, number> = new Map();
@@ -460,6 +465,7 @@ export class Manager extends EventEmitter {
 	 * @param options.plugins - An array of plugins to load.
 	 * @param options.nodes - An array of node options to create nodes from.
 	 * @param options.autoPlay - Whether to automatically play the first track in the queue when the player is created.
+	 * @param options.autoPlaySearchPlatform - The search platform autoplay will use. Failback to Youtube if not found.
 	 * @param options.usePriority - Whether to use the priority when selecting a node to play on.
 	 * @param options.clientName - The name of the client to send to Lavalink.
 	 * @param options.defaultSearchPlatform - The default search platform to use when searching for tracks.
@@ -498,7 +504,8 @@ export class Manager extends EventEmitter {
 			usePriority: false,
 			clientName: "Magmastream",
 			defaultSearchPlatform: SearchPlatform.YouTube,
-			useNode: "leastPlayers",
+			autoPlaySearchPlatform: SearchPlatform.YouTube,
+			useNode: UseNodeOptions.LeastPlayers,
 			...options,
 		};
 
@@ -911,7 +918,7 @@ export interface ManagerOptions {
 	/** Use priority mode over least amount of player or load? */
 	usePriority?: boolean;
 	/** Use the least amount of players or least load? */
-	useNode?: "leastLoad" | "leastPlayers";
+	useNode?: UseNodeOptions.LeastLoad | UseNodeOptions.LeastPlayers;
 	/** The array of nodes to connect to. */
 	nodes?: NodeOptions[];
 	/** The client ID to use. */
@@ -922,16 +929,19 @@ export interface ManagerOptions {
 	plugins?: Plugin[];
 	/** Whether players should automatically play the next song. */
 	autoPlay?: boolean;
+	/** The search platform autoplay should use. Failback to Youtube if not found.
+	 * Use enum `SearchPlatform`. */
+	autoPlaySearchPlatform?: SearchPlatform;
 	/** An array of track properties to keep. `track` will always be present. */
 	trackPartial?: string[];
-	/** The default search platform to use. Use enum `SearchPlatform`. */
+	/** The default search platform to use.
+	 * Use enum `SearchPlatform`. */
 	defaultSearchPlatform?: SearchPlatform;
 	/** Whether the YouTube video titles should be replaced if the Author does not exactly match. */
 	replaceYouTubeCredentials?: boolean;
 	/** The last.fm API key.
 	 * If you need to create one go here: https://www.last.fm/api/account/create.
-	 * If you already have one, get it from here: https://www.last.fm/api/accounts.
-	 */
+	 * If you already have one, get it from here: https://www.last.fm/api/accounts. */
 	lastFmApiKey: string;
 	/**
 	 * Function to send data to the websocket.
@@ -941,10 +951,10 @@ export interface ManagerOptions {
 	send(id: string, payload: Payload): void;
 }
 
-export const UseNodeOptions = {
-	leastLoad: "leastLoad",
-	leastPlayers: "leastPlayers",
-} as const;
+export enum UseNodeOptions {
+	LeastLoad = "leastLoad",
+	LeastPlayers = "leastPlayers",
+}
 
 export type UseNodeOption = keyof typeof UseNodeOptions;
 

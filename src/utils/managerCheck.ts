@@ -8,7 +8,7 @@ import { ManagerOptions, SearchPlatform, UseNodeOptions } from "../structures/Ma
 export default function managerCheck(options: ManagerOptions) {
 	if (!options) throw new TypeError("ManagerOptions must not be empty.");
 
-	const { autoPlay, clientName, defaultSearchPlatform, nodes, plugins, send, trackPartial, usePriority, useNode, replaceYouTubeCredentials, lastFmApiKey } =
+	const { autoPlay, clientName, defaultSearchPlatform, autoPlaySearchPlatform, nodes, plugins, send, trackPartial, usePriority, useNode, replaceYouTubeCredentials, lastFmApiKey } =
 		options;
 
 	// Validate autoPlay option
@@ -27,6 +27,13 @@ export default function managerCheck(options: ManagerOptions) {
 	if (typeof defaultSearchPlatform !== "undefined") {
 		if (!Object.values(SearchPlatform).includes(defaultSearchPlatform)) {
 			throw new TypeError(`Manager option "defaultSearchPlatform" must be one of: ${Object.values(SearchPlatform).join(", ")}.`);
+		}
+	}
+
+	// Validate autoPlaySearchPlatform
+	if (typeof autoPlaySearchPlatform !== "undefined") {
+		if (!Object.values(SearchPlatform).includes(autoPlaySearchPlatform)) {
+			throw new TypeError(`Manager option "autoPlaySearchPlatform" must be one of: ${Object.values(SearchPlatform).join(", ")}.`);
 		}
 	}
 
@@ -75,7 +82,7 @@ export default function managerCheck(options: ManagerOptions) {
 			throw new TypeError('Manager option "useNode" must be a string "leastLoad" or "leastPlayers".');
 		}
 
-		if (!(useNode in UseNodeOptions)) {
+		if (!Object.values(UseNodeOptions).includes(useNode as UseNodeOptions)) {
 			throw new TypeError('Manager option "useNode" must be either "leastLoad" or "leastPlayers".');
 		}
 	}

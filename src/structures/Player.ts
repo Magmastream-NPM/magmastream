@@ -2,7 +2,7 @@ import { Filters } from "./Filters";
 import { LavalinkResponse, Manager, PlaylistRawData, SearchQuery, SearchResult, PlayerStateEventTypes, ManagerEventTypes } from "./Manager";
 import { LavalinkInfo, Node, SponsorBlockSegment } from "./Node";
 import { Queue } from "./Queue";
-import { LoadTypes, Sizes, State, Structure, TrackSourceName, TrackUtils, VoiceState } from "./Utils";
+import { LoadTypes, Sizes, StateTypes, Structure, TrackSourceName, TrackUtils, VoiceState } from "./Utils";
 import * as _ from "lodash";
 import playerCheck from "../utils/playerCheck";
 import { ClientUser, Message, User } from "discord.js";
@@ -37,7 +37,7 @@ export class Player {
 	/**The now playing message. */
 	public nowPlayingMessage?: Message;
 	/** The current state of the player. */
-	public state: State = "DISCONNECTED";
+	public state: StateTypes = StateTypes.Disconnected;
 	/** The equalizer bands array. */
 	public bands = new Array<number>(15).fill(0.0);
 	/** The voice state object from Discord. */
@@ -153,7 +153,7 @@ export class Player {
 	public connect(): this {
 		if (!this.voiceChannel) throw new RangeError("No voice channel has been set.");
 
-		this.state = "CONNECTING";
+		this.state = StateTypes.Connecting;
 
 		const oldPlayer = this ? { ...this } : null;
 
@@ -169,14 +169,14 @@ export class Player {
 		});
 
 		// Set the player state to connected
-		this.state = "CONNECTED";
+		this.state = StateTypes.Connected;
 
 		// Emit the player state update event
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.ConnectionChange,
 			details: {
 				changeType: "connect",
-				previousConnection: oldPlayer?.state === "CONNECTED",
+				previousConnection: oldPlayer?.state === StateTypes.Connected,
 				currentConnection: true,
 			},
 		});
@@ -192,7 +192,7 @@ export class Player {
 	public disconnect(): this {
 		if (this.voiceChannel === null) return this;
 
-		this.state = "DISCONNECTING";
+		this.state = StateTypes.Disconnecting;
 
 		const oldPlayer = this ? { ...this } : null;
 		this.pause(true);
@@ -207,13 +207,13 @@ export class Player {
 		});
 
 		this.voiceChannel = null;
-		this.state = "DISCONNECTED";
+		this.state = StateTypes.Disconnected;
 
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.ConnectionChange,
 			details: {
 				changeType: "disconnect",
-				previousConnection: oldPlayer.state === "CONNECTED",
+				previousConnection: oldPlayer.state === StateTypes.Connected,
 				currentConnection: false,
 			},
 		});
@@ -230,9 +230,8 @@ export class Player {
 	 * @emits {playerStateUpdate} - The old and new player states after the destruction.
 	 */
 	public destroy(disconnect: boolean = true): void {
-
 		const oldPlayer = this ? { ...this } : null;
-		this.state = "DESTROYING";
+		this.state = StateTypes.Destroying;
 
 		if (disconnect) {
 			this.disconnect();
