@@ -12,6 +12,7 @@ import {
 	SponsorBlockSegmentsLoaded,
 	SponsorBlockSegmentSkipped,
 	LoadTypes,
+	TrackEndReasonTypes,
 } from "./Utils";
 import { Manager, ManagerEventTypes, PlayerStateEventTypes, SearchPlatform } from "./Manager";
 import { Player, Track, UnresolvedTrack } from "./Player";
@@ -547,7 +548,7 @@ export class Node {
 			this.handleFailedTrack(player, track, payload);
 		}
 		// If the track was forcibly replaced
-		else if (reason === "replaced") {
+		else if (reason === TrackEndReasonTypes.Replaced) {
 			this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
 			player.queue.previous = player.queue.current;
 		}
@@ -608,14 +609,15 @@ export class Node {
 
 		const previousTrack = player.queue.previous;
 		const apiKey = this.manager.options.lastFmApiKey;
+		const enabledSources = this.info.sourceManagers;
 
 		// If Last.fm API is not available and YouTube is not supported
-		if (!apiKey && !this.info.sourceManagers.includes("youtube")) return false;
+		if (!apiKey && !enabledSources.includes("youtube")) return false;
 
 		// Handle YouTube autoplay logic
 		if (
-			(!apiKey && this.info.sourceManagers.includes("youtube")) ||
-			(attempt === player.autoplayTries - 1 && !(apiKey && player.autoplayTries === 1) && this.info.sourceManagers.includes("youtube"))
+			(!apiKey && enabledSources.includes("youtube")) ||
+			(attempt === player.autoplayTries - 1 && !(apiKey && player.autoplayTries === 1) && enabledSources.includes("youtube"))
 		) {
 			const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) => previousTrack.uri.includes(url));
 			const videoID = hasYouTubeURL
@@ -644,20 +646,54 @@ export class Node {
 
 		// Handle Last.fm-based autoplay logic
 		let { author: artist } = previousTrack;
-		const { title, uri } = previousTrack;
+		const { title } = previousTrack;
 
-		const enabledSources = this.info.sourceManagers;
-
-		const isSpotifyEnabled = enabledSources.includes("spotify");
-		const isSpotifyUri = uri.includes("spotify.com");
+		// Create a mapping of enum values to their string representations
+		const platformMapping: { [key in SearchPlatform]: string } = {
+			[SearchPlatform.AppleMusic]: "applemusic",
+			[SearchPlatform.Bandcamp]: "bandcamp",
+			[SearchPlatform.Deezer]: "deezer",
+			[SearchPlatform.Jiosaavn]: "jiosaavn",
+			[SearchPlatform.SoundCloud]: "soundcloud",
+			[SearchPlatform.Spotify]: "spotify",
+			[SearchPlatform.Tidal]: "tidal",
+			[SearchPlatform.YouTube]: "youtube",
+			[SearchPlatform.YouTubeMusic]: "youtube",
+		};
 
 		let selectedSource: SearchPlatform | null = null;
+		// Get the autoPlaySearchPlatform and available sources
+		const { autoPlaySearchPlatform } = this.manager.options;
 
-		if (isSpotifyEnabled && isSpotifyUri) {
-			selectedSource = SearchPlatform.Spotify;
+		if (enabledSources.includes(platformMapping[autoPlaySearchPlatform])) {
+			selectedSource = autoPlaySearchPlatform;
 		} else {
-			selectedSource = this.manager.options.defaultSearchPlatform;
+			// Fallback to SearchPlatform.YouTube
+			const fallbackPlatform = SearchPlatform.YouTube;
+
+			if (enabledSources.includes(platformMapping[fallbackPlatform])) {
+				selectedSource = fallbackPlatform;
+			} else {
+				// Check for other platforms in the specified order
+				const alternativePlatforms = [
+					SearchPlatform.Deezer, // 1
+					SearchPlatform.SoundCloud, // 2
+					SearchPlatform.AppleMusic, // 2
+					SearchPlatform.Bandcamp, // 3
+					SearchPlatform.Jiosaavn, // 4
+					SearchPlatform.Tidal, // 5
+				];
+
+				for (const platform of alternativePlatforms) {
+					if (enabledSources.includes(platformMapping[platform])) {
+						selectedSource = platform;
+						break; // Exit the loop once a valid platform is found
+					}
+				}
+			}
 		}
+
+		if (!selectedSource) return false;
 
 		if (!artist || !title) {
 			if (!title) {
@@ -679,7 +715,8 @@ export class Node {
 				player.queue.add(foundTrack);
 				player.play();
 				return true;
-			} else if (!artist) {
+			}
+			if (!artist) {
 				const noArtistUrl = `https://ws.audioscrobbler.com/2.0/?method=track.search&track=${title}&api_key=${apiKey}&format=json`;
 				const response = await axios.get(noArtistUrl);
 				artist = response.data.results.trackmatches?.track?.[0]?.artist;
@@ -774,7 +811,7 @@ export class Node {
 		this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
 
 		// If the track was stopped manually and there are no more tracks in the queue, end the queue
-		if (payload.reason === "stopped" && !(queue.current = queue.shift())) {
+		if (payload.reason === TrackEndReasonTypes.Stopped && !(queue.current = queue.shift())) {
 			this.queueEnd(player, track, payload);
 			return;
 		}
