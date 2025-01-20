@@ -14,7 +14,7 @@
 		"ci": "run-s lint build types"
 	},
 	"devDependencies": {
-		"@favware/rollup-type-bundler": "^3.3.0",
+		"@favware/rollup-type-bundler": "^4.0.0",
 		"@types/lodash": "^4.17.14",
 		"@types/node": "^20.17.12",
 		"@types/ws": "^8.5.13",
