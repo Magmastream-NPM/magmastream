@@ -374,9 +374,13 @@ export interface TrackDataInfo {
 }
 
 export enum TrackSourceTypes {
-	Spotify = "spotify",
+	AppleMusic = "applemusic",
+	Bandcamp = "bandcamp",
 	Deezer = "deezer",
+	Jiosaavn = "jiosaavn",
 	SoundCloud = "soundcloud",
+	Spotify = "spotify",
+	Tidal = "tidal",
 	YouTube = "youtube",
 }
 
