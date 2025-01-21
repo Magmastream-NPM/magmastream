@@ -386,77 +386,44 @@ export class Manager extends EventEmitter {
 			: this.leastPlayersNode.first();
 	}
 
-	private lastSaveTimes: Map<string, number> = new Map();
-	private eventBatchInterval: NodeJS.Timeout | null = null;
-	private eventBatchDuration: number = 1000;
-	private latestPlayerStates: Map<string, Player> = new Map();
-
 	/**
-	 * Registers the events that trigger saving player states.
-	 * @private
+	 * Handles the shutdown of the process by saving all active players' states and optionally cleaning up inactive players.
+	 * This function is called when the process is about to exit.
+	 * It iterates through all players and calls {@link savePlayerState} to save their states.
+	 * Optionally, it also calls {@link cleanupInactivePlayers} to remove any stale player state files.
+	 * After saving and cleaning up, it exits the process.
 	 */
-	private registerPlayerStateEvents(): void {
-		// The events to listen for
-		const events: (keyof ManagerEvents)[] = [
-			// The player state has been updated
-			ManagerEventTypes.PlayerStateUpdate,
-			// The player has been destroyed
-			ManagerEventTypes.PlayerDestroy,
-		];
+	private async handleShutdown(): Promise<void> {
+		console.warn("\x1b[31m%s\x1b[0m", "MAGMASTREAM WARNING: Shutting down! Please wait, saving active players...");
 
-		// Register the events
-		for (const event of events) {
-			// Call the collectPlayerStateEvent function when the event is emitted
-			this.on(event, (player: Player) => this.collectPlayerStateEvent(event, player));
-		}
-	}
+		// Create an array of promises for saving player states
+		const savePromises = Array.from(this.players.keys()).map((guildId) => {
+			return new Promise<void>((resolve) => {
+				try {
+					this.savePlayerState(guildId);
+					resolve(); // Resolve immediately after calling savePlayerState
+				} catch (error) {
+					console.error(`Error saving player state for guild ${guildId}:`, error);
 
-	/**
-	 * Collects player state events and stores them in memory.
-	 * This function is called whenever a player state event is emitted.
-	 * It stores the latest player state for each guild in the {@link latestPlayerStates} map.
-	 * If the event is "playerDestroy", it removes the player from the map and deletes the last save time for the guild.
-	 * @param event The event that triggered this function.
-	 * @param player The player that emitted the event.
-	 */
-	private collectPlayerStateEvent(event: keyof ManagerEvents, player: Player): void {
-		if (event === "playerDestroy") {
-			// Remove the player from the map and delete the last save time for the guild
-			this.lastSaveTimes.delete(player.guild);
-			this.players.delete(player.guild);
-			this.cleanupInactivePlayers();
-		} else if (event === "playerStateUpdate") {
-			// Store the latest player state for the guild
-			this.latestPlayerStates.set(player.guild, player);
-		}
-
-		// Start the batch timer if it's not already running
-		if (!this.eventBatchInterval) {
-			// Set the timer to process the batch events after the specified duration
-			this.eventBatchInterval = setTimeout(() => this.processBatchEvents(), this.eventBatchDuration);
-		}
-	}
-
-	/**
-	 * Processes the collected player state events
-	 * This function is called when the batch timer expires and it clears the timer
-	 * It saves the latest player states for each guild in the `latestPlayerStates` map
-	 * It then clears the map after processing
-	 */
-	private processBatchEvents(): void {
-		if (this.eventBatchInterval) {
-			// Clear the timer so it doesn't interfere with the next batch
-			clearTimeout(this.eventBatchInterval);
-			this.eventBatchInterval = null;
-		}
-
-		// Save the latest player states for each guild in a single write operation
-		this.latestPlayerStates.forEach((player, guildId) => {
-			this.savePlayerState(guildId);
+					throw error;
+				}
+			});
 		});
 
-		// Clear the latest player states after processing
-		this.latestPlayerStates.clear();
+		// Wait for all save operations to complete and check for errors
+		const results = await Promise.allSettled(savePromises);
+		const errors = results.filter((result) => result.status === "rejected");
+
+		if (errors.length > 0) {
+			console.error("`\x1b[31m%s\x1b[0m", `MAGMASTREAM ERROR: ${errors.length} player states failed to save.`);
+		}
+
+		// Clean up inactive players here
+		this.cleanupInactivePlayers();
+
+		console.warn("\x1b[32m%s\x1b[0m", "MAGMASTREAM INFO: Shutting down complete, exiting...");
+
+		setTimeout(() => process.exit(errors.length > 0 ? 1 : 0), 100);
 	}
 
 	/**
@@ -477,7 +444,8 @@ export class Manager extends EventEmitter {
 	constructor(options: ManagerOptions) {
 		super();
 
-		this.registerPlayerStateEvents();
+		process.on("SIGINT", async () => await this.handleShutdown());
+		process.on("SIGTERM", async () => await this.handleShutdown());
 
 		managerCheck(options);
 
