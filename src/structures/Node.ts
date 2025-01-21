@@ -730,7 +730,7 @@ export class Node {
 		try {
 			response = await axios.get(url);
 		} catch (error) {
-			return false;
+			if (error) return false;
 		}
 
 		if (response.data.error || !response.data.similartracks?.track?.length) {

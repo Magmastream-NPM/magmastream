@@ -1,4 +1,3 @@
-/* eslint-disable no-async-promise-executor */
 import {
 	LoadTypes,
 	Plugin,
@@ -119,11 +118,7 @@ export class Manager extends EventEmitter {
 				const player = this.create(playerOptions);
 
 				if (!lavaPlayer.state.connected) {
-					try {
-						player.connect();
-					} catch (error) {
-						continue;
-					}
+					player.connect();
 				}
 
 				const tracks = [];
