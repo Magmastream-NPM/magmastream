@@ -28,8 +28,8 @@ export class Player {
 	public volume: number;
 	/** The Node for the Player. */
 	public node: Node;
-	/** The guild for the player. */
-	public guild: string;
+	/** The guild ID for the player. */
+	public guildId: string;
 	/** The voice channel for the player. */
 	public voiceChannel: string | null = null;
 	/** The text channel for the player. */
@@ -95,18 +95,18 @@ export class Player {
 		if (!this.manager) throw new RangeError("Manager has not been initiated.");
 
 		// If a player with the same guild ID already exists, return it.
-		if (this.manager.players.has(options.guild)) {
-			return this.manager.players.get(options.guild);
+		if (this.manager.players.has(options.guildId)) {
+			return this.manager.players.get(options.guildId);
 		}
 
 		// Check the player options for errors.
 		playerCheck(options);
 
 		// Set the guild ID and voice state.
-		this.guild = options.guild;
+		this.guildId = options.guildId;
 		this.voiceState = Object.assign({
 			op: "voiceUpdate",
-			guild_id: options.guild,
+			guild_id: options.guildId,
 		});
 
 		// Set the voice and text channels if they exist.
@@ -120,11 +120,11 @@ export class Player {
 		// If no node is available, throw an error.
 		if (!this.node) throw new RangeError("No available nodes.");
 
-		// Initialize the queue with the guild and manager.
-		this.queue = new Queue(this.guild, this.manager);
+		// Initialize the queue with the guild ID and manager.
+		this.queue = new Queue(this.guildId, this.manager);
 
 		// Add the player to the manager's player collection.
-		this.manager.players.set(options.guild, this);
+		this.manager.players.set(options.guildId, this);
 
 		// Emit the playerCreate event.
 		this.manager.emit(ManagerEventTypes.PlayerCreate, this);
@@ -158,10 +158,10 @@ export class Player {
 		const oldPlayer = this ? { ...this } : null;
 
 		// Send the voice state update to the gateway
-		this.manager.options.send(this.guild, {
+		this.manager.options.send(this.guildId, {
 			op: 4,
 			d: {
-				guild_id: this.guild,
+				guild_id: this.guildId,
 				channel_id: this.voiceChannel,
 				self_mute: this.options.selfMute || false,
 				self_deaf: this.options.selfDeafen || false,
@@ -196,10 +196,10 @@ export class Player {
 
 		const oldPlayer = this ? { ...this } : null;
 		this.pause(true);
-		this.manager.options.send(this.guild, {
+		this.manager.options.send(this.guildId, {
 			op: 4,
 			d: {
-				guild_id: this.guild,
+				guild_id: this.guildId,
 				channel_id: null,
 				self_mute: false,
 				self_deaf: false,
@@ -237,9 +237,9 @@ export class Player {
 			this.disconnect();
 		}
 
-		this.node.rest.destroyPlayer(this.guild);
+		this.node.rest.destroyPlayer(this.guildId);
 		this.manager.emit(ManagerEventTypes.PlayerDestroy, this);
-		this.manager.players.delete(this.guild);
+		this.manager.players.delete(this.guildId);
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.PlayerDestroy,
 		});
@@ -364,7 +364,7 @@ export class Player {
 		}
 
 		await this.node.rest.updatePlayer({
-			guildId: this.guild,
+			guildId: this.guildId,
 			data: {
 				encodedTrack: this.queue.current?.track,
 				...finalOptions,
@@ -526,7 +526,7 @@ export class Player {
 
 		const oldPlayer = this ? { ...this } : null;
 		this.node.rest.updatePlayer({
-			guildId: this.options.guild,
+			guildId: this.options.guildId,
 			data: {
 				volume,
 			},
@@ -719,7 +719,7 @@ export class Player {
 
 		// Reset the track's position to the start
 		this.node.rest.updatePlayer({
-			guildId: this.guild,
+			guildId: this.guildId,
 			data: {
 				position: 0,
 				encodedTrack: this.queue.current?.track,
@@ -754,7 +754,7 @@ export class Player {
 
 		// Stop the player and send an event to the manager.
 		this.node.rest.updatePlayer({
-			guildId: this.guild,
+			guildId: this.guildId,
 			data: {
 				encodedTrack: null,
 			},
@@ -792,7 +792,7 @@ export class Player {
 
 		// Send an update to the backend to change the pause state of the player.
 		this.node.rest.updatePlayer({
-			guildId: this.guild,
+			guildId: this.guildId,
 			data: {
 				paused: pause,
 			},
@@ -864,7 +864,7 @@ export class Player {
 
 		// Send the seek request to the node.
 		this.node.rest.updatePlayer({
-			guildId: this.guild,
+			guildId: this.guildId,
 			data: {
 				position: position,
 			},
@@ -904,8 +904,8 @@ export class Player {
 }
 
 export interface PlayerOptions {
-	/** The guild the Player belongs to. */
-	guild: string;
+	/** The guild ID the Player belongs to. */
+	guildId: string;
 	/** The text channel the Player belongs to. */
 	textChannel: string;
 	/** The voice channel the Player belongs to. */

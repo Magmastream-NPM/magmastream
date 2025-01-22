@@ -932,7 +932,7 @@ export class Node {
 	 */
 	protected socketClosed(player: Player, payload: WebSocketClosedEvent): void {
 		this.manager.emit(ManagerEventTypes.SocketClosed, player, payload);
-		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Websocket closed for player: ${player.guild} with payload: ${JSON.stringify(payload)}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Websocket closed for player: ${player.guildId} with payload: ${JSON.stringify(payload)}`);
 	}
 
 	/**
@@ -997,7 +997,7 @@ export class Node {
 		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "sponsorblock-plugin"))
 			throw new RangeError(`there is no sponsorblock-plugin available in the lavalink node: ${this.options.identifier}`);
 
-		return (await this.rest.get(`/v4/sessions/${this.sessionId}/players/${player.guild}/sponsorblock/categories`)) as SponsorBlockSegment[];
+		return (await this.rest.get(`/v4/sessions/${this.sessionId}/players/${player.guildId}/sponsorblock/categories`)) as SponsorBlockSegment[];
 	}
 
 	/**
@@ -1023,7 +1023,7 @@ export class Node {
 		if (segments.some((v) => !validSponsorBlocks.includes(v.toLowerCase())))
 			throw new SyntaxError(`You provided a sponsorblock which isn't valid, valid ones are: ${validSponsorBlocks.map((v) => `'${v}'`).join(", ")}`);
 
-		await this.rest.put(`/v4/sessions/${this.sessionId}/players/${player.guild}/sponsorblock/categories`, JSON.stringify(segments.map((v) => v.toLowerCase())));
+		await this.rest.put(`/v4/sessions/${this.sessionId}/players/${player.guildId}/sponsorblock/categories`, JSON.stringify(segments.map((v) => v.toLowerCase())));
 		return;
 	}
 
@@ -1037,7 +1037,7 @@ export class Node {
 		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "sponsorblock-plugin"))
 			throw new RangeError(`there is no sponsorblock-plugin available in the lavalink node: ${this.options.identifier}`);
 
-		await this.rest.delete(`/v4/sessions/${this.sessionId}/players/${player.guild}/sponsorblock/categories`);
+		await this.rest.delete(`/v4/sessions/${this.sessionId}/players/${player.guildId}/sponsorblock/categories`);
 		return;
 	}
 
