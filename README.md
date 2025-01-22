@@ -58,9 +58,11 @@ A heartfelt thank you to all our amazing contributors who have poured their time
   </tbody>
 </table>
 
-<!-- markdownlint-restore -->
-<!-- prettier-ignore-end -->
 
-<!-- ALL-CONTRIBUTORS-LIST:END -->
+
+<img src="https://contributers.code-fy.tech/Magmastream-NPM?yousuck">
+
+## Stats
+
 
 ![Stats](https://repobeats.axiom.co/api/embed/e46896cea6c7ad6648effe4d7868ffa3fef0151b.svg "Repobeats analytics image")
