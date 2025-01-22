@@ -47,13 +47,9 @@ Want to showcase your bot? Feel free to create a pull request and add it to our 
 
 A heartfelt thank you to all our amazing contributors who have poured their time and expertise into making Magmastream truly exceptional! Your dedication and passion continue to drive this project forward. 🚀✨
 
-<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
-<!-- prettier-ignore-start -->
-<!-- markdownlint-disable -->
+<img src="https://contributers.code-fy.tech/Magmastream-NPM?yousuck">
 
-<!-- markdownlint-restore -->
-<!-- prettier-ignore-end -->
+## Stats
 
-<!-- ALL-CONTRIBUTORS-LIST:END -->
 
 ![Stats](https://repobeats.axiom.co/api/embed/e46896cea6c7ad6648effe4d7868ffa3fef0151b.svg "Repobeats analytics image")
