@@ -100,21 +100,21 @@ export class Manager extends EventEmitter {
 			const data = fs.readFileSync(filePath, "utf-8");
 			const state = JSON.parse(data);
 
-			if (state && typeof state === "object" && state.guild && state.node.options.identifier === nodeId) {
-				const lavaPlayer = info.find((player) => player.guildId === state.guild);
+			if (state && typeof state === "object" && state.guildId && state.node.options.identifier === nodeId) {
+				const lavaPlayer = info.find((player) => player.guildId === state.guildId);
 				if (!lavaPlayer) {
-					this.destroy(state.guild);
+					this.destroy(state.guildId);
 					continue;
 				}
 				const playerOptions: PlayerOptions = {
-					guild: state.options.guild,
+					guildId: state.options.guildId,
 					textChannel: state.options.textChannel,
 					voiceChannel: state.options.voiceChannel,
 					selfDeafen: state.options.selfDeafen,
 					volume: lavaPlayer.volume || state.options.volume,
 				};
 
-				this.emit("debug", `[MANAGER] Recreating player: ${state.guild} from saved file: ${JSON.stringify(state.options)}`);
+				this.emit("debug", `[MANAGER] Recreating player: ${state.guildId} from saved file: ${JSON.stringify(state.options)}`);
 				const player = this.create(playerOptions);
 
 				if (!lavaPlayer.state.connected) {
@@ -148,7 +148,7 @@ export class Manager extends EventEmitter {
 							};
 							node.queueEnd(player, state.queue.previous, payload as TrackEndEvent);
 						} else {
-							this.destroy(state.guild);
+							this.destroy(state.guildId);
 							continue;
 						}
 					}
@@ -748,8 +748,8 @@ export class Manager extends EventEmitter {
 	 * @returns The created player.
 	 */
 	public create(options: PlayerOptions): Player {
-		if (this.players.has(options.guild)) {
-			return this.players.get(options.guild);
+		if (this.players.has(options.guildId)) {
+			return this.players.get(options.guildId);
 		}
 
 		// Create a new player with the given options
@@ -759,25 +759,25 @@ export class Manager extends EventEmitter {
 
 	/**
 	 * Returns a player or undefined if it does not exist.
-	 * @param guild The guild ID of the player to retrieve.
+	 * @param guildId The guild ID of the player to retrieve.
 	 * @returns The player if it exists, undefined otherwise.
 	 */
-	public get(guild: string): Player | undefined {
-		return this.players.get(guild);
+	public get(guildId: string): Player | undefined {
+		return this.players.get(guildId);
 	}
 
 	/**
 	 * Destroys a player if it exists and cleans up inactive players.
-	 * @param guild - The guild ID of the player to destroy.
+	 * @param guildId - The guild ID of the player to destroy.
 	 * @returns {void}
 	 * @emits {debug} - Emits a debug message indicating the player is being destroyed.
 	 */
-	public destroy(guild: string): void {
+	public destroy(guildId: string): void {
 		// Emit debug message for player destruction
-		this.emit("debug", `[MANAGER] Destroying player: ${guild}`);
+		this.emit("debug", `[MANAGER] Destroying player: ${guildId}`);
 
 		// Remove the player from the manager's collection
-		this.players.delete(guild);
+		this.players.delete(guildId);
 
 		// Clean up any inactive players
 		this.cleanupInactivePlayers();
@@ -840,7 +840,7 @@ export class Manager extends EventEmitter {
 			} = player.voiceState;
 
 			await player.node.rest.updatePlayer({
-				guildId: player.guild,
+				guildId: player.guildId,
 				data: { voice: { token, endpoint, sessionId } },
 			});
 

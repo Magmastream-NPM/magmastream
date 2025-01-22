@@ -59,7 +59,7 @@ export class Filters {
 					volume,
 				},
 			},
-			guildId: this.player.guild,
+			guildId: this.player.guildId,
 		});
 
 		// Return the current instance of the Filters class.
