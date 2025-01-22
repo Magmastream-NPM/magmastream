@@ -1,4 +1,21 @@
 {
-	"projectName": "magmastream",
-	"projectOwner": "Magmastream-NPM"
+  "projectName": "magmastream",
+  "projectOwner": "Magmastream-NPM",
+  "files": [
+    "README.md"
+  ],
+  "commitType": "docs",
+  "commitConvention": "angular",
+  "contributorsPerLine": 7,
+  "contributors": [
+    {
+      "login": "realdarek",
+      "name": "Darek",
+      "avatar_url": "https://avatars.githubusercontent.com/u/58607083?v=4",
+      "profile": "https://discord.gg/JCaTDJRz7P",
+      "contributions": [
+        "doc"
+      ]
+    }
+  ]
 }
