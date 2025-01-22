@@ -59,7 +59,7 @@ export class Filters {
 					volume,
 				},
 			},
-			guildId: this.player.guild,
+			guildId: this.player.guildId,
 		});
 
 		// Return the current instance of the Filters class.
@@ -394,7 +394,7 @@ interface timescaleOptions {
 interface vibratoOptions {
 	/** The frequency of the vibrato effect. */
 	frequency: number;
-	/** * The depth of the vibrato effect.*/
+	/** The depth of the vibrato effect. */
 	depth: number;
 }
 
@@ -416,14 +416,23 @@ interface karaokeOptions {
 	filterWidth?: number;
 }
 
+/** Options object as a parameter, which can be used to customize the distortion effect. */
 interface distortionOptions {
+	/** The sine offset value for the distortion effect. */
 	sinOffset?: number;
+	/** The sine scale value for the distortion effect. */
 	sinScale?: number;
+	/** The cosine offset value for the distortion effect. */
 	cosOffset?: number;
+	/** The cosine scale value for the distortion effect. */
 	cosScale?: number;
+	/** The tangent offset value for the distortion effect. */
 	tanOffset?: number;
+	/** The tangent scale value for the distortion effect. */
 	tanScale?: number;
+	/** The offset value for the distortion effect. */
 	offset?: number;
+	/** The scale value for the distortion effect. */
 	scale?: number;
 }
 

@@ -12,6 +12,7 @@ import {
 	SponsorBlockSegmentsLoaded,
 	SponsorBlockSegmentSkipped,
 	LoadTypes,
+	TrackEndReasonTypes,
 } from "./Utils";
 import { Manager, ManagerEventTypes, PlayerStateEventTypes, SearchPlatform } from "./Manager";
 import { Player, Track, UnresolvedTrack } from "./Player";
@@ -516,6 +517,18 @@ export class Node {
 
 		this.manager.emit(ManagerEventTypes.TrackStart, player, track, payload);
 
+		const botUser = player.get("Internal_BotUser") as ClientUser
+
+		if (botUser && botUser.id === track.requester.id) {
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, player, {
+				changeType: PlayerStateEventTypes.TrackChange,
+				details: {
+					changeType: "autoPlay",
+					track: track,
+				},
+			});
+			return;
+		}
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, player, {
 			changeType: PlayerStateEventTypes.TrackChange,
 			details: {
@@ -547,7 +560,7 @@ export class Node {
 			this.handleFailedTrack(player, track, payload);
 		}
 		// If the track was forcibly replaced
-		else if (reason === "replaced") {
+		else if (reason === TrackEndReasonTypes.Replaced) {
 			this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
 			player.queue.previous = player.queue.current;
 		}
@@ -608,14 +621,15 @@ export class Node {
 
 		const previousTrack = player.queue.previous;
 		const apiKey = this.manager.options.lastFmApiKey;
+		const enabledSources = this.info.sourceManagers;
 
 		// If Last.fm API is not available and YouTube is not supported
-		if (!apiKey && !this.info.sourceManagers.includes("youtube")) return false;
+		if (!apiKey && !enabledSources.includes("youtube")) return false;
 
 		// Handle YouTube autoplay logic
 		if (
-			(!apiKey && this.info.sourceManagers.includes("youtube")) ||
-			(attempt === player.autoplayTries - 1 && !(apiKey && player.autoplayTries === 1) && this.info.sourceManagers.includes("youtube"))
+			(!apiKey && enabledSources.includes("youtube")) ||
+			(attempt === player.autoplayTries - 1 && !(apiKey && player.autoplayTries === 1) && enabledSources.includes("youtube"))
 		) {
 			const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) => previousTrack.uri.includes(url));
 			const videoID = hasYouTubeURL
@@ -644,20 +658,57 @@ export class Node {
 
 		// Handle Last.fm-based autoplay logic
 		let { author: artist } = previousTrack;
-		const { title, uri } = previousTrack;
+		const { title } = previousTrack;
 
-		const enabledSources = this.info.sourceManagers;
-
-		const isSpotifyEnabled = enabledSources.includes("spotify");
-		const isSpotifyUri = uri.includes("spotify.com");
+		// Create a mapping of enum values to their string representations
+		const platformMapping: { [key in SearchPlatform]: string } = {
+			[SearchPlatform.AppleMusic]: "applemusic",
+			[SearchPlatform.Bandcamp]: "bandcamp",
+			[SearchPlatform.Deezer]: "deezer",
+			[SearchPlatform.Jiosaavn]: "jiosaavn",
+			[SearchPlatform.SoundCloud]: "soundcloud",
+			[SearchPlatform.Spotify]: "spotify",
+			[SearchPlatform.Tidal]: "tidal",
+			[SearchPlatform.YouTube]: "youtube",
+			[SearchPlatform.YouTubeMusic]: "youtube",
+		};
 
 		let selectedSource: SearchPlatform | null = null;
+		// Get the autoPlaySearchPlatform and available sources
+		const { autoPlaySearchPlatform } = this.manager.options;
 
-		if (isSpotifyEnabled && isSpotifyUri) {
-			selectedSource = SearchPlatform.Spotify;
+		if (enabledSources.includes(platformMapping[autoPlaySearchPlatform])) {
+			selectedSource = autoPlaySearchPlatform;
 		} else {
-			selectedSource = this.manager.options.defaultSearchPlatform;
+			// Fallback to SearchPlatform.YouTube
+			const fallbackPlatform = SearchPlatform.YouTube;
+
+			if (enabledSources.includes(platformMapping[fallbackPlatform])) {
+				selectedSource = fallbackPlatform;
+			} else {
+				// Check for other platforms in the specified order
+				const alternativePlatforms = [
+					SearchPlatform.Spotify, // 1
+					SearchPlatform.Deezer, // 2
+					SearchPlatform.SoundCloud, // 3
+					SearchPlatform.AppleMusic, // 4
+					SearchPlatform.Bandcamp, // 5
+					SearchPlatform.Jiosaavn, // 6
+					SearchPlatform.Tidal, // 7
+					SearchPlatform.YouTubeMusic, // 8
+					SearchPlatform.YouTube, // 9
+				];
+
+				for (const platform of alternativePlatforms) {
+					if (enabledSources.includes(platformMapping[platform])) {
+						selectedSource = platform;
+						break; // Exit the loop once a valid platform is found
+					}
+				}
+			}
 		}
+
+		if (!selectedSource) return false;
 
 		if (!artist || !title) {
 			if (!title) {
@@ -679,7 +730,8 @@ export class Node {
 				player.queue.add(foundTrack);
 				player.play();
 				return true;
-			} else if (!artist) {
+			}
+			if (!artist) {
 				const noArtistUrl = `https://ws.audioscrobbler.com/2.0/?method=track.search&track=${title}&api_key=${apiKey}&format=json`;
 				const response = await axios.get(noArtistUrl);
 				artist = response.data.results.trackmatches?.track?.[0]?.artist;
@@ -693,7 +745,7 @@ export class Node {
 		try {
 			response = await axios.get(url);
 		} catch (error) {
-			return false;
+			if (error) return false;
 		}
 
 		if (response.data.error || !response.data.similartracks?.track?.length) {
@@ -774,7 +826,7 @@ export class Node {
 		this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
 
 		// If the track was stopped manually and there are no more tracks in the queue, end the queue
-		if (payload.reason === "stopped" && !(queue.current = queue.shift())) {
+		if (payload.reason === TrackEndReasonTypes.Stopped && !(queue.current = queue.shift())) {
 			this.queueEnd(player, track, payload);
 			return;
 		}
@@ -880,7 +932,7 @@ export class Node {
 	 */
 	protected socketClosed(player: Player, payload: WebSocketClosedEvent): void {
 		this.manager.emit(ManagerEventTypes.SocketClosed, player, payload);
-		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Websocket closed for player: ${player.guild} with payload: ${JSON.stringify(payload)}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Websocket closed for player: ${player.guildId} with payload: ${JSON.stringify(payload)}`);
 	}
 
 	/**
@@ -945,7 +997,7 @@ export class Node {
 		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "sponsorblock-plugin"))
 			throw new RangeError(`there is no sponsorblock-plugin available in the lavalink node: ${this.options.identifier}`);
 
-		return (await this.rest.get(`/v4/sessions/${this.sessionId}/players/${player.guild}/sponsorblock/categories`)) as SponsorBlockSegment[];
+		return (await this.rest.get(`/v4/sessions/${this.sessionId}/players/${player.guildId}/sponsorblock/categories`)) as SponsorBlockSegment[];
 	}
 
 	/**
@@ -971,7 +1023,7 @@ export class Node {
 		if (segments.some((v) => !validSponsorBlocks.includes(v.toLowerCase())))
 			throw new SyntaxError(`You provided a sponsorblock which isn't valid, valid ones are: ${validSponsorBlocks.map((v) => `'${v}'`).join(", ")}`);
 
-		await this.rest.put(`/v4/sessions/${this.sessionId}/players/${player.guild}/sponsorblock/categories`, JSON.stringify(segments.map((v) => v.toLowerCase())));
+		await this.rest.put(`/v4/sessions/${this.sessionId}/players/${player.guildId}/sponsorblock/categories`, JSON.stringify(segments.map((v) => v.toLowerCase())));
 		return;
 	}
 
@@ -985,7 +1037,7 @@ export class Node {
 		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "sponsorblock-plugin"))
 			throw new RangeError(`there is no sponsorblock-plugin available in the lavalink node: ${this.options.identifier}`);
 
-		await this.rest.delete(`/v4/sessions/${this.sessionId}/players/${player.guild}/sponsorblock/categories`);
+		await this.rest.delete(`/v4/sessions/${this.sessionId}/players/${player.guildId}/sponsorblock/categories`);
 		return;
 	}
 

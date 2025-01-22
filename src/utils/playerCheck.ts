@@ -11,13 +11,13 @@ export default function playerCheck(options: PlayerOptions) {
 		throw new TypeError("PlayerOptions must not be empty.");
 	}
 
-	// Get the guild, node, selfDeafen, selfMute, textChannel, voiceChannel, and volume from the options.
-	const { guild, node, selfDeafen, selfMute, textChannel, voiceChannel, volume } = options;
+	// Get the guild ID, node, selfDeafen, selfMute, textChannel, voiceChannel, and volume from the options.
+	const { guildId, node, selfDeafen, selfMute, textChannel, voiceChannel, volume } = options;
 
-	// Validate the guild option
-	// The guild option must be a non-empty string.
-	if (!/^\d+$/.test(guild)) {
-		throw new TypeError('Player option "guild" must be present and be a non-empty string.');
+	// Validate the guild ID option
+	// The guild ID option must be a non-empty string.
+	if (!/^\d+$/.test(guildId)) {
+		throw new TypeError('Player option "guild ID" must be present and be a non-empty string.');
 	}
 
 	// Validate the node option

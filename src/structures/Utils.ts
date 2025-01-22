@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-empty-function, @typescript-eslint/no-unused-vars, @typescript-eslint/no-var-requires*/
+/* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-require-imports */
 import { ClientUser, User } from "discord.js";
 import { Manager } from "./Manager";
 import { Node, NodeStats } from "./Node";
@@ -205,13 +205,13 @@ export abstract class TrackUtils {
 
 	/**
 	 * Resolves the closest matching Track for a given UnresolvedTrack.
-	 * 
+	 *
 	 * @param unresolvedTrack The UnresolvedTrack object to resolve.
-	 * 
+	 *
 	 * @returns A Promise that resolves to a Track object.
-	 * 
+	 *
 	 * @throws {RangeError} If the manager has not been initialized or the provided track is not an UnresolvedTrack.
-	 * 
+	 *
 	 * The method performs a search using the track's URI or a combination of its author and title.
 	 * It attempts to find an exact match for the author and title, or a track with a similar duration.
 	 * If no exact or similar match is found, it returns the first track from the search results.
@@ -308,7 +308,15 @@ export enum LoadTypes {
 
 export type LoadType = keyof typeof LoadTypes;
 
-export type State = "CONNECTED" | "CONNECTING" | "DISCONNECTED" | "DISCONNECTING" | "DESTROYING";
+export enum StateTypes {
+	Connected = "CONNECTED",
+	Connecting = "CONNECTING",
+	Disconnected = "DISCONNECTED",
+	Disconnecting = "DISCONNECTING",
+	Destroying = "DESTROYING",
+}
+
+export type State = keyof typeof StateTypes;
 
 export type SponsorBlockSegmentEvents = SponsorBlockSegmentSkipped | SponsorBlockSegmentsLoaded | SponsorBlockChapterStarted | SponsorBlockChaptersLoaded;
 
@@ -327,9 +335,21 @@ export type PlayerEventType =
 	| "ChaptersLoaded"
 	| "ChapterStarted";
 
-export type TrackEndReason = "finished" | "loadFailed" | "stopped" | "replaced" | "cleanup";
+export enum TrackEndReasonTypes {
+	Finished = "finished",
+	LoadFailed = "loadFailed",
+	Stopped = "stopped",
+	Replaced = "replaced",
+	Cleanup = "cleanup",
+}
+export type TrackEndReason = keyof typeof TrackEndReasonTypes;
 
-export type Severity = "common" | "suspicious" | "fault";
+export enum SeverityTypes {
+	Common = "common",
+	Suspicious = "suspicious",
+	Fault = "fault",
+}
+export type Severity = keyof typeof SeverityTypes;
 
 export interface TrackData {
 	/** The track information. */
@@ -353,7 +373,18 @@ export interface TrackDataInfo {
 	sourceName?: TrackSourceName;
 }
 
-export type TrackSourceName = "deezer" | "spotify" | "soundcloud" | "youtube";
+export enum TrackSourceTypes {
+	AppleMusic = "applemusic",
+	Bandcamp = "bandcamp",
+	Deezer = "deezer",
+	Jiosaavn = "jiosaavn",
+	SoundCloud = "soundcloud",
+	Spotify = "spotify",
+	Tidal = "tidal",
+	YouTube = "youtube",
+}
+
+export type TrackSourceName = keyof typeof TrackSourceTypes;
 
 export interface Extendable {
 	Player: typeof Player;
@@ -400,7 +431,7 @@ export interface PlayerEvent {
 
 export interface Exception {
 	message: string;
-	severity: Severity;
+	severity: SeverityTypes;
 	cause: string;
 }
 
@@ -412,7 +443,7 @@ export interface TrackStartEvent extends PlayerEvent {
 export interface TrackEndEvent extends PlayerEvent {
 	type: "TrackEndEvent";
 	track: TrackData;
-	reason: TrackEndReason;
+	reason: TrackEndReasonTypes;
 }
 
 export interface TrackExceptionEvent extends PlayerEvent {

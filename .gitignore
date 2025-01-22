@@ -1,6 +1,4 @@
 dist
 node_modules
-
-.nuxt
-.env
-.idea
+/.idea/
+/.vscode/

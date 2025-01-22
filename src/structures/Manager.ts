@@ -1,7 +1,11 @@
-/* eslint-disable no-async-promise-executor */
 import {
 	LoadTypes,
 	Plugin,
+	SponsorBlockChaptersLoaded,
+	SponsorBlockChapterStarted,
+	SponsorBlockSegmentSkipped,
+	SponsorBlockSegmentsLoaded,
+	StateTypes,
 	Structure,
 	TrackData,
 	TrackEndEvent,
@@ -11,10 +15,9 @@ import {
 	TrackUtils,
 	VoicePacket,
 	VoiceServer,
-	WebSocketClosedEvent,
+	WebSocketClosedEvent
 } from "./Utils";
 import { Collection } from "@discordjs/collection";
-import { SponsorBlockChapterStarted, SponsorBlockChaptersLoaded, SponsorBlockSegmentSkipped, SponsorBlockSegmentsLoaded } from "./Utils";
 import { EventEmitter } from "events";
 import { Node, NodeOptions } from "./Node";
 import { Player, PlayerOptions, Track, UnresolvedTrack } from "./Player";
@@ -100,29 +103,25 @@ export class Manager extends EventEmitter {
 			const data = fs.readFileSync(filePath, "utf-8");
 			const state = JSON.parse(data);
 
-			if (state && typeof state === "object" && state.guild && state.node.options.identifier === nodeId) {
-				const lavaPlayer = info.find((player) => player.guildId === state.guild);
+			if (state && typeof state === "object" && state.guildId && state.node.options.identifier === nodeId) {
+				const lavaPlayer = info.find((player) => player.guildId === state.guildId);
 				if (!lavaPlayer) {
-					this.destroy(state.guild);
+					this.destroy(state.guildId);
 					continue;
 				}
 				const playerOptions: PlayerOptions = {
-					guild: state.options.guild,
+					guildId: state.options.guildId,
 					textChannel: state.options.textChannel,
 					voiceChannel: state.options.voiceChannel,
 					selfDeafen: state.options.selfDeafen,
 					volume: lavaPlayer.volume || state.options.volume,
 				};
 
-				this.emit("debug", `[MANAGER] Recreating player: ${state.guild} from saved file: ${JSON.stringify(state.options)}`);
+				this.emit("debug", `[MANAGER] Recreating player: ${state.guildId} from saved file: ${JSON.stringify(state.options)}`);
 				const player = this.create(playerOptions);
 
 				if (!lavaPlayer.state.connected) {
-					try {
-						player.connect();
-					} catch (error) {
-						continue;
-					}
+					player.connect();
 				}
 
 				const tracks = [];
@@ -152,7 +151,7 @@ export class Manager extends EventEmitter {
 							};
 							node.queueEnd(player, state.queue.previous, payload as TrackEndEvent);
 						} else {
-							this.destroy(state.guild);
+							this.destroy(state.guildId);
 							continue;
 						}
 					}
@@ -198,9 +197,7 @@ export class Manager extends EventEmitter {
 		}
 
 		// Generate the full path to the player's JSON file
-		const playerStateFilePath = path.join(configDir, `${guildId}.json`);
-
-		return playerStateFilePath;
+		return path.join(configDir, `${guildId}.json`);
 	}
 
 	/**
@@ -215,7 +212,7 @@ export class Manager extends EventEmitter {
 		const player = this.players.get(guildId);
 
 		// If the player does not exist or is disconnected, or the voice channel is not specified, do not save the player state
-		if (!player || player.state === "DISCONNECTED" || !player.voiceChannel) {
+		if (!player || player.state === StateTypes.Disconnected || !player.voiceChannel) {
 			// Clean up any inactive players
 			return this.cleanupInactivePlayers();
 		}
@@ -252,7 +249,7 @@ export class Manager extends EventEmitter {
 			return obj;
 		};
 
-		const serializedPlayer = JSON.parse(
+		return JSON.parse(
 			JSON.stringify(player, (key, value) => {
 				if (key === "filters" || key === "manager") {
 					return null;
@@ -268,8 +265,6 @@ export class Manager extends EventEmitter {
 				return serialize(value);
 			})
 		);
-
-		return serializedPlayer;
 	}
 
 	/**
@@ -367,7 +362,7 @@ export class Manager extends EventEmitter {
 		}
 
 		// If no node has a cumulative weight greater than or equal to the random number, return the node with the lowest load
-		return this.options.useNode === "leastLoad" ? this.leastLoadNode.first() : this.leastPlayersNode.first();
+		return this.options.useNode === UseNodeOptions.LeastLoad ? this.leastLoadNode.first() : this.leastPlayersNode.first();
 	}
 
 	/**
@@ -378,80 +373,51 @@ export class Manager extends EventEmitter {
 	 * @returns {Node} The node to use.
 	 */
 	public get useableNodes(): Node {
-		return this.options.usePriority ? this.priorityNode : this.options.useNode === "leastLoad" ? this.leastLoadNode.first() : this.leastPlayersNode.first();
-	}
-
-	private lastSaveTimes: Map<string, number> = new Map();
-	private eventBatchInterval: NodeJS.Timeout | null = null;
-	private eventBatchDuration: number = 1000;
-	private latestPlayerStates: Map<string, Player> = new Map();
-
-	/**
-	 * Registers the events that trigger saving player states.
-	 * @private
-	 */
-	private registerPlayerStateEvents(): void {
-		// The events to listen for
-		const events: (keyof ManagerEvents)[] = [
-			// The player state has been updated
-			ManagerEventTypes.PlayerStateUpdate,
-			// The player has been destroyed
-			ManagerEventTypes.PlayerDestroy,
-		];
-
-		// Register the events
-		for (const event of events) {
-			// Call the collectPlayerStateEvent function when the event is emitted
-			this.on(event, (player: Player) => this.collectPlayerStateEvent(event, player));
-		}
+		return this.options.usePriority
+			? this.priorityNode
+			: this.options.useNode === UseNodeOptions.LeastLoad
+			? this.leastLoadNode.first()
+			: this.leastPlayersNode.first();
 	}
 
 	/**
-	 * Collects player state events and stores them in memory.
-	 * This function is called whenever a player state event is emitted.
-	 * It stores the latest player state for each guild in the {@link latestPlayerStates} map.
-	 * If the event is "playerDestroy", it removes the player from the map and deletes the last save time for the guild.
-	 * @param event The event that triggered this function.
-	 * @param player The player that emitted the event.
+	 * Handles the shutdown of the process by saving all active players' states and optionally cleaning up inactive players.
+	 * This function is called when the process is about to exit.
+	 * It iterates through all players and calls {@link savePlayerState} to save their states.
+	 * Optionally, it also calls {@link cleanupInactivePlayers} to remove any stale player state files.
+	 * After saving and cleaning up, it exits the process.
 	 */
-	private collectPlayerStateEvent(event: keyof ManagerEvents, player: Player): void {
-		if (event === "playerDestroy") {
-			// Remove the player from the map and delete the last save time for the guild
-			this.lastSaveTimes.delete(player.guild);
-			this.players.delete(player.guild);
-			this.cleanupInactivePlayers();
-		} else if (event === "playerStateUpdate") {
-			// Store the latest player state for the guild
-			this.latestPlayerStates.set(player.guild, player);
-		}
+	private async handleShutdown(): Promise<void> {
+		console.warn("\x1b[31m%s\x1b[0m", "MAGMASTREAM WARNING: Shutting down! Please wait, saving active players...");
 
-		// Start the batch timer if it's not already running
-		if (!this.eventBatchInterval) {
-			// Set the timer to process the batch events after the specified duration
-			this.eventBatchInterval = setTimeout(() => this.processBatchEvents(), this.eventBatchDuration);
-		}
-	}
+		// Create an array of promises for saving player states
+		const savePromises = Array.from(this.players.keys()).map((guildId) => {
+			return new Promise<void>((resolve) => {
+				try {
+					this.savePlayerState(guildId);
+					resolve(); // Resolve immediately after calling savePlayerState
+				} catch (error) {
+					console.error(`Error saving player state for guild ${guildId}:`, error);
 
-	/**
-	 * Processes the collected player state events
-	 * This function is called when the batch timer expires and it clears the timer
-	 * It saves the latest player states for each guild in the `latestPlayerStates` map
-	 * It then clears the map after processing
-	 */
-	private processBatchEvents(): void {
-		if (this.eventBatchInterval) {
-			// Clear the timer so it doesn't interfere with the next batch
-			clearTimeout(this.eventBatchInterval);
-			this.eventBatchInterval = null;
-		}
-
-		// Save the latest player states for each guild in a single write operation
-		this.latestPlayerStates.forEach((player, guildId) => {
-			this.savePlayerState(guildId);
+					throw error;
+				}
+			});
 		});
 
-		// Clear the latest player states after processing
-		this.latestPlayerStates.clear();
+		// Wait for all save operations to complete and check for errors
+		const results = await Promise.allSettled(savePromises);
+		const errors = results.filter((result) => result.status === "rejected");
+
+		if (errors.length > 0) {
+			console.error("`\x1b[31m%s\x1b[0m", `MAGMASTREAM ERROR: ${errors.length} player states failed to save.`);
+		}
+
+		// Clean up inactive players here
+		this.cleanupInactivePlayers();
+
+		console.warn("\x1b[32m%s\x1b[0m", "MAGMASTREAM INFO: Shutting down complete, exiting...");
+
+		setTimeout(() => process.exit(errors.length > 0 ? 1 : 0), 100);
 	}
 
 	/**
@@ -460,6 +426,7 @@ export class Manager extends EventEmitter {
 	 * @param options.plugins - An array of plugins to load.
 	 * @param options.nodes - An array of node options to create nodes from.
 	 * @param options.autoPlay - Whether to automatically play the first track in the queue when the player is created.
+	 * @param options.autoPlaySearchPlatform - The search platform autoplay will use. Failback to Youtube if not found.
 	 * @param options.usePriority - Whether to use the priority when selecting a node to play on.
 	 * @param options.clientName - The name of the client to send to Lavalink.
 	 * @param options.defaultSearchPlatform - The default search platform to use when searching for tracks.
@@ -471,7 +438,8 @@ export class Manager extends EventEmitter {
 	constructor(options: ManagerOptions) {
 		super();
 
-		this.registerPlayerStateEvents();
+		process.on("SIGINT", async () => await this.handleShutdown());
+		process.on("SIGTERM", async () => await this.handleShutdown());
 
 		managerCheck(options);
 
@@ -498,7 +466,8 @@ export class Manager extends EventEmitter {
 			usePriority: false,
 			clientName: "Magmastream",
 			defaultSearchPlatform: SearchPlatform.YouTube,
-			useNode: "leastPlayers",
+			autoPlaySearchPlatform: SearchPlatform.YouTube,
+			useNode: UseNodeOptions.LeastPlayers,
 			...options,
 		};
 
@@ -778,8 +747,8 @@ export class Manager extends EventEmitter {
 	 * @returns The created player.
 	 */
 	public create(options: PlayerOptions): Player {
-		if (this.players.has(options.guild)) {
-			return this.players.get(options.guild);
+		if (this.players.has(options.guildId)) {
+			return this.players.get(options.guildId);
 		}
 
 		// Create a new player with the given options
@@ -789,25 +758,25 @@ export class Manager extends EventEmitter {
 
 	/**
 	 * Returns a player or undefined if it does not exist.
-	 * @param guild The guild ID of the player to retrieve.
+	 * @param guildId The guild ID of the player to retrieve.
 	 * @returns The player if it exists, undefined otherwise.
 	 */
-	public get(guild: string): Player | undefined {
-		return this.players.get(guild);
+	public get(guildId: string): Player | undefined {
+		return this.players.get(guildId);
 	}
 
 	/**
 	 * Destroys a player if it exists and cleans up inactive players.
-	 * @param guild - The guild ID of the player to destroy.
+	 * @param guildId - The guild ID of the player to destroy.
 	 * @returns {void}
 	 * @emits {debug} - Emits a debug message indicating the player is being destroyed.
 	 */
-	public destroy(guild: string): void {
+	public destroy(guildId: string): void {
 		// Emit debug message for player destruction
-		this.emit("debug", `[MANAGER] Destroying player: ${guild}`);
+		this.emit("debug", `[MANAGER] Destroying player: ${guildId}`);
 
 		// Remove the player from the manager's collection
-		this.players.delete(guild);
+		this.players.delete(guildId);
 
 		// Clean up any inactive players
 		this.cleanupInactivePlayers();
@@ -870,7 +839,7 @@ export class Manager extends EventEmitter {
 			} = player.voiceState;
 
 			await player.node.rest.updatePlayer({
-				guildId: player.guild,
+				guildId: player.guildId,
 				data: { voice: { token, endpoint, sessionId } },
 			});
 
@@ -911,7 +880,7 @@ export interface ManagerOptions {
 	/** Use priority mode over least amount of player or load? */
 	usePriority?: boolean;
 	/** Use the least amount of players or least load? */
-	useNode?: "leastLoad" | "leastPlayers";
+	useNode?: UseNodeOptions.LeastLoad | UseNodeOptions.LeastPlayers;
 	/** The array of nodes to connect to. */
 	nodes?: NodeOptions[];
 	/** The client ID to use. */
@@ -922,16 +891,19 @@ export interface ManagerOptions {
 	plugins?: Plugin[];
 	/** Whether players should automatically play the next song. */
 	autoPlay?: boolean;
+	/** The search platform autoplay should use. Failback to Youtube if not found.
+	 * Use enum `SearchPlatform`. */
+	autoPlaySearchPlatform?: SearchPlatform;
 	/** An array of track properties to keep. `track` will always be present. */
 	trackPartial?: string[];
-	/** The default search platform to use. Use enum `SearchPlatform`. */
+	/** The default search platform to use.
+	 * Use enum `SearchPlatform`. */
 	defaultSearchPlatform?: SearchPlatform;
 	/** Whether the YouTube video titles should be replaced if the Author does not exactly match. */
 	replaceYouTubeCredentials?: boolean;
 	/** The last.fm API key.
 	 * If you need to create one go here: https://www.last.fm/api/account/create.
-	 * If you already have one, get it from here: https://www.last.fm/api/accounts.
-	 */
+	 * If you already have one, get it from here: https://www.last.fm/api/accounts. */
 	lastFmApiKey: string;
 	/**
 	 * Function to send data to the websocket.
@@ -941,10 +913,10 @@ export interface ManagerOptions {
 	send(id: string, payload: Payload): void;
 }
 
-export const UseNodeOptions = {
-	leastLoad: "leastLoad",
-	leastPlayers: "leastPlayers",
-} as const;
+export enum UseNodeOptions {
+	LeastLoad = "leastLoad",
+	LeastPlayers = "leastPlayers",
+}
 
 export type UseNodeOption = keyof typeof UseNodeOptions;
 
@@ -1009,12 +981,12 @@ interface PauseChangeEvent {
 }
 
 interface QueueChangeEvent {
-	changeType: "add" | "remove" | "clear" | "shuffle" | "roundRobin" | "userBlock";
+	changeType: "add" | "remove" | "clear" | "shuffle" | "roundRobin" | "userBlock" | "autoPlayAdd";
 	tracks?: (Track | UnresolvedTrack)[];
 }
 
 interface TrackChangeEvent {
-	changeType: "start" | "end" | "previous" | "timeUpdate";
+	changeType: "start" | "end" | "previous" | "timeUpdate" | "autoPlay";
 	track: Track;
 	previousTime?: number | null;
 	currentTime?: number | null;
