@@ -1,6 +1,10 @@
 import {
 	LoadTypes,
 	Plugin,
+	SponsorBlockChaptersLoaded,
+	SponsorBlockChapterStarted,
+	SponsorBlockSegmentSkipped,
+	SponsorBlockSegmentsLoaded,
 	StateTypes,
 	Structure,
 	TrackData,
@@ -11,10 +15,9 @@ import {
 	TrackUtils,
 	VoicePacket,
 	VoiceServer,
-	WebSocketClosedEvent,
+	WebSocketClosedEvent
 } from "./Utils";
 import { Collection } from "@discordjs/collection";
-import { SponsorBlockChapterStarted, SponsorBlockChaptersLoaded, SponsorBlockSegmentSkipped, SponsorBlockSegmentsLoaded } from "./Utils";
 import { EventEmitter } from "events";
 import { Node, NodeOptions } from "./Node";
 import { Player, PlayerOptions, Track, UnresolvedTrack } from "./Player";
@@ -194,9 +197,7 @@ export class Manager extends EventEmitter {
 		}
 
 		// Generate the full path to the player's JSON file
-		const playerStateFilePath = path.join(configDir, `${guildId}.json`);
-
-		return playerStateFilePath;
+		return path.join(configDir, `${guildId}.json`);
 	}
 
 	/**
@@ -248,7 +249,7 @@ export class Manager extends EventEmitter {
 			return obj;
 		};
 
-		const serializedPlayer = JSON.parse(
+		return JSON.parse(
 			JSON.stringify(player, (key, value) => {
 				if (key === "filters" || key === "manager") {
 					return null;
@@ -264,8 +265,6 @@ export class Manager extends EventEmitter {
 				return serialize(value);
 			})
 		);
-
-		return serializedPlayer;
 	}
 
 	/**

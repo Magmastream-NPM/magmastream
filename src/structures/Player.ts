@@ -1,5 +1,13 @@
 import { Filters } from "./Filters";
-import { LavalinkResponse, Manager, PlaylistRawData, SearchQuery, SearchResult, PlayerStateEventTypes, ManagerEventTypes } from "./Manager";
+import {
+	LavalinkResponse,
+	Manager,
+	ManagerEventTypes,
+	PlayerStateEventTypes,
+	PlaylistRawData,
+	SearchQuery,
+	SearchResult
+} from "./Manager";
 import { LavalinkInfo, Node, SponsorBlockSegment } from "./Node";
 import { Queue } from "./Queue";
 import { LoadTypes, Sizes, StateTypes, Structure, TrackSourceName, TrackUtils, VoiceState } from "./Utils";
@@ -333,6 +341,7 @@ export class Player {
 	 *
 	 * @param {object} [optionsOrTrack] - The track to play or the options to play with.
 	 * @param {object} [playOptions] - The options to play with.
+		*
 	 * @returns {Promise<void>}
 	 */
 	public async play(): Promise<void>;
@@ -468,9 +477,7 @@ export class Player {
 						const recommendedTracks = playlistData.tracks;
 
 						if (recommendedTracks) {
-							const tracks = recommendedTracks.map((track) => TrackUtils.build(track, requester));
-
-							return tracks;
+							return recommendedTracks.map((track) => TrackUtils.build(track, requester));
 						}
 					}
 				}
