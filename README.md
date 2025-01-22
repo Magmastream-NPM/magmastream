@@ -58,6 +58,10 @@ A heartfelt thank you to all our amazing contributors who have poured their time
   </tbody>
 </table>
 
+<!-- markdownlint-restore -->
+<!-- prettier-ignore-end -->
+
+<!-- ALL-CONTRIBUTORS-LIST:END -->
 
 
 <img src="https://contributers.code-fy.tech/Magmastream-NPM?yousuck">
