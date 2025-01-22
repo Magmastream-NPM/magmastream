@@ -1,4 +1,3 @@
- 
 /* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-require-imports */
 import { ClientUser, User } from "discord.js";
 import { Manager } from "./Manager";
