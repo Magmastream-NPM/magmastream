@@ -982,12 +982,12 @@ interface PauseChangeEvent {
 }
 
 interface QueueChangeEvent {
-	changeType: "add" | "remove" | "clear" | "shuffle" | "roundRobin" | "userBlock";
+	changeType: "add" | "remove" | "clear" | "shuffle" | "roundRobin" | "userBlock" | "autoPlayAdd";
 	tracks?: (Track | UnresolvedTrack)[];
 }
 
 interface TrackChangeEvent {
-	changeType: "start" | "end" | "previous" | "timeUpdate";
+	changeType: "start" | "end" | "previous" | "timeUpdate" | "autoPlay";
 	track: Track;
 	previousTime?: number | null;
 	currentTime?: number | null;

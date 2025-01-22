@@ -517,6 +517,18 @@ export class Node {
 
 		this.manager.emit(ManagerEventTypes.TrackStart, player, track, payload);
 
+		const botUser = player.get("Internal_BotUser") as ClientUser
+
+		if (botUser && botUser.id === track.requester.id) {
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, player, {
+				changeType: PlayerStateEventTypes.TrackChange,
+				details: {
+					changeType: "autoPlay",
+					track: track,
+				},
+			});
+			return;
+		}
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, player, {
 			changeType: PlayerStateEventTypes.TrackChange,
 			details: {
@@ -676,12 +688,15 @@ export class Node {
 			} else {
 				// Check for other platforms in the specified order
 				const alternativePlatforms = [
-					SearchPlatform.Deezer, // 1
-					SearchPlatform.SoundCloud, // 2
-					SearchPlatform.AppleMusic, // 2
-					SearchPlatform.Bandcamp, // 3
-					SearchPlatform.Jiosaavn, // 4
-					SearchPlatform.Tidal, // 5
+					SearchPlatform.Spotify, // 1
+					SearchPlatform.Deezer, // 2
+					SearchPlatform.SoundCloud, // 3
+					SearchPlatform.AppleMusic, // 4
+					SearchPlatform.Bandcamp, // 5
+					SearchPlatform.Jiosaavn, // 6
+					SearchPlatform.Tidal, // 7
+					SearchPlatform.YouTubeMusic, // 8
+					SearchPlatform.YouTube, // 9
 				];
 
 				for (const platform of alternativePlatforms) {
