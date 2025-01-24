@@ -1,4 +1,5 @@
 import { Band, bassBoostEqualizer, softEqualizer, trebleBassEqualizer, tvEqualizer, vaporwaveEqualizer } from "../utils/filtersEqualizers"; 
+import { Player } from "./Player";
 
 // Define custom equalizers for new effects
 const popEqualizer: Band[] = [
