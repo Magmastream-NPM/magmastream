@@ -56,6 +56,7 @@ A heartfelt thank you to all our amazing contributors who have poured their time
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://discord.gg/JCaTDJRz7P"><img src="https://avatars.githubusercontent.com/u/58607083?v=4?s=100" width="100px;" alt="Darek"/><br /><sub><b>Darek</b></sub></a><br /><a href="#doc-realdarek" title="Documentation">📖</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Vexify4103"><img src="https://avatars.githubusercontent.com/u/47192617?v=4?s=100" width="100px;" alt="Vexify4103"/><br /><sub><b>Vexify4103</b></sub></a><br /><a href="#code-Vexify4103" title="Code">💻</a> <a href="#doc-Vexify4103" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/ItzRandom23"><img src="https://avatars.githubusercontent.com/u/100831398?v=4?s=100" width="100px;" alt="Itz Random"/><br /><sub><b>Itz Random</b></sub></a><br /><a href="#code-ItzRandom23" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
