@@ -2,270 +2,297 @@ import { Band, bassBoostEqualizer, softEqualizer, trebleBassEqualizer, tvEqualiz
 import { Player } from "./Player";
 
 export class Filters {
-	public distortion: distortionOptions | null;
-	public equalizer: Band[];
-	public karaoke: karaokeOptions | null;
-	public player: Player;
-	public rotation: rotationOptions | null;
-	public timescale: timescaleOptions | null;
-	public vibrato: vibratoOptions | null;
-	public volume: number;
+    public distortion: distortionOptions | null;
+    public equalizer: Band[];
+    public karaoke: karaokeOptions | null;
+    public player: Player;
+    public rotation: rotationOptions | null;
+    public timescale: timescaleOptions | null;
+    public vibrato: vibratoOptions | null;
+    public volume: number;
 
-	private filterStatus: Record<keyof availableFilters, boolean>;
+    private filterStatus: Record<keyof availableFilters, boolean>;
 
-	constructor(player: Player) {
-		this.distortion = null;
-		this.equalizer = [];
-		this.karaoke = null;
-		this.player = player;
-		this.rotation = null;
-		this.timescale = null;
-		this.vibrato = null;
-		this.volume = 1.0;
+    constructor(player: Player) {
+        this.distortion = null;
+        this.equalizer = [];
+        this.karaoke = null;
+        this.player = player;
+        this.rotation = null;
+        this.timescale = null;
+        this.vibrato = null;
+        this.volume = 1.0;
 
-		// Initialize filter status
-		this.filterStatus = {
-			bassboost: false,
-			distort: false,
-			eightD: false,
-			karaoke: false,
-			nightcore: false,
-			slowmo: false,
-			soft: false,
-			trebleBass: false,
-			tv: false,
-			vaporwave: false,
-			chipmunk: false,
-			demon: false,
-			robotic: false,
-			underwater: false,
-			reverb: false,
-		};
-	}
+        // Initialize filter status
+        this.filterStatus = {
+            clear: false,
+            eightD: false,
+            soft: false,
+            speed: false,
+            karaoke: false,
+            nightcore: false,
+            pop: false,
+            vaporwave: false,
+            bass: false,
+            party: false,
+            earrape: false,
+            equalizer: false,
+            electronic: false,
+            radio: false,
+            tremolo: false,
+            treblebass: false,
+            vibrato: false,
+            china: false,
+            chipmunk: false,
+            darthvader: false,
+            daycore: false,
+            doubletime: false,
+            pitch: false,
+            rate: false,
+            slow: false,
+        };
+    }
 
-	private async updateFilters(): Promise<this> {
-		const { distortion, equalizer, karaoke, rotation, timescale, vibrato, volume } = this;
+    private async updateFilters(): Promise<this> {
+        const { distortion, equalizer, karaoke, rotation, timescale, vibrato, volume } = this;
 
-		await this.player.node.rest.updatePlayer({
-			data: {
-				filters: {
-					distortion,
-					equalizer,
-					karaoke,
-					rotation,
-					timescale,
-					vibrato,
-					volume,
-				},
-			},
-			guildId: this.player.guild,
-		});
+        await this.player.node.rest.updatePlayer({
+            data: {
+                filters: {
+                    distortion,
+                    equalizer,
+                    karaoke,
+                    rotation,
+                    timescale,
+                    vibrato,
+                    volume,
+                },
+            },
+            guildId: this.player.guild,
+        });
 
-		return this;
-	}
+        return this;
+    }
 
-	private applyFilter<T extends keyof Filters>(filter: { property: T; value: Filters[T] }, updateFilters: boolean = true): this {
-		this[filter.property] = filter.value as this[T];
-		if (updateFilters) {
-			this.updateFilters();
-		}
-		return this;
-	}
+    private applyFilter<T extends keyof Filters>(filter: { property: T; value: Filters[T] }, updateFilters: boolean = true): this {
+        this[filter.property] = filter.value as this[T];
+        if (updateFilters) {
+            this.updateFilters();
+        }
+        return this;
+    }
 
-	private setFilterStatus(filter: keyof availableFilters, status: boolean): this {
-		this.filterStatus[filter] = status;
-		return this;
-	}
+    private setFilterStatus(filter: keyof availableFilters, status: boolean): this {
+        this.filterStatus[filter] = status;
+        return this;
+    }
 
-	/** Sets the equalizer bands and updates the filters. */
-	public setEqualizer(bands?: Band[]): this {
-		return this.applyFilter({ property: "equalizer", value: bands });
-	}
+    // Implement Filters
+    public clear(): this {
+        return this.resetFilters().setFilterStatus("clear", true);
+    }
 
-	/** Applies the bass boost effect. */
-	public bassBoost(): this {
-		return this.setEqualizer(bassBoostEqualizer).setFilterStatus("bassboost", true);
-	}
+    public eightD(): this {
+        return this.setRotation({ rotationHz: 0.2 }).setFilterStatus("eightD", true);
+    }
 
-	/** Applies the soft audio effect. */
-	public soft(): this {
-		return this.setEqualizer(softEqualizer).setFilterStatus("soft", true);
-	}
+    public soft(): this {
+        return this.setEqualizer(softEqualizer).setFilterStatus("soft", true);
+    }
 
-	/** Applies the treble bass effect. */
-	public trebleBass(): this {
-		return this.setEqualizer(trebleBassEqualizer).setFilterStatus("trebleBass", true);
-	}
+    public speed(): this {
+        return this.setTimescale({ speed: 1.5 }).setFilterStatus("speed", true);
+    }
 
-	/** Applies the vaporwave effect. */
-	public vaporwave(): this {
-		return this.setEqualizer(vaporwaveEqualizer)
-			.setTimescale({ pitch: 0.55 })
-			.setFilterStatus("vaporwave", true);
-	}
+    public karaoke(): this {
+        return this.setKaraoke({ level: 1.0, filterBand: 220, filterWidth: 100 }).setFilterStatus("karaoke", true);
+    }
 
-	/** Applies the karaoke effect. */
-	public setKaraoke(karaoke?: karaokeOptions): this {
-		return this.applyFilter({ property: "karaoke", value: karaoke }).setFilterStatus("karaoke", true);
-	}
+    public nightcore(): this {
+        return this.setTimescale({ speed: 1.1, pitch: 1.125 }).setFilterStatus("nightcore", true);
+    }
 
-	/** Applies the nightcore effect. */
-	public nightcore(): this {
-		return this.setTimescale({
-			speed: 1.1,
-			pitch: 1.125,
-			rate: 1.05,
-		}).setFilterStatus("nightcore", true);
-	}
+    public pop(): this {
+        return this.setEqualizer([{ band: 0, gain: 0.6 }, { band: 1, gain: 0.5 }]).setFilterStatus("pop", true);
+    }
 
-	/** Applies the slow motion effect. */
-	public slowmo(): this {
-		return this.setTimescale({
-			speed: 0.7,
-			pitch: 1.0,
-			rate: 0.8,
-		}).setFilterStatus("slowmo", true);
-	}
+    public vaporwave(): this {
+        return this.setEqualizer(vaporwaveEqualizer).setTimescale({ pitch: 0.55 }).setFilterStatus("vaporwave", true);
+    }
 
-	/** Applies the eight-dimensional effect. */
-	public eightD(): this {
-		return this.setRotation({ rotationHz: 0.2 }).setFilterStatus("eightD", true);
-	}
+    public bass(): this {
+        return this.setEqualizer(bassBoostEqualizer).setFilterStatus("bass", true);
+    }
 
-	/** Applies the distortion effect. */
-	public distort(): this {
-		return this.setDistortion({
-			sinOffset: 0,
-			sinScale: 0.2,
-			cosOffset: 0,
-			cosScale: 0.2,
-			tanOffset: 0,
-			tanScale: 0.2,
-			offset: 0,
-			scale: 1.2,
-		}).setFilterStatus("distort", true);
-	}
+    public party(): this {
+        return this.setTimescale({ speed: 1.2 }).setFilterStatus("party", true);
+    }
 
-	/** Applies a chipmunk voice effect. */
-	public chipmunk(): this {
-		return this.setTimescale({ pitch: 2.0, speed: 1.2 }).setFilterStatus("chipmunk", true);
-	}
+    public earrape(): this {
+        return this.setVolume(5.0).setFilterStatus("earrape", true);
+    }
 
-	/** Applies a demon voice effect. */
-	public demon(): this {
-		return this.setTimescale({ pitch: 0.5, speed: 0.8 }).setFilterStatus("demon", true);
-	}
+    public equalizer(): this {
+        return this.setEqualizer([{ band: 0, gain: 0.5 }, { band: 1, gain: 0.3 }]).setFilterStatus("equalizer", true);
+    }
 
-	/** Applies a robotic voice effect. */
-	public robotic(): this {
-		return this.setVibrato({ frequency: 15, depth: 0.8 }).setFilterStatus("robotic", true);
-	}
+    public electronic(): this {
+        return this.setEqualizer([{ band: 0, gain: 0.8 }, { band: 1, gain: 0.5 }]).setFilterStatus("electronic", true);
+    }
 
-	/** Applies an underwater effect. */
-	public underwater(): this {
-		return this.setEqualizer([{ band: 0, gain: -1.0 }, { band: 1, gain: -0.5 }]).setFilterStatus("underwater", true);
-	}
+    public radio(): this {
+        return this.setEqualizer([{ band: 0, gain: -0.5 }, { band: 1, gain: 0.2 }]).setFilterStatus("radio", true);
+    }
 
-	/** Applies a reverb effect. */
-	public reverb(): this {
-		return this.setDistortion({ offset: 0, scale: 0.8 }).setFilterStatus("reverb", true);
-	}
+    public tremolo(): this {
+        return this.setVibrato({ frequency: 10, depth: 0.5 }).setFilterStatus("tremolo", true);
+    }
 
-	/** Removes all filters and resets their status. */
-	public async clearFilters(): Promise<this> {
-		this.resetFilters();
-		await this.updateFilters();
-		return this;
-	}
+    public treblebass(): this {
+        return this.setEqualizer(trebleBassEqualizer).setFilterStatus("treblebass", true);
+    }
 
-	/** Returns the status of the specified filter. */
-	public getFilterStatus(filter: keyof availableFilters): boolean {
-		return this.filterStatus[filter];
-	}
+    public vibrato(): this {
+        return this.setVibrato({ frequency: 5, depth: 0.2 }).setFilterStatus("vibrato", true);
+    }
 
-	/** Resets all filter settings to their default values. */
-	private resetFilters(): void {
-		this.filterStatus = {
-			bassboost: false,
-			distort: false,
-			eightD: false,
-			karaoke: false,
-			nightcore: false,
-			slowmo: false,
-			soft: false,
-			trebleBass: false,
-			tv: false,
-			vaporwave: false,
-			chipmunk: false,
-			demon: false,
-			robotic: false,
-			underwater: false,
-			reverb: false,
-		};
+    public china(): this {
+        return this.setTimescale({ pitch: 1.4 }).setFilterStatus("china", true);
+    }
 
-		this.equalizer = [];
-		this.distortion = null;
-		this.karaoke = null;
-		this.rotation = null;
-		this.timescale = null;
-		this.vibrato = null;
-		this.volume = 1.0;
-	}
+    public chipmunk(): this {
+        return this.setTimescale({ pitch: 2.0 }).setFilterStatus("chipmunk", true);
+    }
+
+    public darthvader(): this {
+        return this.setTimescale({ pitch: 0.5 }).setFilterStatus("darthvader", true);
+    }
+
+    public daycore(): this {
+        return this.setTimescale({ pitch: 0.9, speed: 0.9 }).setFilterStatus("daycore", true);
+    }
+
+    public doubletime(): this {
+        return this.setTimescale({ speed: 2.0 }).setFilterStatus("doubletime", true);
+    }
+
+    public pitch(value: number): this {
+        return this.setTimescale({ pitch: value }).setFilterStatus("pitch", true);
+    }
+
+    public rate(value: number): this {
+        return this.setTimescale({ rate: value }).setFilterStatus("rate", true);
+    }
+
+    public slow(): this {
+        return this.setTimescale({ speed: 0.7 }).setFilterStatus("slow", true);
+    }
+
+    // Resets filters
+    private resetFilters(): this {
+        this.filterStatus = {
+            clear: false,
+            eightD: false,
+            soft: false,
+            speed: false,
+            karaoke: false,
+            nightcore: false,
+            pop: false,
+            vaporwave: false,
+            bass: false,
+            party: false,
+            earrape: false,
+            equalizer: false,
+            electronic: false,
+            radio: false,
+            tremolo: false,
+            treblebass: false,
+            vibrato: false,
+            china: false,
+            chipmunk: false,
+            darthvader: false,
+            daycore: false,
+            doubletime: false,
+            pitch: false,
+            rate: false,
+            slow: false,
+        };
+
+        this.equalizer = [];
+        this.distortion = null;
+        this.karaoke = null;
+        this.rotation = null;
+        this.timescale = null;
+        this.vibrato = null;
+        this.volume = 1.0;
+
+        return this;
+    }
 }
 
 /** Options for adjusting the timescale of audio. */
 interface timescaleOptions {
-	speed?: number;
-	pitch?: number;
-	rate?: number;
+    speed?: number;
+    pitch?: number;
+    rate?: number;
 }
 
 /** Options for applying vibrato effect to audio. */
 interface vibratoOptions {
-	frequency: number;
-	depth: number;
+    frequency: number;
+    depth: number;
 }
 
 /** Options for applying rotation effect to audio. */
 interface rotationOptions {
-	rotationHz: number;
+    rotationHz: number;
 }
 
 /** Options for applying karaoke effect to audio. */
 interface karaokeOptions {
-	level?: number;
-	monoLevel?: number;
-	filterBand?: number;
-	filterWidth?: number;
+    level?: number;
+    monoLevel?: number;
+    filterBand?: number;
+    filterWidth?: number;
 }
 
 /** Options for applying distortion effect to audio. */
 interface distortionOptions {
-	sinOffset?: number;
-	sinScale?: number;
-	cosOffset?: number;
-	cosScale?: number;
-	tanOffset?: number;
-	tanScale?: number;
-	offset?: number;
-	scale?: number;
+    sinOffset?: number;
+    sinScale?: number;
+    cosOffset?: number;
+    cosScale?: number;
+    tanOffset?: number;
+    tanScale?: number;
+    offset?: number;
+    scale?: number;
 }
 
 /** List of all available filters. */
 interface availableFilters {
-	bassboost: boolean;
-	distort: boolean;
-	eightD: boolean;
-	karaoke: boolean;
-	nightcore: boolean;
-	slowmo: boolean;
-	soft: boolean;
-	trebleBass: boolean;
-	tv: boolean;
-	vaporwave: boolean;
-	chipmunk: boolean;
-	demon: boolean;
-	robotic: boolean;
-	underwater: boolean;
-	reverb: boolean;
+    clear: boolean;
+    eightD: boolean;
+    soft: boolean;
+    speed: boolean;
+    karaoke: boolean;
+    nightcore: boolean;
+    pop: boolean;
+    vaporwave: boolean;
+    bass: boolean;
+    party: boolean;
+    earrape: boolean;
+    equalizer: boolean;
+    electronic: boolean;
+    radio: boolean;
+    tremolo: boolean;
+    treblebass: boolean;
+    vibrato: boolean;
+    china: boolean;
+    chipmunk: boolean;
+    darthvader: boolean;
+    daycore: boolean;
+    doubletime: boolean;
+    pitch: boolean;
+    rate: boolean;
+    slow: boolean;
 }
