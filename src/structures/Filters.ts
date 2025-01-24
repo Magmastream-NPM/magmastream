@@ -96,6 +96,10 @@ export class Filters {
         return this.setRotation({ rotationHz: 0.2 }).setFilterStatus("eightD", true);
     }
 
+    public setTimescale(timescale?: timescaleOptions): this {
+		return this.applyFilter({ property: "timescale", value: timescale });
+	}
+    
     public soft(): this {
         return this.setEqualizer(softEqualizer).setFilterStatus("soft", true);
     }
