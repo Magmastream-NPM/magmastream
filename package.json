@@ -11,7 +11,6 @@
 		"build": "tsc",
 		"types": "rtb --dist dist",
 		"lint": "eslint src",
-		"postinstall": "tsc",
 		"lint:fix": "eslint --fix src",
 		"ci": "run-s lint:fix lint build types"
 	},
