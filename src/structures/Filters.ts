@@ -470,11 +470,7 @@ export class Filters {
 		}).setFilterStatus("doubletime", true);
 	}
 
-	// Volume setter method
-	public setVolume(volume: number): this {
-		this.volume = volume;
-		return this.applyFilter({ property: "volume", value: this.volume });
-	}
+	
 }
 
 /** Options for adjusting the timescale of audio. */
