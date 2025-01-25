@@ -402,7 +402,8 @@ export class Filters {
 	}
 
 	public earrape(): this {
-		return this.setVolume(2.0).setFilterStatus("earrape", true);
+		this.player.setVolume(2.0)
+		return this.setFilterStatus("earrape", true);
 	}
 
 	public electronic(): this {
