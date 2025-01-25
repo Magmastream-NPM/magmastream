@@ -1,4 +1,40 @@
 {
-	"projectName": "magmastream",
-	"projectOwner": "Magmastream-NPM"
+  "projectName": "magmastream",
+  "projectOwner": "Magmastream-NPM",
+  "files": [
+    "README.md"
+  ],
+  "commitType": "docs",
+  "commitConvention": "angular",
+  "contributorsPerLine": 7,
+  "contributors": [
+    {
+      "login": "realdarek",
+      "name": "Darek",
+      "avatar_url": "https://avatars.githubusercontent.com/u/58607083?v=4",
+      "profile": "https://discord.gg/JCaTDJRz7P",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "Vexify4103",
+      "name": "Vexify4103",
+      "avatar_url": "https://avatars.githubusercontent.com/u/47192617?v=4",
+      "profile": "https://github.com/Vexify4103",
+      "contributions": [
+        "code",
+        "doc"
+      ]
+    },
+    {
+      "login": "ItzRandom23",
+      "name": "Itz Random",
+      "avatar_url": "https://avatars.githubusercontent.com/u/100831398?v=4",
+      "profile": "https://github.com/ItzRandom23",
+      "contributions": [
+        "code"
+      ]
+    }
+  ]
 }
