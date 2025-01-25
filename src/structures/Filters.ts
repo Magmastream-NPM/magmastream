@@ -74,7 +74,7 @@ export class Filters {
 					volume,
 				},
 			},
-			guildId: this.player.guild,
+			guildId: this.player.guildId,
 		});
 
 		return this;
