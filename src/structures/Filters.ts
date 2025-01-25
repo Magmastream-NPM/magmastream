@@ -51,17 +51,13 @@ export class Filters {
 	}
 
 	/**
-	 * Updates the player's filters by applying the current settings.
-	 * 
-	 * This method sends the updated filter settings, including distortion, equalizer,
-	 * karaoke, rotation, timescale, vibrato, and volume, to the player. It ensures that
-	 * the player's audio output is updated to reflect the applied filters.
-	 * 
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * Updates the filters on the player.
+	 * @returns {Promise<Filters>} Returns the current instance of the Filters class.
 	 */
 	private async updateFilters(): Promise<this> {
 		const { distortion, equalizer, karaoke, rotation, timescale, vibrato, volume } = this;
 
+		// Update the filters on the player.
 		await this.player.node.rest.updatePlayer({
 			data: {
 				filters: {
@@ -77,48 +73,47 @@ export class Filters {
 			guildId: this.player.guildId,
 		});
 
+		// Return the current instance of the Filters class.
 		return this;
 	}
 
 	/**
-	 * Applies a specific filter to the player.
-	 * 
-	 * This method sets a filter property to the specified value and updates the player's
-	 * filters if the `updateFilters` flag is true.
-	 * 
-	 * @param {Object} filter - The filter property and value to apply.
-	 * @param {string} filter.property - The property of the filter to modify.
-	 * @param {any} filter.value - The value to set for the filter property.
-	 * @param {boolean} [updateFilters=true] - Whether to update the filters on the player.
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * Applies a filter to the player.
+	 * @param filter - The filter to apply. Contains the property to update and its value.
+	 * @param updateFilters - Whether to update the filters on the player after applying the filter. Defaults to `true`.
+	 * @returns {this} Returns the current instance of the Filters class.
 	 */
 	private applyFilter<T extends keyof Filters>(filter: { property: T; value: Filters[T] }, updateFilters: boolean = true): this {
+		// Update the filter on the Filters class.
 		this[filter.property] = filter.value as this[T];
 
+		// If enabled, update the filters on the player.
 		if (updateFilters) {
 			this.updateFilters();
 		}
 
+		// Return the current instance of the Filters class.
 		return this;
 	}
 
 	/**
-	 * Sets the status of a specific filter.
-	 * 
-	 * This method updates the filter status to either true or false, indicating whether
-	 * the filter is applied or not. This helps track which filters are active.
-	 * 
-	 * @param {keyof availableFilters} filter - The filter to update.
-	 * @param {boolean} status - The status to set (true for active, false for inactive).
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * Sets the status of the given filter. Enables or disables the filter.
+	 * @param {keyof availableFilters} filter - The filter to update. Must be one of the `availableFilters` properties.
+	 * @param {boolean} status - Whether the filter is enabled (`true`) or disabled (`false`).
+	 * @returns {this} Returns the current instance of the Filters class.
 	 */
 	private setFilterStatus(filter: keyof availableFilters, status: boolean): this {
+		/**
+		 * Set the filter status in the `filterStatus` object.
+		 * This is a private method, so it should only be called by methods that
+		 * are intended to change the filter status.
+		 */
 		this.filterStatus[filter] = status;
 		return this;
 	}
 
 	/**
-	 * Sets the equalizer bands for the player.
+	 * Sets the equalizer bands and updates the filters on the player.
 	 * 
 	 * This method updates the player's equalizer settings by applying the provided
 	 * bands configuration. The equalizer is an array of Band objects, each containing
@@ -130,40 +125,33 @@ export class Filters {
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public setEqualizer(bands?: Band[]): this {
+		// Apply the equalizer filter to the player with the specified bands
 		return this.applyFilter({ property: "equalizer", value: bands });
 	}
 
 	/**
-	 * Applies the "8D audio" effect by setting a rotation filter.
-	 * 
-	 * This method creates the "8D audio" effect, which gives the illusion of sound
-	 * moving around the listener's head. It applies a subtle rotation effect to the audio.
-	 * 
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * Applies the eight dimension audio effect.
+	 * This filter applies a rotationHz of 0.2 to the player.
+	 * @returns {this} Returns the current instance of the Filters class.
 	 */
 	public eightD(): this {
 		return this.setRotation({ rotationHz: 0.2 }).setFilterStatus("eightD", true);
 	}
 
 	/**
-	 * Applies the bass boost effect by setting an equalizer with boosted bass frequencies.
-	 * 
-	 * This method enhances the lower frequencies of the audio, giving the audio a deep
-	 * and powerful bass response.
-	 * 
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * Applies the bass boost audio effect.
+	 * This filter sets the equalizer bands to the values defined in the
+	 * `bassBoostEqualizer` array.
+	 * @returns {this} Returns the current instance of the Filters class.
 	 */
 	public bassBoost(): this {
 		return this.setEqualizer(bassBoostEqualizer).setFilterStatus("bassboost", true);
 	}
 
 	/**
-	 * Applies the nightcore effect by adjusting the speed and pitch of the audio.
-	 * 
-	 * This method increases the tempo and pitch of the audio, giving it a faster and
-	 * higher-pitched sound, characteristic of the nightcore genre.
-	 * 
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * Applies the nightcore audio effect.
+	 * This filter sets the timescale of the player to 1.1 speed, 1.125 pitch, and 1.05 rate.
+	 * @returns {this} Returns the current instance of the Filters class.
 	 */
 	public nightcore(): this {
 		return this.setTimescale({
@@ -174,11 +162,9 @@ export class Filters {
 	}
 
 	/**
-	 * Applies the slow-motion effect by reducing the speed and pitch of the audio.
-	 * 
-	 * This method slows down the audio, giving it a slower and more relaxed feel.
-	 * 
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * Applies the slow motion audio effect.
+	 * This filter sets the timescale of the player to 0.7 speed, 1.0 pitch, and 0.8 rate.
+	 * @returns {this} Returns the current instance of the Filters class.
 	 */
 	public slowmo(): this {
 		return this.setTimescale({
@@ -189,59 +175,247 @@ export class Filters {
 	}
 
 	/**
-	 * Applies a soft equalizer to give the audio a smoother sound.
+	 * Applies the soft audio effect to the player.
 	 * 
-	 * This method adjusts the equalizer settings to soften the frequencies and give
-	 * the audio a more mellow tone.
+	 * This method sets the equalizer bands to the values defined in the
+	 * `softEqualizer` array, which is designed to create a softer sound effect
+	 * by reducing the gain of certain frequency bands.
 	 * 
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * @returns {this} Returns the current instance of the Filters class for method chaining.
 	 */
 	public soft(): this {
+		// Apply the soft equalizer settings and update the filter status
 		return this.setEqualizer(softEqualizer).setFilterStatus("soft", true);
 	}
 
 	/**
-	 * Applies a TV-like equalizer effect to the audio.
-	 * 
-	 * This method adjusts the equalizer to give the audio a "TV" effect, which may
-	 * simulate the audio quality heard from television speakers.
-	 * 
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * Applies the television audio effect.
+	 * This filter applies a equalizer effect designed to make the audio sound like it is coming from a television.
+	 * @returns {this} Returns the current instance of the Filters class.
 	 */
 	public tv(): this {
 		return this.setEqualizer(tvEqualizer).setFilterStatus("tv", true);
 	}
 
 	/**
-	 * Applies the "treble and bass boost" effect to the audio.
-	 * 
-	 * This method adjusts the equalizer to boost both the treble (high frequencies)
-	 * and bass (low frequencies), giving the audio a more balanced and enhanced sound.
-	 * 
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * Applies the treble bass audio effect.
+	 * This filter applies a treble boost and a bass boost to the audio.
+	 * @returns {this} Returns the current instance of the Filters class for method chaining.
 	 */
 	public trebleBass(): this {
 		return this.setEqualizer(trebleBassEqualizer).setFilterStatus("trebleBass", true);
 	}
 
 	/**
-	 * Applies the vaporwave effect by adjusting the equalizer and pitch.
+ * Applies a "pop" audio profile to the player.
+ * 
+ * This method sets the equalizer bands to emulate a "pop" audio profile, 
+ * enhancing certain frequencies to create a signature pop music sound.
+ * It also enables the "pop" filter status.
+ * 
+ * @returns {this} - Returns the current instance of the Filters class for method chaining.
+ */
+	public pop(): this {
+		const popEqualizer: Band[] = [
+			{ band: 0, gain: 0.5 },
+			{ band: 1, gain: 1.5 },
+			{ band: 2, gain: 2 },
+			{ band: 3, gain: 1.5 },
+		];
+		return this.setEqualizer(popEqualizer).setFilterStatus("pop", true);
+	}
+
+	/**
+	 * Applies a "party" effect to the player.
 	 * 
-	 * This method applies a vaporwave-style equalizer, with softer tones, and adjusts
-	 * the pitch to give the audio a dreamy, nostalgic feel.
+	 * This method adjusts the timescale properties to speed up playback slightly 
+	 * for an upbeat party vibe and enables the "party" filter status.
 	 * 
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 */
+	public party(): this {
+		return this.setTimescale({
+			speed: 1.25,
+			pitch: 1.0,
+			rate: 1.0,
+		}).setFilterStatus("party", true);
+	}
+
+	/**
+	 * Applies an "earrape" effect to the player.
+	 * 
+	 * This method sets the volume to a very high value (2.0) to intentionally 
+	 * create an overwhelming and distorted sound. It also enables the "earrape" filter status.
+	 * 
+	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 */
+	public earrape(): this {
+		return this.setVolume(2.0).setFilterStatus("earrape", true);
+	}
+
+	/**
+	 * Applies an "electronic" audio profile to the player.
+	 * 
+	 * This method sets the equalizer bands to emphasize higher frequencies and bass, 
+	 * creating an electronic music sound profile. It also enables the "electronic" filter status.
+	 * 
+	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 */
+	public electronic(): this {
+		const electronicEqualizer: Band[] = [
+			{ band: 0, gain: 1.0 },
+			{ band: 1, gain: 2.0 },
+			{ band: 2, gain: 3.0 },
+			{ band: 3, gain: 2.5 },
+		];
+		return this.setEqualizer(electronicEqualizer).setFilterStatus("electronic", true);
+	}
+
+	/**
+	 * Applies a "radio" audio profile to the player.
+	 * 
+	 * This method adjusts the equalizer bands to mimic the sound of traditional 
+	 * radio, with boosted midrange frequencies and slight compression. 
+	 * It also enables the "radio" filter status.
+	 * 
+	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 */
+	public radio(): this {
+		const radioEqualizer: Band[] = [
+			{ band: 0, gain: 3.0 },
+			{ band: 1, gain: 3.0 },
+			{ band: 2, gain: 1.0 },
+			{ band: 3, gain: 0.5 },
+		];
+		return this.setEqualizer(radioEqualizer).setFilterStatus("radio", true);
+	}
+
+	/**
+	 * Applies a "tremolo" effect to the player.
+	 * 
+	 * This method applies a tremolo effect by introducing periodic 
+	 * volume modulation, giving the audio a wavering sound. 
+	 * It also enables the "tremolo" filter status.
+	 * 
+	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 */
+	public tremolo(): this {
+		return this.setVibrato({ frequency: 5, depth: 0.5 }).setFilterStatus("tremolo", true);
+	}
+
+	/**
+	 * Applies a "china" effect to the player.
+	 * 
+	 * This method adjusts the timescale properties to slightly slow down playback 
+	 * with a deep pitch effect, mimicking a "china" style sound. It also enables 
+	 * the "china" filter status.
+	 * 
+	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 */
+	public china(): this {
+		return this.setTimescale({
+			speed: 1.0,
+			pitch: 0.5,
+			rate: 1.0,
+		}).setFilterStatus("china", true);
+	}
+
+	/**
+	 * Applies a "chipmunk" effect to the player.
+	 * 
+	 * This method adjusts the timescale properties to speed up playback significantly 
+	 * and raise the pitch, mimicking the sound of a chipmunk voice. It also enables 
+	 * the "chipmunk" filter status.
+	 * 
+	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 */
+	public chipmunk(): this {
+		return this.setTimescale({
+			speed: 1.5,
+			pitch: 1.5,
+			rate: 1.5,
+		}).setFilterStatus("chipmunk", true);
+	}
+
+	/**
+	 * Applies a "darthvader" effect to the player.
+	 * 
+	 * This method adjusts the timescale properties to slow down playback and lower the 
+	 * pitch, simulating a deep, ominous voice similar to Darth Vader's. It also enables 
+	 * the "darthvader" filter status.
+	 * 
+	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 */
+	public darthvader(): this {
+		return this.setTimescale({
+			speed: 1.0,
+			pitch: 0.5,
+			rate: 1.0,
+		}).setFilterStatus("darthvader", true);
+	}
+
+	/**
+	 * Applies a "daycore" effect to the player.
+	 * 
+	 * This method adjusts the timescale properties to slightly slow down playback and 
+	 * lower the pitch, giving the audio a "daycore" remix vibe. It also enables the "daycore" filter status.
+	 * 
+	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 */
+	public daycore(): this {
+		return this.setTimescale({
+			speed: 0.7,
+			pitch: 0.8,
+			rate: 0.8,
+		}).setFilterStatus("daycore", true);
+	}
+
+	/**
+	 * Applies a "doubletime" effect to the player.
+	 * 
+	 * This method adjusts the timescale properties to significantly speed up playback 
+	 * while maintaining pitch and rate, creating a double-time effect. It also enables 
+	 * the "doubletime" filter status.
+	 * 
+	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 */
+	public doubletime(): this {
+		return this.setTimescale({
+			speed: 2.0,
+			pitch: 1.0,
+			rate: 2.0,
+		}).setFilterStatus("doubletime", true);
+	}
+
+	/**
+	 * Sets the volume of the player.
+	 * 
+	 * This method adjusts the volume of the audio playback to the specified value, 
+	 * providing control over the output sound level. 
+	 * 
+	 * @param {number} volume - The desired volume level to set (higher value increases volume).
+	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 */
+	public setVolume(volume: number): this {
+		this.volume = volume;
+		return this.applyFilter({ property: "volume", value: this.volume });
+	}
+
+
+	/**
+	 * Applies the vaporwave audio effect.
+	 * This filter applies a timescale effect with a pitch of 0.55 and an equalizer effect
+	 * designed to create a vaporwave sound effect.
+	 * @returns {this} Returns the current instance of the Filters class for method chaining.
 	 */
 	public vaporwave(): this {
 		return this.setEqualizer(vaporwaveEqualizer).setTimescale({ pitch: 0.55 }).setFilterStatus("vaporwave", true);
 	}
 
 	/**
-	 * Applies a distortion effect to the audio.
-	 * 
-	 * This method applies a distortion effect by adjusting various distortion parameters.
-	 * It can make the audio sound rougher and more intense.
-	 * 
+	 * Applies the distortion audio effect to the player.
+	 * This filter applies a distortion effect to the audio by applying a sine, cosine, and tangent
+	 * transformation to the audio signal.
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public distort(): this {
@@ -258,12 +432,21 @@ export class Filters {
 	}
 
 	/**
-	 * Sets the karaoke effect on the audio.
+	 * Applies the karaoke options specified by the filter.
 	 * 
-	 * This method adjusts the player's audio output to apply a karaoke effect, which
-	 * may include filtering out vocals or adjusting levels for optimal karaoke performance.
+	 * This method takes an optional `karaokeOptions` object as a parameter, which
+	 * can be used to customize the karaoke effect. The available options are:
+	 * - `level`: The level of the karaoke effect. A higher level results in a more
+	 *   pronounced effect.
+	 * - `monoLevel`: The level of the mono channel. A higher level results in a more
+	 *   pronounced effect.
+	 * - `filterBand`: The frequency band to apply the karaoke effect to.
+	 * - `filterWidth`: The width of the frequency band to apply the karaoke effect to.
 	 * 
-	 * @param {karaokeOptions} [karaoke] - The karaoke settings to apply (level, mono level, filter band, etc.).
+	 * If no options are provided, the filter will be reset and the karaoke effect will
+	 * be disabled.
+	 * 
+	 * @param {karaokeOptions} [karaoke] - The karaoke options to apply.
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public setKaraoke(karaoke?: karaokeOptions): this {
@@ -273,26 +456,36 @@ export class Filters {
 		}).setFilterStatus("karaoke", true);
 	}
 
+
 	/**
-	 * Sets the timescale (speed, pitch, rate) for the audio.
+	 * Applies the timescale options specified by the filter.
 	 * 
-	 * This method adjusts the speed, pitch, and rate of the audio, allowing for effects
-	 * such as faster or slower playback, pitch shifts, and time dilation.
+	 * This method sets the timescale of the audio player using the provided
+	 * timescale options. Timescale options may include speed, pitch, and rate
+	 * adjustments to modify the playback characteristics of the audio.
 	 * 
-	 * @param {timescaleOptions} [timescale] - The timescale settings to apply (speed, pitch, rate).
+	 * @param {timescaleOptions} [timescale] - The timescale options to apply.
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public setTimescale(timescale?: timescaleOptions): this {
+		// Apply the timescale filter to the player with the specified options
 		return this.applyFilter({ property: "timescale", value: timescale });
 	}
 
 	/**
-	 * Sets the vibrato effect on the audio.
+	 * Applies the vibrato options specified by the filter.
 	 * 
-	 * This method applies a vibrato effect to the audio, which creates a wobble in the
-	 * pitch by modulating it at a specified frequency and depth.
+	 * This method takes an optional `vibratoOptions` object as a parameter, which
+	 * can be used to customize the vibrato effect. The available options are:
+	 * - `frequency`: The frequency of the vibrato effect. A higher frequency results
+	 *   in a faster vibrato effect.
+	 * - `depth`: The depth of the vibrato effect. A higher depth results in a more
+	 *   pronounced effect.
 	 * 
-	 * @param {vibratoOptions} [vibrato] - The vibrato settings to apply (frequency and depth).
+	 * If no options are provided, the filter will be reset and the vibrato effect will
+	 * be disabled.
+	 * 
+	 * @param {vibratoOptions} [vibrato] - The vibrato options to apply.
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public setVibrato(vibrato?: vibratoOptions): this {
@@ -300,12 +493,17 @@ export class Filters {
 	}
 
 	/**
-	 * Sets the rotation effect on the audio.
-	 * 
-	 * This method applies a rotation effect to the audio, creating the illusion of sound
-	 * moving around the listener's head.
-	 * 
-	 * @param {rotationOptions} [rotation] - The rotation settings (rotationHz).
+	 * Applies the rotation options specified by the filter.
+	 *
+	 * This method takes an optional `rotationOptions` object as a parameter, which
+	 * can be used to customize the rotation effect. The available options are:
+	 * - `rotationHz`: The frequency of the rotation effect. A higher frequency results
+	 *   in a faster rotation effect.
+	 *
+	 * If no options are provided, the filter will be reset and the rotation effect will
+	 * be disabled.
+	 *
+	 * @param {rotationOptions} [rotation] - The rotation options to apply.
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public setRotation(rotation?: rotationOptions): this {
@@ -313,12 +511,22 @@ export class Filters {
 	}
 
 	/**
-	 * Sets the distortion effect on the audio.
-	 * 
-	 * This method applies a distortion effect to the audio, which adds an aggressive,
-	 * rough texture to the sound.
-	 * 
-	 * @param {distortionOptions} [distortion] - The distortion settings to apply.
+	 * Applies the distortion options specified by the filter.
+	 * This method takes an optional `distortionOptions` object as a parameter, which
+	 * can be used to customize the distortion effect. The available options are:
+	 * - `sinOffset`: The sine offset value for the distortion effect.
+	 * - `sinScale`: The sine scale value for the distortion effect.
+	 * - `cosOffset`: The cosine offset value for the distortion effect.
+	 * - `cosScale`: The cosine scale value for the distortion effect.
+	 * - `tanOffset`: The tangent offset value for the distortion effect.
+	 * - `tanScale`: The tangent scale value for the distortion effect.
+	 * - `offset`: The offset value for the distortion effect.
+	 * - `scale`: The scale value for the distortion effect.
+	 *
+	 * If no options are provided, the filter will be reset and the distortion effect will
+	 * be disabled.
+	 *
+	 * @param {distortionOptions} [distortion] - The distortion options to apply.
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public setDistortion(distortion?: distortionOptions): this {
@@ -326,14 +534,17 @@ export class Filters {
 	}
 
 	/**
-	 * Clears all filters applied to the audio.
+	 * Removes the audio effects and resets the filter status.
 	 * 
-	 * This method resets all filter settings to their default values and removes any
-	 * active filters from the player.
+	 * This method is useful for removing all audio effects and resetting the filter
+	 * status to its default state. It is also a convenient way to disable all audio
+	 * effects without having to manually reset each filter individually.
 	 * 
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * @returns {Promise<this>} - Returns a promise that resolves with the current
+	 * instance of the Filters class.
 	 */
 	public async clearFilters(): Promise<this> {
+		// Reset the filter status to its default state.
 		this.filterStatus = {
 			bassboost: false,
 			distort: false,
@@ -358,6 +569,7 @@ export class Filters {
 			doubletime: false,
 		};
 
+		// Reset each filter to its default state.
 		this.player.filters = new Filters(this.player);
 		this.setEqualizer([]);
 		this.setDistortion(null);
@@ -366,154 +578,91 @@ export class Filters {
 		this.setTimescale(null);
 		this.setVibrato(null);
 
+		// Update the filters to apply the changes.
 		await this.updateFilters();
 		return this;
 	}
 
 	/**
-	 * Retrieves the status of a specific filter.
-	 * 
-	 * This method returns whether a specific filter is currently applied or not.
-	 * 
-	 * @param {keyof availableFilters} filter - The filter to check.
-	 * @returns {boolean} - Returns true if the filter is active, false otherwise.
+	 * Returns the status of the specified filter.
+	 * @param filter - The filter to check.
+	 * @returns The status of the specified filter.
 	 */
 	public getFilterStatus(filter: keyof availableFilters): boolean {
+		/**
+		 * The filter status is stored in the `filterStatus` property.
+		 * The keys of the `filterStatus` property correspond to the available filters.
+		 * The values of the `filterStatus` property are boolean values indicating whether the filter is enabled or disabled.
+		 */
 		return this.filterStatus[filter];
-	}
-
-	// New filters
-	public pop(): this {
-		const popEqualizer: Band[] = [
-			{ band: 0, gain: 0.5 },
-			{ band: 1, gain: 1.5 },
-			{ band: 2, gain: 2 },
-			{ band: 3, gain: 1.5 },
-		];
-		return this.setEqualizer(popEqualizer).setFilterStatus("pop", true);
-	}
-
-	public party(): this {
-		return this.setTimescale({
-			speed: 1.25,
-			pitch: 1.0,
-			rate: 1.0,
-		}).setFilterStatus("party", true);
-	}
-
-	public earrape(): this {
-		return this.setVolume(2.0).setFilterStatus("earrape", true);
-	}
-
-	public electronic(): this {
-		const electronicEqualizer: Band[] = [
-			{ band: 0, gain: 1.0 },
-			{ band: 1, gain: 2.0 },
-			{ band: 2, gain: 3.0 },
-			{ band: 3, gain: 2.5 },
-		];
-		return this.setEqualizer(electronicEqualizer).setFilterStatus("electronic", true);
-	}
-
-	public radio(): this {
-		const radioEqualizer: Band[] = [
-			{ band: 0, gain: 3.0 },
-			{ band: 1, gain: 3.0 },
-			{ band: 2, gain: 1.0 },
-			{ band: 3, gain: 0.5 },
-		];
-		return this.setEqualizer(radioEqualizer).setFilterStatus("radio", true);
-	}
-
-	public tremolo(): this {
-		return this.setVibrato({ frequency: 5, depth: 0.5 }).setFilterStatus("tremolo", true);
-	}
-
-	public china(): this {
-		return this.setTimescale({
-			speed: 1.0,
-			pitch: 0.5,
-			rate: 1.0,
-		}).setFilterStatus("china", true);
-	}
-
-	public chipmunk(): this {
-		return this.setTimescale({
-			speed: 1.5,
-			pitch: 1.5,
-			rate: 1.5,
-		}).setFilterStatus("chipmunk", true);
-	}
-
-	public darthvader(): this {
-		return this.setTimescale({
-			speed: 1.0,
-			pitch: 0.5,
-			rate: 1.0,
-		}).setFilterStatus("darthvader", true);
-	}
-
-	public daycore(): this {
-		return this.setTimescale({
-			speed: 0.7,
-			pitch: 0.8,
-			rate: 0.8,
-		}).setFilterStatus("daycore", true);
-	}
-
-	public doubletime(): this {
-		return this.setTimescale({
-			speed: 2.0,
-			pitch: 1.0,
-			rate: 2.0,
-		}).setFilterStatus("doubletime", true);
-	}
-
-	// Volume setter method
-	public setVolume(volume: number): this {
-		this.volume = volume;
-		return this.applyFilter({ property: "volume", value: this.volume });
 	}
 }
 
 /** Options for adjusting the timescale of audio. */
 interface timescaleOptions {
+	/** The speed factor for the timescale. */
 	speed?: number;
+	/** The pitch factor for the timescale. */
 	pitch?: number;
+	/** The rate factor for the timescale. */
 	rate?: number;
 }
 
 /** Options for applying vibrato effect to audio. */
 interface vibratoOptions {
+	/** The frequency of the vibrato effect. */
 	frequency: number;
+	/** The depth of the vibrato effect. */
 	depth: number;
 }
 
 /** Options for applying rotation effect to audio. */
 interface rotationOptions {
+	/** The rotation speed in Hertz (Hz). */
 	rotationHz: number;
 }
 
 /** Options for applying karaoke effect to audio. */
 interface karaokeOptions {
+	/** The level of karaoke effect. */
 	level?: number;
+	/** The mono level of karaoke effect. */
 	monoLevel?: number;
+	/** The filter band of karaoke effect. */
 	filterBand?: number;
+	/** The filter width of karaoke effect. */
 	filterWidth?: number;
 }
 
-/** Options for applying distortion effect to audio. */
+/** Options object as a parameter, which can be used to customize the distortion effect. */
 interface distortionOptions {
+	/** The sine offset value for the distortion effect. */
 	sinOffset?: number;
+	/** The sine scale value for the distortion effect. */
 	sinScale?: number;
+	/** The cosine offset value for the distortion effect. */
 	cosOffset?: number;
+	/** The cosine scale value for the distortion effect. */
 	cosScale?: number;
+	/** The tangent offset value for the distortion effect. */
 	tanOffset?: number;
+	/** The tangent scale value for the distortion effect. */
 	tanScale?: number;
+	/** The offset value for the distortion effect. */
 	offset?: number;
+	/** The scale value for the distortion effect. */
 	scale?: number;
 }
 
 interface availableFilters {
-	[key: string]: boolean;
+	bassboost: boolean;
+	distort: boolean;
+	eightD: boolean;
+	karaoke: boolean;
+	nightcore: boolean;
+	slowmo: boolean;
+	soft: boolean;
+	trebleBass: boolean;
+	tv: boolean;
+	vaporwave: boolean;
 }
