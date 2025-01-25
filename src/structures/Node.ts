@@ -252,9 +252,13 @@ export class Node {
 
 		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Destroying node: ${JSON.stringify(debugInfo)}`);
 
-		// Destroy all players connected to the node
+		// Automove all players connected to that node
 		const players = this.manager.players.filter((p) => p.node == this);
-		if (players.size) players.forEach((p) => p.destroy());
+		if (players.size) {
+			players.forEach(async (player) => {
+				await player.autoMoveNode();
+			});
+		}
 
 		// Close the WebSocket connection
 		this.socket.close(1000, "destroy");
@@ -353,7 +357,7 @@ export class Node {
 	 * @param {number} code The close code.
 	 * @param {string} reason The close reason.
 	 */
-	protected close(code: number, reason: string): void {
+	protected async close(code: number, reason: string): Promise<void> {
 		const debugInfo = {
 			identifier: this.options.identifier,
 			code,
@@ -363,6 +367,14 @@ export class Node {
 		this.manager.emit(ManagerEventTypes.NodeDisconnect, this, { code, reason });
 		// Emit a debug event indicating the node is disconnected
 		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Disconnected node: ${JSON.stringify(debugInfo)}`);
+		// Try moving all players connected to that node to a useable one
+
+		if (this.manager.useableNode) {
+			const players = this.manager.players.filter((p) => p.node.options.identifier == this.options.identifier);
+			if (players.size) {
+				await Promise.all(Array.from(players.values(), (player) => player.autoMoveNode()));
+			}
+		}
 		// If the close event was not initiated by the user, attempt to reconnect
 		if (code !== 1000 || reason !== "destroy") this.reconnect();
 	}
@@ -517,7 +529,7 @@ export class Node {
 
 		this.manager.emit(ManagerEventTypes.TrackStart, player, track, payload);
 
-		const botUser = player.get("Internal_BotUser") as ClientUser
+		const botUser = player.get("Internal_BotUser") as ClientUser;
 
 		if (botUser && botUser.id === track.requester.id) {
 			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, player, {
@@ -587,80 +599,55 @@ export class Node {
 	}
 
 	/**
-	 * Extracts the Spotify track ID from a URL.
-	 * @param {string} url The URL to extract the track ID from.
-	 * @returns {string | null} The track ID or null if the URL is invalid.
-	 */
-	public extractSpotifyTrackID(url: string): string | null {
-		const regex = /https:\/\/open\.spotify\.com\/track\/([a-zA-Z0-9]+)/;
-		const match = url.match(regex);
-		return match ? match[1] : null;
-	}
-
-	/**
-	 * Extracts the Spotify artist ID from a URL.
-	 * @param {string} url - The URL to extract the artist ID from.
-	 * @returns {string | null} - The artist ID or null if the URL is invalid.
-	 */
-	public extractSpotifyArtistID(url: string): string | null {
-		const regex = /https:\/\/open\.spotify\.com\/artist\/([a-zA-Z0-9]+)/;
-		const match = url.match(regex);
-		return match ? match[1] : null;
-	}
-
-	/**
 	 * Handles autoplay logic for a player.
+	 * This method is responsible for selecting an appropriate method of autoplay
+	 * and executing it. If autoplay is not enabled or all attempts have failed,
+	 * it will return false.
 	 * @param {Player} player - The player to handle autoplay for.
 	 * @param {Track} track - The track that has ended.
 	 * @param {number} attempt - The current attempt number of the autoplay.
 	 * @returns {Promise<boolean>} A promise that resolves to a boolean indicating if autoplay was successful.
 	 * @private
 	 */
-	private async handleAutoplay(player: Player, track: Track, attempt: number = 0): Promise<boolean> {
+	private async handleAutoplay(player: Player, attempt: number = 0): Promise<boolean> {
+		// If autoplay is not enabled or all attempts have failed, early exit
 		if (!player.isAutoplay || attempt === player.autoplayTries || !player.queue.previous) return false;
 
-		const previousTrack = player.queue.previous;
+		// Get the Last.fm API key and the available source managers
 		const apiKey = this.manager.options.lastFmApiKey;
 		const enabledSources = this.info.sourceManagers;
 
-		// If Last.fm API is not available and YouTube is not supported
-		if (!apiKey && !enabledSources.includes("youtube")) return false;
+		// Determine if YouTube should be used
+		// If Last.fm is not available, use YouTube as a fallback
+		// If YouTube is available and this is the last attempt, use YouTube
+		const shouldUseYouTube =
+			(!apiKey && enabledSources.includes("youtube")) || // Fallback to YouTube if Last.fm is not available
+			(attempt === player.autoplayTries - 1 && player.autoplayTries > 1 && enabledSources.includes("youtube")); // Use YouTube on the last attempt
 
-		// Handle YouTube autoplay logic
-		if (
-			(!apiKey && enabledSources.includes("youtube")) ||
-			(attempt === player.autoplayTries - 1 && !(apiKey && player.autoplayTries === 1) && enabledSources.includes("youtube"))
-		) {
-			const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) => previousTrack.uri.includes(url));
-			const videoID = hasYouTubeURL
-				? previousTrack.uri.split("=").pop()
-				: (await player.search(`${previousTrack.author} - ${previousTrack.title}`, player.get("Internal_BotUser") as ClientUser)).tracks[0]?.uri.split("=").pop();
-
-			if (!videoID) return false;
-
-			let randomIndex: number;
-			let searchURI: string;
-			do {
-				randomIndex = Math.floor(Math.random() * 23) + 2;
-				searchURI = `https://www.youtube.com/watch?v=${videoID}&list=RD${videoID}&index=${randomIndex}`;
-			} while (track.uri.includes(searchURI));
-
-			const res = await player.search(searchURI, player.get("Internal_BotUser") as ClientUser);
-			if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
-
-			const foundTrack = res.tracks.find((t) => t.uri !== track.uri && t.author !== track.author && t.title !== track.title);
-			if (!foundTrack) return false;
-
-			player.queue.add(foundTrack);
-			player.play();
-			return true;
+		if (shouldUseYouTube) {
+			// Use YouTube-based autoplay
+			return this.handleYouTubeAutoplay(player, player.queue.previous);
 		}
 
-		// Handle Last.fm-based autoplay logic
-		let { author: artist } = previousTrack;
-		const { title } = previousTrack;
+		// Handle Last.fm-based autoplay (or other platforms)
+		const selectedSource = this.selectPlatform(enabledSources);
 
-		// Create a mapping of enum values to their string representations
+		if (selectedSource) {
+			// Use the selected source to handle autoplay
+			return this.handlePlatformAutoplay(player, player.queue.previous, selectedSource, apiKey);
+		}
+
+		// If no source is available, return false
+		return false;
+	}
+
+	/**
+	 * Selects a platform from the given enabled sources.
+	 * @param {string[]} enabledSources - The enabled sources to select from.
+	 * @returns {SearchPlatform | null} - The selected platform or null if none was found.
+	 */
+	public selectPlatform(enabledSources: string[]): SearchPlatform | null {
+		const { autoPlaySearchPlatform } = this.manager.options;
 		const platformMapping: { [key in SearchPlatform]: string } = {
 			[SearchPlatform.AppleMusic]: "applemusic",
 			[SearchPlatform.Bandcamp]: "bandcamp",
@@ -673,45 +660,48 @@ export class Node {
 			[SearchPlatform.YouTubeMusic]: "youtube",
 		};
 
-		let selectedSource: SearchPlatform | null = null;
-		// Get the autoPlaySearchPlatform and available sources
-		const { autoPlaySearchPlatform } = this.manager.options;
-
+		// Try the autoPlaySearchPlatform first
 		if (enabledSources.includes(platformMapping[autoPlaySearchPlatform])) {
-			selectedSource = autoPlaySearchPlatform;
-		} else {
-			// Fallback to SearchPlatform.YouTube
-			const fallbackPlatform = SearchPlatform.YouTube;
+			return autoPlaySearchPlatform;
+		}
 
-			if (enabledSources.includes(platformMapping[fallbackPlatform])) {
-				selectedSource = fallbackPlatform;
-			} else {
-				// Check for other platforms in the specified order
-				const alternativePlatforms = [
-					SearchPlatform.Spotify, // 1
-					SearchPlatform.Deezer, // 2
-					SearchPlatform.SoundCloud, // 3
-					SearchPlatform.AppleMusic, // 4
-					SearchPlatform.Bandcamp, // 5
-					SearchPlatform.Jiosaavn, // 6
-					SearchPlatform.Tidal, // 7
-					SearchPlatform.YouTubeMusic, // 8
-					SearchPlatform.YouTube, // 9
-				];
+		// Fallback to other platforms in a predefined order
+		const fallbackPlatforms = [
+			SearchPlatform.Spotify,
+			SearchPlatform.Deezer,
+			SearchPlatform.SoundCloud,
+			SearchPlatform.AppleMusic,
+			SearchPlatform.Bandcamp,
+			SearchPlatform.Jiosaavn,
+			SearchPlatform.Tidal,
+			SearchPlatform.YouTubeMusic,
+			SearchPlatform.YouTube,
+		];
 
-				for (const platform of alternativePlatforms) {
-					if (enabledSources.includes(platformMapping[platform])) {
-						selectedSource = platform;
-						break; // Exit the loop once a valid platform is found
-					}
-				}
+		for (const platform of fallbackPlatforms) {
+			if (enabledSources.includes(platformMapping[platform])) {
+				return platform;
 			}
 		}
 
-		if (!selectedSource) return false;
+		return null;
+	}
+
+	/**
+	 * Handles Last.fm-based autoplay.
+	 * @param {Player} player - The player instance.
+	 * @param {Track | UnresolvedTrack} previousTrack - The previous track.
+	 * @param {SearchPlatform} platform - The selected platform.
+	 * @param {string} apiKey - The Last.fm API key.
+	 * @returns {Promise<boolean>} - Whether the autoplay was successful.
+	 */
+	private async handlePlatformAutoplay(player: Player, previousTrack: Track | UnresolvedTrack, platform: SearchPlatform, apiKey: string): Promise<boolean> {
+		let { author: artist } = previousTrack;
+		const { title } = previousTrack;
 
 		if (!artist || !title) {
 			if (!title) {
+				// No title provided, search for the artist's top tracks
 				const noTitleUrl = `https://ws.audioscrobbler.com/2.0/?method=artist.getTopTracks&artist=${artist}&autocorrect=1&api_key=${apiKey}&format=json`;
 				const response = await axios.get(noTitleUrl);
 
@@ -719,12 +709,12 @@ export class Node {
 
 				const randomTrack = response.data.toptracks.track[Math.floor(Math.random() * response.data.toptracks.track.length)];
 				const res = await player.search(
-					{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: selectedSource },
+					{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: platform },
 					player.get("Internal_BotUser") as ClientUser
 				);
 				if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
 
-				const foundTrack = res.tracks.find((t) => t.uri !== track.uri);
+				const foundTrack = res.tracks.find((t) => t.uri !== previousTrack.uri);
 				if (!foundTrack) return false;
 
 				player.queue.add(foundTrack);
@@ -732,6 +722,7 @@ export class Node {
 				return true;
 			}
 			if (!artist) {
+				// No artist provided, search for the track title
 				const noArtistUrl = `https://ws.audioscrobbler.com/2.0/?method=track.search&track=${title}&api_key=${apiKey}&format=json`;
 				const response = await axios.get(noArtistUrl);
 				artist = response.data.results.trackmatches?.track?.[0]?.artist;
@@ -739,6 +730,7 @@ export class Node {
 			}
 		}
 
+		// Search for similar tracks to the current track
 		const url = `https://ws.audioscrobbler.com/2.0/?method=track.getSimilar&artist=${artist}&track=${title}&limit=10&autocorrect=1&api_key=${apiKey}&format=json`;
 		let response: axios.AxiosResponse;
 
@@ -749,6 +741,7 @@ export class Node {
 		}
 
 		if (response.data.error || !response.data.similartracks?.track?.length) {
+			// Retry the request if the first attempt fails
 			const retryUrl = `https://ws.audioscrobbler.com/2.0/?method=artist.getTopTracks&artist=${artist}&autocorrect=1&api_key=${apiKey}&format=json`;
 			const retryResponse = await axios.get(retryUrl);
 
@@ -756,12 +749,12 @@ export class Node {
 
 			const randomTrack = retryResponse.data.toptracks.track[Math.floor(Math.random() * retryResponse.data.toptracks.track.length)];
 			const res = await player.search(
-				{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: selectedSource },
+				{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: platform },
 				player.get("Internal_BotUser") as ClientUser
 			);
 			if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
 
-			const foundTrack = res.tracks.find((t) => t.uri !== track.uri);
+			const foundTrack = res.tracks.find((t) => t.uri !== previousTrack.uri);
 			if (!foundTrack) return false;
 
 			player.queue.add(foundTrack);
@@ -771,14 +764,63 @@ export class Node {
 
 		const randomTrack = response.data.similartracks.track[Math.floor(Math.random() * response.data.similartracks.track.length)];
 		const res = await player.search(
-			{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: selectedSource },
+			{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: platform },
 			player.get("Internal_BotUser") as ClientUser
 		);
 		if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
 
-		const foundTrack = res.tracks.find((t) => t.uri !== track.uri);
+		const foundTrack = res.tracks.find((t) => t.uri !== previousTrack.uri);
 		if (!foundTrack) return false;
 
+		player.queue.add(foundTrack);
+		player.play();
+		return true;
+	}
+
+	/**
+	 * Handles YouTube-based autoplay.
+	 * @param {Player} player - The player instance.
+	 * @param {Track | UnresolvedTrack} previousTrack - The previous track.
+	 * @returns {Promise<boolean>} - Whether the autoplay was successful.
+	 */
+	private async handleYouTubeAutoplay(player: Player, previousTrack: Track | UnresolvedTrack): Promise<boolean> {
+		// Check if the previous track has a YouTube URL
+		const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) => previousTrack.uri.includes(url));
+		// Get the video ID from the previous track's URL
+		const videoID = hasYouTubeURL
+			? previousTrack.uri.split("=").pop()
+			: (
+					await this.manager.search(
+						{ query: `${previousTrack.author} - ${previousTrack.title}`, source: SearchPlatform.YouTube },
+						player.get("Internal_BotUser") as ClientUser
+					)
+			  ).tracks[0]?.uri
+					.split("=")
+					.pop();
+
+		// If the video ID is not found, return false
+		if (!videoID) return false;
+
+		// Get a random video index between 2 and 24
+		let randomIndex: number;
+		let searchURI: string;
+		do {
+			// Generate a random index between 2 and 24
+			randomIndex = Math.floor(Math.random() * 23) + 2;
+			// Build the search URI
+			searchURI = `https://www.youtube.com/watch?v=${videoID}&list=RD${videoID}&index=${randomIndex}`;
+		} while (previousTrack.uri.includes(searchURI));
+
+		// Search for the video and return false if the search fails
+		const res = await this.manager.search({ query: searchURI, source: SearchPlatform.YouTube }, player.get("Internal_BotUser") as ClientUser);
+		if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
+
+		// Find a track that is not the same as the current track
+		const foundTrack = res.tracks.find((t) => t.uri !== previousTrack.uri && t.author !== previousTrack.author && t.title !== previousTrack.title);
+		// If no track is found, return false
+		if (!foundTrack) return false;
+
+		// Add the found track to the queue and play it
 		player.queue.add(foundTrack);
 		player.play();
 		return true;
@@ -883,7 +925,7 @@ export class Node {
 		let success = false;
 
 		while (attempts <= player.autoplayTries) {
-			success = await this.handleAutoplay(player, track, attempts);
+			success = await this.handleAutoplay(player, attempts);
 			if (success) return;
 			attempts++;
 		}

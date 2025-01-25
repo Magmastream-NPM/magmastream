@@ -305,7 +305,7 @@ export class Manager extends EventEmitter {
 	 * The result is multiplied by 100 to get a percentage.
 	 * @returns {Collection<string, Node>}
 	 */
-	private get leastLoadNode(): Collection<string, Node> {
+	public get leastLoadNode(): Collection<string, Node> {
 		return this.nodes
 			.filter((node) => node.connected)
 			.sort((a, b) => {
@@ -322,7 +322,7 @@ export class Manager extends EventEmitter {
 	 * by the number of players in ascending order.
 	 * @returns {Collection<string, Node>} A collection of nodes sorted by player count.
 	 */
-	private get leastPlayersNode(): Collection<string, Node> {
+	public get leastPlayersNode(): Collection<string, Node> {
 		return this.nodes
 			.filter((node) => node.connected) // Filter out nodes that are not connected
 			.sort((a, b) => a.stats.players - b.stats.players); // Sort by the number of players
@@ -337,7 +337,7 @@ export class Manager extends EventEmitter {
 	 * lowest load is returned.
 	 * @returns {Node} The node to use.
 	 */
-	private get priorityNode(): Node {
+	public get priorityNode(): Node {
 		// Filter out nodes that are not connected or have a priority of 0
 		const filteredNodes = this.nodes.filter((node) => node.connected && node.options.priority > 0);
 		// Calculate the total weight
@@ -372,7 +372,7 @@ export class Manager extends EventEmitter {
 	 * If `usePriority` is false and `useNode` is not set, the node with the lowest load is chosen.
 	 * @returns {Node} The node to use.
 	 */
-	public get useableNodes(): Node {
+	public get useableNode(): Node {
 		return this.options.usePriority
 			? this.priorityNode
 			: this.options.useNode === UseNodeOptions.LeastLoad
@@ -524,7 +524,7 @@ export class Manager extends EventEmitter {
 	 * @returns The search result.
 	 */
 	public async search<T = User | ClientUser>(query: string | SearchQuery, requester?: T): Promise<SearchResult> {
-		const node = this.useableNodes;
+		const node = this.useableNode;
 
 		if (!node) {
 			throw new Error("No available nodes.");
@@ -1098,9 +1098,6 @@ export enum ManagerEventTypes {
 	SocketClosed = "socketClosed",
 	TrackStart = "trackStart",
 	TrackEnd = "trackEnd",
-	TrackEndReason = "trackEndReason",
-	TrackEndReasonRaw = "trackEndReasonRaw",
-	TrackEndReasonData = "trackEndReasonData",
 	TrackStuck = "trackStuck",
 	TrackError = "trackError",
 	SegmentsLoaded = "segmentsLoaded",
