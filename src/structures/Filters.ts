@@ -74,7 +74,7 @@ export class Filters {
 					volume,
 				},
 			},
-			guildId: this.player.guildId,
+			guildId: this.player.guild,
 		});
 
 		return this;
@@ -402,7 +402,8 @@ export class Filters {
 	}
 
 	public earrape(): this {
-		return this.setVolume(2.0).setFilterStatus("earrape", true);
+		this.player.setVolume(2.0)
+		return this.setFilterStatus("earrape", true);
 	}
 
 	public electronic(): this {
@@ -469,11 +470,7 @@ export class Filters {
 		}).setFilterStatus("doubletime", true);
 	}
 
-	// Volume setter method
-	public setVolume(volume: number): this {
-		this.volume = volume;
-		return this.applyFilter({ property: "volume", value: this.volume });
-	}
+	
 }
 
 /** Options for adjusting the timescale of audio. */
