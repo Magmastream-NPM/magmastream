@@ -11,8 +11,8 @@ export default function playerCheck(options: PlayerOptions) {
 		throw new TypeError("PlayerOptions must not be empty.");
 	}
 
-	// Get the guild ID, node, selfDeafen, selfMute, textChannel, voiceChannel, and volume from the options.
-	const { guildId, node, selfDeafen, selfMute, textChannel, voiceChannel, volume } = options;
+	// Get the guild ID, node, selfDeafen, selfMute, textChannelId, voiceChannelId, and volume from the options.
+	const { guildId, node, selfDeafen, selfMute, textChannelId, voiceChannelId, volume } = options;
 
 	// Validate the guild ID option
 	// The guild ID option must be a non-empty string.
@@ -38,16 +38,16 @@ export default function playerCheck(options: PlayerOptions) {
 		throw new TypeError('Player option "selfMute" must be a boolean.');
 	}
 
-	// Validate the textChannel option
-	// The textChannel option must be a non-empty string.
-	if (textChannel && !/^\d+$/.test(textChannel)) {
-		throw new TypeError('Player option "textChannel" must be a non-empty string.');
+	// Validate the textChannelId option
+	// The textChannelId option must be a non-empty string.
+	if (textChannelId && !/^\d+$/.test(textChannelId)) {
+		throw new TypeError('Player option "textChannelId" must be a non-empty string.');
 	}
 
-	// Validate the voiceChannel option
-	// The voiceChannel option must be a non-empty string.
-	if (voiceChannel && !/^\d+$/.test(voiceChannel)) {
-		throw new TypeError('Player option "voiceChannel" must be a non-empty string.');
+	// Validate the voiceChannelId option
+	// The voiceChannelId option must be a non-empty string.
+	if (voiceChannelId && !/^\d+$/.test(voiceChannelId)) {
+		throw new TypeError('Player option "voiceChannelId" must be a non-empty string.');
 	}
 
 	// Validate the volume option
@@ -56,4 +56,3 @@ export default function playerCheck(options: PlayerOptions) {
 		throw new TypeError('Player option "volume" must be a number.');
 	}
 }
-

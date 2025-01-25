@@ -91,3 +91,24 @@ export const vaporwaveEqualizer: Band[] = [
 	{ band: 12, gain: 0.15 },
 	{ band: 13, gain: 0.15 },
 ];
+
+export const popEqualizer: Band[] = [
+	{ band: 0, gain: 0.5 },
+	{ band: 1, gain: 1.5 },
+	{ band: 2, gain: 2 },
+	{ band: 3, gain: 1.5 },
+];
+
+export const electronicEqualizer: Band[] = [
+	{ band: 0, gain: 1.0 },
+	{ band: 1, gain: 2.0 },
+	{ band: 2, gain: 3.0 },
+	{ band: 3, gain: 2.5 },
+];
+
+export const radioEqualizer: Band[] = [
+	{ band: 0, gain: 3.0 },
+	{ band: 1, gain: 3.0 },
+	{ band: 2, gain: 1.0 },
+	{ band: 3, gain: 0.5 },
+];

@@ -1,13 +1,5 @@
 import { Filters } from "./Filters";
-import {
-	LavalinkResponse,
-	Manager,
-	ManagerEventTypes,
-	PlayerStateEventTypes,
-	PlaylistRawData,
-	SearchQuery,
-	SearchResult
-} from "./Manager";
+import { LavalinkResponse, Manager, ManagerEventTypes, PlayerStateEventTypes, PlaylistRawData, SearchQuery, SearchResult } from "./Manager";
 import { LavalinkInfo, Node, SponsorBlockSegment } from "./Node";
 import { Queue } from "./Queue";
 import { LoadTypes, Sizes, StateTypes, Structure, TrackSourceName, TrackUtils, VoiceState } from "./Utils";
@@ -39,9 +31,9 @@ export class Player {
 	/** The guild ID for the player. */
 	public guildId: string;
 	/** The voice channel for the player. */
-	public voiceChannel: string | null = null;
+	public voiceChannelId: string | null = null;
 	/** The text channel for the player. */
-	public textChannel: string | null = null;
+	public textChannelId: string | null = null;
 	/**The now playing message. */
 	public nowPlayingMessage?: Message;
 	/** The current state of the player. */
@@ -118,12 +110,12 @@ export class Player {
 		});
 
 		// Set the voice and text channels if they exist.
-		if (options.voiceChannel) this.voiceChannel = options.voiceChannel;
-		if (options.textChannel) this.textChannel = options.textChannel;
+		if (options.voiceChannelId) this.voiceChannelId = options.voiceChannelId;
+		if (options.textChannelId) this.textChannelId = options.textChannelId;
 
 		// Set the node to use, either the specified node or the first available node.
 		const node = this.manager.nodes.get(options.node);
-		this.node = node || this.manager.useableNodes;
+		this.node = node || this.manager.useableNode;
 
 		// If no node is available, throw an error.
 		if (!this.node) throw new RangeError("No available nodes.");
@@ -159,7 +151,7 @@ export class Player {
 	 * @throws {RangeError} If no voice channel has been set.
 	 */
 	public connect(): this {
-		if (!this.voiceChannel) throw new RangeError("No voice channel has been set.");
+		if (!this.voiceChannelId) throw new RangeError("No voice channel has been set.");
 
 		this.state = StateTypes.Connecting;
 
@@ -170,7 +162,7 @@ export class Player {
 			op: 4,
 			d: {
 				guild_id: this.guildId,
-				channel_id: this.voiceChannel,
+				channel_id: this.voiceChannelId,
 				self_mute: this.options.selfMute || false,
 				self_deaf: this.options.selfDeafen || false,
 			},
@@ -198,7 +190,7 @@ export class Player {
 	 * @throws {TypeError} If the player is not connected.
 	 */
 	public disconnect(): this {
-		if (this.voiceChannel === null) return this;
+		if (this.voiceChannelId === null) return this;
 
 		this.state = StateTypes.Disconnecting;
 
@@ -214,7 +206,7 @@ export class Player {
 			},
 		});
 
-		this.voiceChannel = null;
+		this.voiceChannelId = null;
 		this.state = StateTypes.Disconnected;
 
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
@@ -259,7 +251,7 @@ export class Player {
 	 * @returns {this} - The player instance.
 	 * @throws {TypeError} If the channel parameter is not a string.
 	 */
-	public setVoiceChannel(channel: string): this {
+	public setVoiceChannelId(channel: string): this {
 		// Validate the channel parameter
 		if (typeof channel !== "string") throw new TypeError("Channel must be a non-empty string.");
 
@@ -267,7 +259,7 @@ export class Player {
 		const oldPlayer = this ? { ...this } : null;
 
 		// Update the player voice channel
-		this.voiceChannel = channel;
+		this.voiceChannelId = channel;
 		this.connect();
 
 		// Emit a player state update event
@@ -275,8 +267,8 @@ export class Player {
 			changeType: PlayerStateEventTypes.ChannelChange,
 			details: {
 				changeType: "voice",
-				previousChannel: oldPlayer.voiceChannel || null,
-				currentChannel: this.voiceChannel,
+				previousChannel: oldPlayer.voiceChannelId || null,
+				currentChannel: this.voiceChannelId,
 			},
 		});
 
@@ -293,7 +285,7 @@ export class Player {
 	 * @returns {this} - The player instance for method chaining.
 	 * @throws {TypeError} If the channel parameter is not a string.
 	 */
-	public setTextChannel(channel: string): this {
+	public setTextChannelId(channel: string): this {
 		// Validate the channel parameter
 		if (typeof channel !== "string") throw new TypeError("Channel must be a non-empty string.");
 
@@ -301,15 +293,15 @@ export class Player {
 		const oldPlayer = this ? { ...this } : null;
 
 		// Update the text channel property
-		this.textChannel = channel;
+		this.textChannelId = channel;
 
 		// Emit a player state update event with channel change details
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.ChannelChange,
 			details: {
 				changeType: "text",
-				previousChannel: oldPlayer.textChannel || null,
-				currentChannel: this.textChannel,
+				previousChannel: oldPlayer.textChannelId || null,
+				currentChannel: this.textChannelId,
 			},
 		});
 
@@ -341,7 +333,7 @@ export class Player {
 	 *
 	 * @param {object} [optionsOrTrack] - The track to play or the options to play with.
 	 * @param {object} [playOptions] - The options to play with.
-		*
+	 *
 	 * @returns {Promise<void>}
 	 */
 	public async play(): Promise<void>;
@@ -432,7 +424,7 @@ export class Player {
 	 * @returns {Promise<Track[]>} - Array of recommended tracks.
 	 */
 	public async getRecommended<T = User | ClientUser>(track: Track, requester?: T): Promise<Track[]> {
-		const node = this.manager.useableNodes;
+		const node = this.manager.useableNode;
 
 		if (!node) {
 			throw new Error("No available nodes.");
@@ -649,7 +641,6 @@ export class Player {
 			},
 		});
 
-		// Return the current instance for chaining
 		return this;
 	}
 
@@ -716,22 +707,24 @@ export class Player {
 	 * Restarts the current track to the start.
 	 * If there's no current track and there are tracks in the queue, it plays the next track.
 	 */
-	public restart(): void {
+	public async restart(): Promise<Player> {
 		// Check if there is a current track in the queue
 		if (!this.queue.current?.track) {
 			// If the queue has tracks, play the next one
 			if (this.queue.length) this.play();
-			return;
+			return this;
 		}
 
 		// Reset the track's position to the start
-		this.node.rest.updatePlayer({
+		await this.node.rest.updatePlayer({
 			guildId: this.guildId,
 			data: {
 				position: 0,
 				encodedTrack: this.queue.current?.track,
 			},
 		});
+
+		return this;
 	}
 
 	/**
@@ -840,7 +833,6 @@ export class Player {
 			},
 		});
 
-		// Return the player instance for method chaining.
 		return this;
 	}
 
@@ -908,15 +900,46 @@ export class Player {
 		// If none of the above conditions are met, return null.
 		return null;
 	}
+
+	/**
+	 * Transfers the player to a different node.
+	 * @param identifier The identifier of the node to transfer the player to.
+	 * @returns The player instance.
+	 */
+	public async moveNode(identifier: string): Promise<Player> {
+		const node = this.manager.nodes.get(identifier);
+
+		if (!node) return this;
+		if (node.options.identifier === this.node.options.identifier) return this;
+		if (!node.connected) throw new Error("Provided node is not connected.");
+
+		await this.node.rest.destroyPlayer(this.guildId).catch(() => {});
+		this.manager.players.delete(this.guildId);
+		this.node = node;
+		this.manager.players.set(this.guildId, this);
+		return await this.restart();
+	}
+
+	/**
+	 * Transfers the player to a node with with the method you chose in ManagerOptions.
+	 * @returns The player instance.
+	 */
+	public async autoMoveNode(): Promise<Player> {
+		const node = this.manager.useableNode;
+
+		if (!node.connected) throw new Error("No nodes are available.");
+
+		return await this.moveNode(node.options.identifier);
+	}
 }
 
 export interface PlayerOptions {
 	/** The guild ID the Player belongs to. */
 	guildId: string;
 	/** The text channel the Player belongs to. */
-	textChannel: string;
+	textChannelId: string;
 	/** The voice channel the Player belongs to. */
-	voiceChannel?: string;
+	voiceChannelId?: string;
 	/** The node the Player uses. */
 	node?: string;
 	/** The initial volume the Player will use. */
