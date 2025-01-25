@@ -40,7 +40,7 @@ For real-time support and engaging discussions, join our vibrant [Discord Suppor
 | [Cool Music](https://discord.com/oauth2/authorize?client_id=923529398425096193&permissions=12888394808&redirect_uri=https%3A%2F%2Fdiscord.gg%2Fcool-music-support-925619107460698202&response_type=code&scope=bot%20identify%20applications.commands) | Itz Random    |
 | [Soundy](https://dsc.gg/sndy)                                                                                                                                                                                                                         | iaMJ          |
 | [HamBot](https://discord.com/oauth2/authorize?client_id=1049314312776335390)                                                                                                                                                                          | yanishamburger|
-| [Miyu]([https://discord.com/oauth2/authorize?client_id=1277180179273482280](https://discord.com/oauth2/authorize?client_id=1277180179273482280&permissions=572851999731703&response_type=code&redirect_uri=https%3A%2F%2Fdiscord.gg%2Ftn3nbFB8nX&integration_type=0&scope=identify+applications.commands+bot))                                                                                                                                                                          | Kenver|
+| [Miyu](https://discord.com/oauth2/authorize?client_id=1277180179273482280&permissions=572851999731703&response_type=code&redirect_uri=https%3A%2F%2Fdiscord.gg%2Ftn3nbFB8nX&integration_type=0&scope=identify+applications.commands+bot)              | Kenver        |
 
 Want to showcase your bot? Feel free to create a pull request and add it to our growing list of amazing bots powered by Magmastream!
 
