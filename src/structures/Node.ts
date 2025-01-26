@@ -656,6 +656,7 @@ export class Node {
 			[SearchPlatform.SoundCloud]: "soundcloud",
 			[SearchPlatform.Spotify]: "spotify",
 			[SearchPlatform.Tidal]: "tidal",
+			[SearchPlatform.VKMusic]: "vkmusic",
 			[SearchPlatform.YouTube]: "youtube",
 			[SearchPlatform.YouTubeMusic]: "youtube",
 		};
@@ -674,6 +675,7 @@ export class Node {
 			SearchPlatform.Bandcamp,
 			SearchPlatform.Jiosaavn,
 			SearchPlatform.Tidal,
+			SearchPlatform.VKMusic,
 			SearchPlatform.YouTubeMusic,
 			SearchPlatform.YouTube,
 		];

@@ -177,6 +177,10 @@ export class Manager extends EventEmitter {
 				if (state.isAutoplay && state?.data?.Internal_BotUser) {
 					player.setAutoplay(state.isAutoplay, state.data.Internal_BotUser as User | ClientUser);
 				}
+
+				// Delete the file after the player is successfully loaded
+				fs.unlinkSync(filePath);
+				this.emit("debug", `[MANAGER] Deleted player state file after loading: ${filePath}`);
 			}
 		}
 		this.emit("debug", "[MANAGER] Finished loading saved players.");
@@ -921,15 +925,16 @@ export enum UseNodeOptions {
 export type UseNodeOption = keyof typeof UseNodeOptions;
 
 export enum SearchPlatform {
-	YouTubeMusic = "ytmsearch",
-	YouTube = "ytsearch",
-	Spotify = "spsearch",
-	Jiosaavn = "jssearch",
-	SoundCloud = "scsearch",
-	Deezer = "dzsearch",
-	Tidal = "tdsearch",
 	AppleMusic = "amsearch",
 	Bandcamp = "bcsearch",
+	Deezer = "dzsearch",
+	Jiosaavn = "jssearch",
+	SoundCloud = "scsearch",
+	Spotify = "spsearch",
+	Tidal = "tdsearch",
+	VKMusic = "vksearch",
+	YouTube = "ytsearch",
+	YouTubeMusic = "ytmsearch",
 }
 
 export enum PlayerStateEventTypes {

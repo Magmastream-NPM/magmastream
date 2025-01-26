@@ -53,6 +53,7 @@ export class Player {
 	private static _manager: Manager;
 	private readonly data: Record<string, unknown> = {};
 	private dynamicLoopInterval: NodeJS.Timeout | null = null;
+	private dynamicRepeatIntervalMs: number | null = null;
 
 	/**
 	 * Set custom data.
@@ -240,6 +241,7 @@ export class Player {
 
 		this.node.rest.destroyPlayer(this.guildId);
 		this.manager.emit(ManagerEventTypes.PlayerDestroy, this);
+		this.queue.clear();
 		this.manager.players.delete(this.guildId);
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.PlayerDestroy,
@@ -723,9 +725,13 @@ export class Player {
 					this.queue.add(track);
 				});
 			}, ms);
+
+			// Store the ms value
+			this.dynamicRepeatIntervalMs = ms;
 		} else {
 			// Clear the interval and reset repeat states
 			clearInterval(this.dynamicLoopInterval);
+			this.dynamicRepeatIntervalMs = null;
 			this.trackRepeat = false;
 			this.queueRepeat = false;
 			this.dynamicRepeat = false;
@@ -989,9 +995,86 @@ export class Player {
 		}
 	}
 
-	private setRepeatStates(newPlayer: Player) {
-		if (this.queueRepeat) newPlayer.setQueueRepeat(true);
-		if (this.trackRepeat) newPlayer.setTrackRepeat(true);
+	/**
+	 * Transfers the player to a new server. If the player already exists on the new server
+	 * and force is false, this method will return the existing player. Otherwise, a new player
+	 * will be created and the current player will be destroyed.
+	 * @param {PlayerOptions} newOptions - The new options for the player.
+	 * @param {boolean} force - Whether to force the creation of a new player.
+	 * @returns {Promise<Player>} - The new player instance.
+	 */
+	public async switchGuild(newOptions: PlayerOptions, force: boolean = false): Promise<Player> {
+		let newPlayer = this.manager.players.get(newOptions.guildId);
+
+		// If the player already exists and force is false, return the existing player
+		if (newPlayer && !force) {
+			return newPlayer;
+		}
+
+		// Helper function to build tracks
+		const buildTrack = (trackData: Track | UnresolvedTrack) => {
+			return TrackUtils.buildUnresolved(trackData, trackData.requester);
+		};
+
+		// Create a new player if it doesn't exist or force is true
+		if (!newPlayer || force) {
+			newPlayer = this.manager.create({
+				guildId: newOptions.guildId,
+				textChannelId: newOptions.textChannelId,
+				voiceChannelId: newOptions.voiceChannelId,
+				volume: newOptions.volume ?? this.volume,
+				node: newOptions.node ?? this.node.options.identifier,
+				selfMute: newOptions.selfMute ?? this.options.selfMute,
+				selfDeafen: newOptions.selfDeafen ?? this.options.selfDeafen,
+			});
+
+			// Connect the new player
+			newPlayer.connect();
+
+			// Build tracks from the current player's queue
+			const tracks = [buildTrack(this.queue.current), ...this.queue.map(buildTrack)];
+
+			// Add tracks to the new player
+			newPlayer.queue.add(tracks);
+
+			// Play the first track if the old player was playing
+			if (this.playing) {
+				await newPlayer.play();
+				newPlayer.seek(this.position);
+			}
+
+			// Pause the new player if the old player was paused
+			if (this.paused) newPlayer.pause(true);
+
+			// Set repeat settings
+			if (this.queueRepeat) newPlayer.setQueueRepeat(true);
+			if (this.trackRepeat) newPlayer.setTrackRepeat(true);
+			if (this.dynamicRepeat && this.dynamicRepeatIntervalMs) {
+				newPlayer.setDynamicRepeat(true, this.dynamicRepeatIntervalMs);
+			}
+
+			// Destroy the current player
+			this.destroy();
+
+			// Emit a debug event with the transfer information
+			const debugInfo = {
+				success: true,
+				message: `Transferred ${tracks.length} tracks successfully to <#${newOptions.voiceChannelId}> bound to <#${newOptions.textChannelId}>.`,
+				player: {
+					guildId: newPlayer.guildId,
+					voiceChannelId: newPlayer.voiceChannelId,
+					textChannelId: newPlayer.textChannelId,
+					volume: newPlayer.volume,
+					playing: newPlayer.playing,
+					queueSize: newPlayer.queue.size,
+				},
+			};
+
+			this.manager.emit(ManagerEventTypes.Debug, `[PLAYER] Transferred player to a new server: ${JSON.stringify(debugInfo)}.`);
+		}
+
+		// Return the new player
+		return newPlayer;
 	}
 }
 
