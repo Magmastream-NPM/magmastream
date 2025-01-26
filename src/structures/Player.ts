@@ -114,8 +114,8 @@ export class Player {
 		if (options.textChannelId) this.textChannelId = options.textChannelId;
 
 		// Set the node to use, either the specified node or the first available node.
-
-		this.node = this.manager.useableNode;
+		const node = this.manager.nodes.get(options.node);
+		this.node = node || this.manager.useableNode;
 
 		// If no node is available, throw an error.
 		if (!this.node) throw new RangeError("No available nodes.");
@@ -943,7 +943,7 @@ export class Player {
 		const currentPlayer = this.manager.players.get(guildId);
 
 		if (this.manager.players.get(newGuildId)) {
-			return { message: "Unable to transfer, guild in use.", success: false };
+			return { message: "Unable to transfer, guild in use.", success: false, player: currentPlayer };
 		}
 
 		const newPlayer = this.manager.create({
@@ -965,7 +965,11 @@ export class Player {
 		currentPlayer.queue.clear();
 		currentPlayer.destroy();
 
-		return { success: true, message: `Transferred ${tracks.length} tracks successfully to <#${voiceChannelId}> bound to <#${textChannelId}>.` };
+		return {
+			success: true,
+			message: `Transferred ${tracks.length} tracks successfully to <#${voiceChannelId}> bound to <#${textChannelId}>.`,
+			player: newPlayer,
+		};
 	}
 }
 
@@ -977,7 +981,7 @@ export interface PlayerOptions {
 	/** The voice channel the Player belongs to. */
 	voiceChannelId?: string;
 	/** The node the Player uses. */
-	node?: Node;
+	node?: string;
 	/** The initial volume the Player will use. */
 	volume?: number;
 	/** If the player should mute itself. */
