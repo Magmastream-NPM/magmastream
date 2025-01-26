@@ -933,11 +933,9 @@ export class Player {
 	}
 
 	/**
-	 * Move a player from one server to the next along with all its tracks.
-	 * @param guildId The server you are transferring from.
-	 * @param newGuildId The server id to which you want to transfer to.
-	 * @param voiceChannelId The voice channel id to which you want to transfer to.
-	 * @param textChannelId The text channel id to which now playing should bind to.
+	 * Transfers a player from one server to another, including all its tracks.
+	 * @param guildId The ID of the server to transfer the player from.
+	 * @param newOptions The new PlayerOptions for the player.
 	 */
 	public async switchGuild(guildId: string, newOptions: PlayerOptions) {
 		const currentPlayer = this.manager.players.get(guildId);
