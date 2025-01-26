@@ -309,7 +309,7 @@ export class Manager extends EventEmitter {
 	 * The result is multiplied by 100 to get a percentage.
 	 * @returns {Collection<string, Node>}
 	 */
-	public get leastLoadNode(): Collection<string, Node> {
+	private get leastLoadNode(): Collection<string, Node> {
 		return this.nodes
 			.filter((node) => node.connected)
 			.sort((a, b) => {
@@ -326,7 +326,7 @@ export class Manager extends EventEmitter {
 	 * by the number of players in ascending order.
 	 * @returns {Collection<string, Node>} A collection of nodes sorted by player count.
 	 */
-	public get leastPlayersNode(): Collection<string, Node> {
+	private get leastPlayersNode(): Collection<string, Node> {
 		return this.nodes
 			.filter((node) => node.connected) // Filter out nodes that are not connected
 			.sort((a, b) => a.stats.players - b.stats.players); // Sort by the number of players
@@ -341,7 +341,7 @@ export class Manager extends EventEmitter {
 	 * lowest load is returned.
 	 * @returns {Node} The node to use.
 	 */
-	public get priorityNode(): Node {
+	private get priorityNode(): Node {
 		// Filter out nodes that are not connected or have a priority of 0
 		const filteredNodes = this.nodes.filter((node) => node.connected && node.options.priority > 0);
 		// Calculate the total weight
