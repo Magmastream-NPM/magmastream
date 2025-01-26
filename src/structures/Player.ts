@@ -939,20 +939,18 @@ export class Player {
 	 * @param voiceChannelId The voice channel id to which you want to transfer to.
 	 * @param textChannelId The text channel id to which now playing should bind to.
 	 */
-	public async switchGuild(guildId: string, newGuildId: string, voiceChannelId: string, textChannelId: string) {
+	public async switchGuild(guildId: string, newOptions: PlayerOptions) {
 		const currentPlayer = this.manager.players.get(guildId);
 
-		if (this.manager.players.get(newGuildId)) {
-			return { message: "Unable to transfer, guild in use.", success: false, player: currentPlayer };
-		}
+		if (this.manager.players.get(newOptions.guildId)) return this;
 
 		const newPlayer = this.manager.create({
-			guildId: newGuildId,
-			textChannelId,
-			voiceChannelId,
-			volume: this.volume,
-			selfMute: false,
-			selfDeafen: true,
+			guildId: newOptions.guildId,
+			textChannelId: newOptions.textChannelId,
+			voiceChannelId: newOptions.voiceChannelId,
+			volume: newOptions.volume,
+			selfMute: newOptions.selfMute,
+			selfDeafen: newOptions.selfDeafen,
 		});
 
 		newPlayer.connect();
@@ -965,11 +963,14 @@ export class Player {
 		currentPlayer.queue.clear();
 		currentPlayer.destroy();
 
-		return {
+		const debugInfo = {
 			success: true,
-			message: `Transferred ${tracks.length} tracks successfully to <#${voiceChannelId}> bound to <#${textChannelId}>.`,
-			player: newPlayer,
+			message: `Transferred ${tracks.length} tracks successfully to ${newOptions.voiceChannelId} bound to ${newOptions.textChannelId}.`,
 		};
+
+		this.manager.emit(ManagerEventTypes.Debug, `[PLAYER] Transferred player to a new server: ${JSON.stringify(debugInfo)}.`);
+
+		return newPlayer;
 	}
 }
 
