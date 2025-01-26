@@ -15,7 +15,7 @@ import {
 	TrackUtils,
 	VoicePacket,
 	VoiceServer,
-	WebSocketClosedEvent
+	WebSocketClosedEvent,
 } from "./Utils";
 import { Collection } from "@discordjs/collection";
 import { EventEmitter } from "events";
@@ -111,8 +111,8 @@ export class Manager extends EventEmitter {
 				}
 				const playerOptions: PlayerOptions = {
 					guildId: state.options.guildId,
-					textChannel: state.options.textChannel,
-					voiceChannel: state.options.voiceChannel,
+					textChannelId: state.options.textChannelId,
+					voiceChannelId: state.options.voiceChannelId,
 					selfDeafen: state.options.selfDeafen,
 					volume: lavaPlayer.volume || state.options.volume,
 				};
@@ -212,7 +212,7 @@ export class Manager extends EventEmitter {
 		const player = this.players.get(guildId);
 
 		// If the player does not exist or is disconnected, or the voice channel is not specified, do not save the player state
-		if (!player || player.state === StateTypes.Disconnected || !player.voiceChannel) {
+		if (!player || player.state === StateTypes.Disconnected || !player.voiceChannelId) {
 			// Clean up any inactive players
 			return this.cleanupInactivePlayers();
 		}
@@ -848,17 +848,17 @@ export class Manager extends EventEmitter {
 
 		if (update.user_id !== this.options.clientId) return;
 		if (update.channel_id) {
-			if (player.voiceChannel !== update.channel_id) {
-				this.emit("playerMove", player, player.voiceChannel, update.channel_id);
+			if (player.voiceChannelId !== update.channel_id) {
+				this.emit("playerMove", player, player.voiceChannelId, update.channel_id);
 			}
 
 			player.voiceState.sessionId = update.session_id;
-			player.voiceChannel = update.channel_id;
+			player.voiceChannelId = update.channel_id;
 			return;
 		}
 
-		this.emit("playerDisconnect", player, player.voiceChannel);
-		player.voiceChannel = null;
+		this.emit("playerDisconnect", player, player.voiceChannelId);
+		player.voiceChannelId = null;
 		player.voiceState = Object.assign({});
 		player.destroy();
 		return;

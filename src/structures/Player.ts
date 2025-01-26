@@ -32,9 +32,9 @@ export class Player {
 	/** The guild ID for the player. */
 	public guildId: string;
 	/** The voice channel for the player. */
-	public voiceChannel: string | null = null;
+	public voiceChannelId: string | null = null;
 	/** The text channel for the player. */
-	public textChannel: string | null = null;
+	public textChannelId: string | null = null;
 	/**The now playing message. */
 	public nowPlayingMessage?: Message;
 	/** The current state of the player. */
@@ -111,8 +111,8 @@ export class Player {
 		});
 
 		// Set the voice and text channels if they exist.
-		if (options.voiceChannel) this.voiceChannel = options.voiceChannel;
-		if (options.textChannel) this.textChannel = options.textChannel;
+		if (options.voiceChannelId) this.voiceChannelId = options.voiceChannelId;
+		if (options.textChannelId) this.textChannelId = options.textChannelId;
 
 		// Set the node to use, either the specified node or the first available node.
 		const node = this.manager.nodes.get(options.node);
@@ -152,7 +152,7 @@ export class Player {
 	 * @throws {RangeError} If no voice channel has been set.
 	 */
 	public connect(): this {
-		if (!this.voiceChannel) throw new RangeError("No voice channel has been set.");
+		if (!this.voiceChannelId) throw new RangeError("No voice channel has been set.");
 
 		this.state = StateTypes.Connecting;
 
@@ -163,7 +163,7 @@ export class Player {
 			op: 4,
 			d: {
 				guild_id: this.guildId,
-				channel_id: this.voiceChannel,
+				channel_id: this.voiceChannelId,
 				self_mute: this.options.selfMute || false,
 				self_deaf: this.options.selfDeafen || false,
 			},
@@ -191,7 +191,7 @@ export class Player {
 	 * @throws {TypeError} If the player is not connected.
 	 */
 	public disconnect(): this {
-		if (this.voiceChannel === null) return this;
+		if (this.voiceChannelId === null) return this;
 
 		this.state = StateTypes.Disconnecting;
 
@@ -207,7 +207,7 @@ export class Player {
 			},
 		});
 
-		this.voiceChannel = null;
+		this.voiceChannelId = null;
 		this.state = StateTypes.Disconnected;
 
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
@@ -260,7 +260,7 @@ export class Player {
 		const oldPlayer = this ? { ...this } : null;
 
 		// Update the player voice channel
-		this.voiceChannel = channel;
+		this.voiceChannelId = channel;
 		this.connect();
 
 		// Emit a player state update event
@@ -268,8 +268,8 @@ export class Player {
 			changeType: PlayerStateEventTypes.ChannelChange,
 			details: {
 				changeType: "voice",
-				previousChannel: oldPlayer.voiceChannel || null,
-				currentChannel: this.voiceChannel,
+				previousChannel: oldPlayer.voiceChannelId || null,
+				currentChannel: this.voiceChannelId,
 			},
 		});
 
@@ -294,15 +294,15 @@ export class Player {
 		const oldPlayer = this ? { ...this } : null;
 
 		// Update the text channel property
-		this.textChannel = channel;
+		this.textChannelId = channel;
 
 		// Emit a player state update event with channel change details
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.ChannelChange,
 			details: {
 				changeType: "text",
-				previousChannel: oldPlayer.textChannel || null,
-				currentChannel: this.textChannel,
+				previousChannel: oldPlayer.textChannelId || null,
+				currentChannel: this.textChannelId,
 			},
 		});
 
@@ -988,15 +988,20 @@ export class Player {
 			throw new Error(error);
 		}
 	}
+
+	private setRepeatStates(newPlayer: Player) {
+		if (this.queueRepeat) newPlayer.setQueueRepeat(true);
+		if (this.trackRepeat) newPlayer.setTrackRepeat(true);
+	}
 }
 
 export interface PlayerOptions {
 	/** The guild ID the Player belongs to. */
 	guildId: string;
 	/** The text channel the Player belongs to. */
-	textChannel: string;
+	textChannelId: string;
 	/** The voice channel the Player belongs to. */
-	voiceChannel?: string;
+	voiceChannelId?: string;
 	/** The node the Player uses. */
 	node?: string;
 	/** The initial volume the Player will use. */
