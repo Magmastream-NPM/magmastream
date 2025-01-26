@@ -1,33 +1,33 @@
 name: Build
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+ push:
+  branches:
+   - main
+ pull_request:
+  branches:
+   - main
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+ build:
+  runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
+  steps:
+   - name: Checkout repository
+     uses: actions/checkout@v2
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v2
-        with:
-          node-version: '18'
+   - name: Set up Node.js
+     uses: actions/setup-node@v2
+     with:
+      node-version: "18"
 
-      - name: Remove node_modules and package-lock.json
-        run: |
-          rm -rf node_modules
-          rm -f package-lock.json
+   - name: Remove node_modules and package-lock.json
+     run: |
+      rm -rf node_modules
+      rm -f package-lock.json
 
-      - name: Install dependencies
-        run: npm install
+   - name: Install dependencies
+     run: npm install
 
-      - name: Run lint, build, and types
-        run: npm run ci
+   - name: Run lint, build, and types
+     run: npm run ci

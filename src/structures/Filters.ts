@@ -1,4 +1,14 @@
-import { Band, bassBoostEqualizer, softEqualizer, trebleBassEqualizer, tvEqualizer, vaporwaveEqualizer } from "../utils/filtersEqualizers";
+import {
+	Band,
+	bassBoostEqualizer,
+	electronicEqualizer,
+	popEqualizer,
+	radioEqualizer,
+	softEqualizer,
+	trebleBassEqualizer,
+	tvEqualizer,
+	vaporwaveEqualizer,
+} from "../utils/filtersEqualizers";
 import { Player } from "./Player";
 
 export class Filters {
@@ -52,11 +62,11 @@ export class Filters {
 
 	/**
 	 * Updates the player's filters by applying the current settings.
-	 * 
+	 *
 	 * This method sends the updated filter settings, including distortion, equalizer,
 	 * karaoke, rotation, timescale, vibrato, and volume, to the player. It ensures that
 	 * the player's audio output is updated to reflect the applied filters.
-	 * 
+	 *
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
 	private async updateFilters(): Promise<this> {
@@ -82,10 +92,10 @@ export class Filters {
 
 	/**
 	 * Applies a specific filter to the player.
-	 * 
+	 *
 	 * This method sets a filter property to the specified value and updates the player's
 	 * filters if the `updateFilters` flag is true.
-	 * 
+	 *
 	 * @param {Object} filter - The filter property and value to apply.
 	 * @param {string} filter.property - The property of the filter to modify.
 	 * @param {any} filter.value - The value to set for the filter property.
@@ -104,10 +114,10 @@ export class Filters {
 
 	/**
 	 * Sets the status of a specific filter.
-	 * 
+	 *
 	 * This method updates the filter status to either true or false, indicating whether
 	 * the filter is applied or not. This helps track which filters are active.
-	 * 
+	 *
 	 * @param {keyof availableFilters} filter - The filter to update.
 	 * @param {boolean} status - The status to set (true for active, false for inactive).
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
@@ -119,12 +129,12 @@ export class Filters {
 
 	/**
 	 * Sets the equalizer bands for the player.
-	 * 
+	 *
 	 * This method updates the player's equalizer settings by applying the provided
 	 * bands configuration. The equalizer is an array of Band objects, each containing
 	 * a band number and a gain value. The method ensures that the filters are updated
 	 * after setting the equalizer, to reflect the changes in audio output.
-	 * 
+	 *
 	 * @param {Band[]} [bands] - The equalizer bands to apply. Each band includes a
 	 * band number and a gain value. If no bands are provided, the equalizer is reset.
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
@@ -135,10 +145,10 @@ export class Filters {
 
 	/**
 	 * Applies the "8D audio" effect by setting a rotation filter.
-	 * 
+	 *
 	 * This method creates the "8D audio" effect, which gives the illusion of sound
 	 * moving around the listener's head. It applies a subtle rotation effect to the audio.
-	 * 
+	 *
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public eightD(): this {
@@ -147,10 +157,10 @@ export class Filters {
 
 	/**
 	 * Applies the bass boost effect by setting an equalizer with boosted bass frequencies.
-	 * 
+	 *
 	 * This method enhances the lower frequencies of the audio, giving the audio a deep
 	 * and powerful bass response.
-	 * 
+	 *
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public bassBoost(): this {
@@ -159,10 +169,10 @@ export class Filters {
 
 	/**
 	 * Applies the nightcore effect by adjusting the speed and pitch of the audio.
-	 * 
+	 *
 	 * This method increases the tempo and pitch of the audio, giving it a faster and
 	 * higher-pitched sound, characteristic of the nightcore genre.
-	 * 
+	 *
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public nightcore(): this {
@@ -175,9 +185,9 @@ export class Filters {
 
 	/**
 	 * Applies the slow-motion effect by reducing the speed and pitch of the audio.
-	 * 
+	 *
 	 * This method slows down the audio, giving it a slower and more relaxed feel.
-	 * 
+	 *
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public slowmo(): this {
@@ -190,10 +200,10 @@ export class Filters {
 
 	/**
 	 * Applies a soft equalizer to give the audio a smoother sound.
-	 * 
+	 *
 	 * This method adjusts the equalizer settings to soften the frequencies and give
 	 * the audio a more mellow tone.
-	 * 
+	 *
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public soft(): this {
@@ -202,10 +212,10 @@ export class Filters {
 
 	/**
 	 * Applies a TV-like equalizer effect to the audio.
-	 * 
+	 *
 	 * This method adjusts the equalizer to give the audio a "TV" effect, which may
 	 * simulate the audio quality heard from television speakers.
-	 * 
+	 *
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public tv(): this {
@@ -214,10 +224,10 @@ export class Filters {
 
 	/**
 	 * Applies the "treble and bass boost" effect to the audio.
-	 * 
+	 *
 	 * This method adjusts the equalizer to boost both the treble (high frequencies)
 	 * and bass (low frequencies), giving the audio a more balanced and enhanced sound.
-	 * 
+	 *
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public trebleBass(): this {
@@ -226,10 +236,10 @@ export class Filters {
 
 	/**
 	 * Applies the vaporwave effect by adjusting the equalizer and pitch.
-	 * 
+	 *
 	 * This method applies a vaporwave-style equalizer, with softer tones, and adjusts
 	 * the pitch to give the audio a dreamy, nostalgic feel.
-	 * 
+	 *
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public vaporwave(): this {
@@ -238,10 +248,10 @@ export class Filters {
 
 	/**
 	 * Applies a distortion effect to the audio.
-	 * 
+	 *
 	 * This method applies a distortion effect by adjusting various distortion parameters.
 	 * It can make the audio sound rougher and more intense.
-	 * 
+	 *
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public distort(): this {
@@ -259,10 +269,10 @@ export class Filters {
 
 	/**
 	 * Sets the karaoke effect on the audio.
-	 * 
+	 *
 	 * This method adjusts the player's audio output to apply a karaoke effect, which
 	 * may include filtering out vocals or adjusting levels for optimal karaoke performance.
-	 * 
+	 *
 	 * @param {karaokeOptions} [karaoke] - The karaoke settings to apply (level, mono level, filter band, etc.).
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
@@ -275,10 +285,10 @@ export class Filters {
 
 	/**
 	 * Sets the timescale (speed, pitch, rate) for the audio.
-	 * 
+	 *
 	 * This method adjusts the speed, pitch, and rate of the audio, allowing for effects
 	 * such as faster or slower playback, pitch shifts, and time dilation.
-	 * 
+	 *
 	 * @param {timescaleOptions} [timescale] - The timescale settings to apply (speed, pitch, rate).
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
@@ -288,10 +298,10 @@ export class Filters {
 
 	/**
 	 * Sets the vibrato effect on the audio.
-	 * 
+	 *
 	 * This method applies a vibrato effect to the audio, which creates a wobble in the
 	 * pitch by modulating it at a specified frequency and depth.
-	 * 
+	 *
 	 * @param {vibratoOptions} [vibrato] - The vibrato settings to apply (frequency and depth).
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
@@ -301,10 +311,10 @@ export class Filters {
 
 	/**
 	 * Sets the rotation effect on the audio.
-	 * 
+	 *
 	 * This method applies a rotation effect to the audio, creating the illusion of sound
 	 * moving around the listener's head.
-	 * 
+	 *
 	 * @param {rotationOptions} [rotation] - The rotation settings (rotationHz).
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
@@ -314,10 +324,10 @@ export class Filters {
 
 	/**
 	 * Sets the distortion effect on the audio.
-	 * 
+	 *
 	 * This method applies a distortion effect to the audio, which adds an aggressive,
 	 * rough texture to the sound.
-	 * 
+	 *
 	 * @param {distortionOptions} [distortion] - The distortion settings to apply.
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
@@ -325,71 +335,7 @@ export class Filters {
 		return this.applyFilter({ property: "distortion", value: distortion });
 	}
 
-	/**
-	 * Clears all filters applied to the audio.
-	 * 
-	 * This method resets all filter settings to their default values and removes any
-	 * active filters from the player.
-	 * 
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
-	 */
-	public async clearFilters(): Promise<this> {
-		this.filterStatus = {
-			bassboost: false,
-			distort: false,
-			eightD: false,
-			karaoke: false,
-			nightcore: false,
-			slowmo: false,
-			soft: false,
-			trebleBass: false,
-			tv: false,
-			vaporwave: false,
-			pop: false,
-			party: false,
-			earrape: false,
-			electronic: false,
-			radio: false,
-			tremolo: false,
-			china: false,
-			chipmunk: false,
-			darthvader: false,
-			daycore: false,
-			doubletime: false,
-		};
-
-		this.player.filters = new Filters(this.player);
-		this.setEqualizer([]);
-		this.setDistortion(null);
-		this.setKaraoke(null);
-		this.setRotation(null);
-		this.setTimescale(null);
-		this.setVibrato(null);
-
-		await this.updateFilters();
-		return this;
-	}
-
-	/**
-	 * Retrieves the status of a specific filter.
-	 * 
-	 * This method returns whether a specific filter is currently applied or not.
-	 * 
-	 * @param {keyof availableFilters} filter - The filter to check.
-	 * @returns {boolean} - Returns true if the filter is active, false otherwise.
-	 */
-	public getFilterStatus(filter: keyof availableFilters): boolean {
-		return this.filterStatus[filter];
-	}
-
-	// New filters
 	public pop(): this {
-		const popEqualizer: Band[] = [
-			{ band: 0, gain: 0.5 },
-			{ band: 1, gain: 1.5 },
-			{ band: 2, gain: 2 },
-			{ band: 3, gain: 1.5 },
-		];
 		return this.setEqualizer(popEqualizer).setFilterStatus("pop", true);
 	}
 
@@ -402,26 +348,15 @@ export class Filters {
 	}
 
 	public earrape(): this {
-		return this.setVolume(2.0).setFilterStatus("earrape", true);
+		this.player.setVolume(200);
+		return this.setFilterStatus("earrape", true);
 	}
 
 	public electronic(): this {
-		const electronicEqualizer: Band[] = [
-			{ band: 0, gain: 1.0 },
-			{ band: 1, gain: 2.0 },
-			{ band: 2, gain: 3.0 },
-			{ band: 3, gain: 2.5 },
-		];
 		return this.setEqualizer(electronicEqualizer).setFilterStatus("electronic", true);
 	}
 
 	public radio(): this {
-		const radioEqualizer: Band[] = [
-			{ band: 0, gain: 3.0 },
-			{ band: 1, gain: 3.0 },
-			{ band: 2, gain: 1.0 },
-			{ band: 3, gain: 0.5 },
-		];
 		return this.setEqualizer(radioEqualizer).setFilterStatus("radio", true);
 	}
 
@@ -469,10 +404,61 @@ export class Filters {
 		}).setFilterStatus("doubletime", true);
 	}
 
-	// Volume setter method
-	public setVolume(volume: number): this {
-		this.volume = volume;
-		return this.applyFilter({ property: "volume", value: this.volume });
+	/**
+	 * Clears all filters applied to the audio.
+	 *
+	 * This method resets all filter settings to their default values and removes any
+	 * active filters from the player.
+	 *
+	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 */
+	public async clearFilters(): Promise<this> {
+		this.filterStatus = {
+			bassboost: false,
+			distort: false,
+			eightD: false,
+			karaoke: false,
+			nightcore: false,
+			slowmo: false,
+			soft: false,
+			trebleBass: false,
+			tv: false,
+			vaporwave: false,
+			pop: false,
+			party: false,
+			earrape: false,
+			electronic: false,
+			radio: false,
+			tremolo: false,
+			china: false,
+			chipmunk: false,
+			darthvader: false,
+			daycore: false,
+			doubletime: false,
+		};
+
+		this.player.filters = new Filters(this.player);
+		this.setEqualizer([]);
+		this.setDistortion(null);
+		this.setKaraoke(null);
+		this.setRotation(null);
+		this.setTimescale(null);
+		this.setVibrato(null);
+
+		await this.updateFilters();
+		return this;
+	}
+
+	/**
+	 * Retrieves the status of a specific filter.
+	 *
+	 * This method returns whether a specific filter is currently applied or not.
+	 *
+	 * @param {keyof availableFilters} filter - The filter to check.
+	 * @returns {boolean} - Returns true if the filter is active, false otherwise.
+	 */
+	public getFilterStatus(filter: keyof availableFilters): boolean {
+		return this.filterStatus[filter];
 	}
 }
 
