@@ -177,6 +177,10 @@ export class Manager extends EventEmitter {
 				if (state.isAutoplay && state?.data?.Internal_BotUser) {
 					player.setAutoplay(state.isAutoplay, state.data.Internal_BotUser as User | ClientUser);
 				}
+
+				// Delete the file after the player is successfully loaded
+				fs.unlinkSync(filePath);
+				this.emit("debug", `[MANAGER] Deleted player state file after loading: ${filePath}`);
 			}
 		}
 		this.emit("debug", "[MANAGER] Finished loading saved players.");
@@ -305,7 +309,7 @@ export class Manager extends EventEmitter {
 	 * The result is multiplied by 100 to get a percentage.
 	 * @returns {Collection<string, Node>}
 	 */
-	private get leastLoadNode(): Collection<string, Node> {
+	public get leastLoadNode(): Collection<string, Node> {
 		return this.nodes
 			.filter((node) => node.connected)
 			.sort((a, b) => {
@@ -322,7 +326,7 @@ export class Manager extends EventEmitter {
 	 * by the number of players in ascending order.
 	 * @returns {Collection<string, Node>} A collection of nodes sorted by player count.
 	 */
-	private get leastPlayersNode(): Collection<string, Node> {
+	public get leastPlayersNode(): Collection<string, Node> {
 		return this.nodes
 			.filter((node) => node.connected) // Filter out nodes that are not connected
 			.sort((a, b) => a.stats.players - b.stats.players); // Sort by the number of players
@@ -337,7 +341,7 @@ export class Manager extends EventEmitter {
 	 * lowest load is returned.
 	 * @returns {Node} The node to use.
 	 */
-	private get priorityNode(): Node {
+	public get priorityNode(): Node {
 		// Filter out nodes that are not connected or have a priority of 0
 		const filteredNodes = this.nodes.filter((node) => node.connected && node.options.priority > 0);
 		// Calculate the total weight
@@ -921,15 +925,16 @@ export enum UseNodeOptions {
 export type UseNodeOption = keyof typeof UseNodeOptions;
 
 export enum SearchPlatform {
-	YouTubeMusic = "ytmsearch",
-	YouTube = "ytsearch",
-	Spotify = "spsearch",
-	Jiosaavn = "jssearch",
-	SoundCloud = "scsearch",
-	Deezer = "dzsearch",
-	Tidal = "tdsearch",
 	AppleMusic = "amsearch",
 	Bandcamp = "bcsearch",
+	Deezer = "dzsearch",
+	Jiosaavn = "jssearch",
+	SoundCloud = "scsearch",
+	Spotify = "spsearch",
+	Tidal = "tdsearch",
+	VKMusic = "vksearch",
+	YouTube = "ytsearch",
+	YouTubeMusic = "ytmsearch",
 }
 
 export enum PlayerStateEventTypes {
@@ -1098,9 +1103,6 @@ export enum ManagerEventTypes {
 	SocketClosed = "socketClosed",
 	TrackStart = "trackStart",
 	TrackEnd = "trackEnd",
-	TrackEndReason = "trackEndReason",
-	TrackEndReasonRaw = "trackEndReasonRaw",
-	TrackEndReasonData = "trackEndReasonData",
 	TrackStuck = "trackStuck",
 	TrackError = "trackError",
 	SegmentsLoaded = "segmentsLoaded",
