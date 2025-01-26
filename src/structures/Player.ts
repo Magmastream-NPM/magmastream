@@ -114,8 +114,8 @@ export class Player {
 		if (options.textChannelId) this.textChannelId = options.textChannelId;
 
 		// Set the node to use, either the specified node or the first available node.
-		const node = this.manager.nodes.get(options.node);
-		this.node = node || this.manager.useableNode;
+
+		this.node = this.manager.useableNode;
 
 		// If no node is available, throw an error.
 		if (!this.node) throw new RangeError("No available nodes.");
@@ -931,6 +931,42 @@ export class Player {
 
 		return await this.moveNode(node.options.identifier);
 	}
+
+	/**
+	 * Move a player from one server to the next along with all its tracks.
+	 * @param guildId The server you are transferring from.
+	 * @param newGuildId The server id to which you want to transfer to.
+	 * @param voiceChannelId The voice channel id to which you want to transfer to.
+	 * @param textChannelId The text channel id to which now playing should bind to.
+	 */
+	public async switchGuild(guildId: string, newGuildId: string, voiceChannelId: string, textChannelId: string) {
+		const currentPlayer = this.manager.players.get(guildId);
+
+		if (this.manager.players.get(newGuildId)) {
+			return { message: "Unable to transfer, guild in use.", success: false };
+		}
+
+		const newPlayer = this.manager.create({
+			guildId: newGuildId,
+			textChannelId,
+			voiceChannelId,
+			volume: this.volume,
+			selfMute: false,
+			selfDeafen: true,
+		});
+
+		newPlayer.connect();
+
+		const tracks = currentPlayer.queue.map((t) => t);
+
+		await newPlayer.play(currentPlayer.queue.current);
+
+		newPlayer.queue.add(tracks);
+		currentPlayer.queue.clear();
+		currentPlayer.destroy();
+
+		return { success: true, message: `Transferred ${tracks.length} tracks successfully to <#${voiceChannelId}> bound to <#${textChannelId}>.` };
+	}
 }
 
 export interface PlayerOptions {
@@ -941,7 +977,7 @@ export interface PlayerOptions {
 	/** The voice channel the Player belongs to. */
 	voiceChannelId?: string;
 	/** The node the Player uses. */
-	node?: string;
+	node?: Node;
 	/** The initial volume the Player will use. */
 	volume?: number;
 	/** If the player should mute itself. */
