@@ -381,6 +381,7 @@ export enum TrackSourceTypes {
 	SoundCloud = "soundcloud",
 	Spotify = "spotify",
 	Tidal = "tidal",
+	VKMusic = "vkmusic",
 	YouTube = "youtube",
 }
 

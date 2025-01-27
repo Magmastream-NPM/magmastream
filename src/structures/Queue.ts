@@ -1,12 +1,11 @@
-import { Track, UnresolvedTrack } from "./Player";
-import { TrackUtils } from "./Utils";
+import { Track } from "./Player";
 import { Manager, ManagerEventTypes, PlayerStateEventTypes } from "./Manager"; // Import Manager to access emit method
 import { ClientUser } from "discord.js";
 
 /**
  * The player's queue, the `current` property is the currently playing track, think of the rest as the up-coming tracks.
  */
-export class Queue extends Array<Track | UnresolvedTrack> {
+export class Queue extends Array<Track> {
 	/**
 	 * The total duration of the queue in milliseconds.
 	 * This includes the duration of the currently playing track.
@@ -37,10 +36,10 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 	}
 
 	/** The current track */
-	public current: Track | UnresolvedTrack | null = null;
+	public current: Track | null = null;
 
 	/** The previous track */
-	public previous: Track | UnresolvedTrack | null = null;
+	public previous: Track | null = null;
 
 	/** The Manager instance. */
 	public manager: Manager;
@@ -66,7 +65,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 	 * @param track The track or tracks to add. Can be a single `Track` or an array of `Track`s.
 	 * @param [offset=null] The position to add the track(s) at. If not provided, the track(s) will be added at the end of the queue.
 	 */
-	public add(track: (Track | UnresolvedTrack) | (Track | UnresolvedTrack)[], offset?: number): void {
+	public add(track: Track | Track[], offset?: number): void {
 		// Get the track info as a string
 		const trackInfo = Array.isArray(track) ? track.map((t) => JSON.stringify(t, null, 2)).join(", ") : JSON.stringify(track, null, 2);
 
@@ -75,46 +74,41 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 
 		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
-		// Validate the track
-		if (!TrackUtils.validate(track)) {
-			throw new RangeError('Track must be a "Track" or "Track[]".');
+		// If the track is valid, add it to the queue
 
-			// If the track is valid, add it to the queue
+		// If the queue is empty, set the track as the current track
+		if (!this.current) {
+			if (Array.isArray(track)) {
+				this.current = (track.shift() as Track) || null;
+				this.push(...track);
+			} else {
+				this.current = track;
+			}
 		} else {
-			// If the queue is empty, set the track as the current track
-			if (!this.current) {
+			// If an offset is provided, add the track(s) at that position
+			if (typeof offset !== "undefined" && typeof offset === "number") {
+				// Validate the offset
+				if (isNaN(offset)) {
+					throw new RangeError("Offset must be a number.");
+				}
+
+				// Make sure the offset is between 0 and the length of the queue
+				if (offset < 0 || offset > this.length) {
+					throw new RangeError(`Offset must be between 0 and ${this.length}.`);
+				}
+
+				// Add the track(s) at the offset position
 				if (Array.isArray(track)) {
-					this.current = track.shift() || null;
-					this.push(...track);
+					this.splice(offset, 0, ...track);
 				} else {
-					this.current = track;
+					this.splice(offset, 0, track);
 				}
 			} else {
-				// If an offset is provided, add the track(s) at that position
-				if (typeof offset !== "undefined" && typeof offset === "number") {
-					// Validate the offset
-					if (isNaN(offset)) {
-						throw new RangeError("Offset must be a number.");
-					}
-
-					// Make sure the offset is between 0 and the length of the queue
-					if (offset < 0 || offset > this.length) {
-						throw new RangeError(`Offset must be between 0 and ${this.length}.`);
-					}
-
-					// Add the track(s) at the offset position
-					if (Array.isArray(track)) {
-						this.splice(offset, 0, ...track);
-					} else {
-						this.splice(offset, 0, track);
-					}
+				// If no offset is provided, add the track(s) at the end of the queue
+				if (Array.isArray(track)) {
+					this.push(...track);
 				} else {
-					// If no offset is provided, add the track(s) at the end of the queue
-					if (Array.isArray(track)) {
-						this.push(...track);
-					} else {
-						this.push(track);
-					}
+					this.push(track);
 				}
 			}
 		}
@@ -152,9 +146,9 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 	 * @param end Optional, end of the range of tracks to remove.
 	 * @returns The removed track(s).
 	 */
-	public remove(position?: number): (Track | UnresolvedTrack)[];
-	public remove(start: number, end: number): (Track | UnresolvedTrack)[];
-	public remove(startOrPosition = 0, end?: number): (Track | UnresolvedTrack)[] {
+	public remove(position?: number): Track[];
+	public remove(start: number, end: number): Track[];
+	public remove(startOrPosition = 0, end?: number): Track[] {
 		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
 		if (typeof end !== "undefined") {
@@ -263,7 +257,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
 		// Group the tracks in the queue by the user that requested them.
-		const userTracks = new Map<string, Array<Track | UnresolvedTrack>>();
+		const userTracks = new Map<string, Array<Track>>();
 		this.forEach((track) => {
 			const user = track.requester.id;
 
@@ -275,7 +269,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 		});
 
 		// Create a new array for the shuffled queue.
-		const shuffledQueue: Array<Track | UnresolvedTrack> = [];
+		const shuffledQueue: Array<Track> = [];
 
 		// Iterate over the user tracks and add one track from each user to the shuffled queue.
 		// This will ensure that all the tracks requested by each user are played in a block order.
@@ -309,7 +303,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 	 */
 	public roundRobinShuffle() {
 		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
-		const userTracks = new Map<string, Array<Track | UnresolvedTrack>>();
+		const userTracks = new Map<string, Array<Track>>();
 
 		// Group the tracks in the queue by the user that requested them.
 		this.forEach((track) => {
@@ -331,7 +325,7 @@ export class Queue extends Array<Track | UnresolvedTrack> {
 		});
 
 		// Create a new array for the shuffled queue.
-		const shuffledQueue: Array<Track | UnresolvedTrack> = [];
+		const shuffledQueue: Array<Track> = [];
 
 		// Add the shuffled tracks to the queue in a round-robin fashion.
 		const users = Array.from(userTracks.keys());

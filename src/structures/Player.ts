@@ -1,6 +1,6 @@
 import { Filters } from "./Filters";
 import { Manager, ManagerEventTypes, PlayerStateEventTypes, SearchPlatform, SearchQuery, SearchResult } from "./Manager";
-import { Node, SponsorBlockSegment } from "./Node";
+import { Lyrics, Node, SponsorBlockSegment } from "./Node";
 import { Queue } from "./Queue";
 import { LoadTypes, Sizes, StateTypes, Structure, TrackSourceName, TrackUtils, VoiceState } from "./Utils";
 import * as _ from "lodash";
@@ -340,10 +340,10 @@ export class Player {
 	 * @returns {Promise<void>}
 	 */
 	public async play(): Promise<void>;
-	public async play(track: Track | UnresolvedTrack): Promise<void>;
+	public async play(track: Track): Promise<void>;
 	public async play(options: PlayOptions): Promise<void>;
-	public async play(track: Track | UnresolvedTrack, options: PlayOptions): Promise<void>;
-	public async play(optionsOrTrack?: PlayOptions | Track | UnresolvedTrack, playOptions?: PlayOptions): Promise<void> {
+	public async play(track: Track, options: PlayOptions): Promise<void>;
+	public async play(optionsOrTrack?: PlayOptions | Track, playOptions?: PlayOptions): Promise<void> {
 		if (typeof optionsOrTrack !== "undefined" && TrackUtils.validate(optionsOrTrack)) {
 			if (this.queue.current) this.queue.previous = this.queue.current;
 			this.queue.current = optionsOrTrack as Track;
@@ -721,7 +721,7 @@ export class Player {
 				const shuffled = _.shuffle(this.queue);
 				this.queue.clear();
 				shuffled.forEach((track) => {
-					this.queue.add(track);
+					this.queue.add(track as Track);
 				});
 			}, ms);
 
@@ -781,7 +781,7 @@ export class Player {
 	public stop(amount?: number): this {
 		const oldPlayer = this ? { ...this } : null;
 
-		let removedTracks: (Track | UnresolvedTrack)[] = [];
+		let removedTracks: Track[] = [];
 
 		// If an amount is provided, remove that many tracks from the queue.
 		if (typeof amount === "number" && amount > 1) {
@@ -1012,9 +1012,9 @@ export class Player {
 		}
 
 		// Helper function to build tracks
-		const buildTrack = (trackData: Track | UnresolvedTrack) => {
-			return TrackUtils.buildUnresolved(trackData, trackData.requester);
-		};
+		// const buildTrack = (trackData: Track) => {
+		// 	return TrackUtils.buildUnresolved(trackData, trackData.requester);
+		// };
 
 		// Create a new player if it doesn't exist or force is true
 		if (!newPlayer || force) {
@@ -1032,10 +1032,10 @@ export class Player {
 			newPlayer.connect();
 
 			// Build tracks from the current player's queue
-			const tracks = [buildTrack(this.queue.current), ...this.queue.map(buildTrack)];
+			const tracks = [this.queue.current, ...this.queue];
 
 			// Add tracks to the new player
-			newPlayer.queue.add(tracks);
+			newPlayer.queue.add(tracks as Track[]);
 
 			// Play the first track if the old player was playing
 			if (this.playing) {
@@ -1075,6 +1075,32 @@ export class Player {
 
 		// Return the new player
 		return newPlayer;
+	}
+
+	/**
+	 * Retrieves the current lyrics for the playing track.
+	 * @param skipTrackSource Indicates whether to skip the track source when fetching lyrics.
+	 * @returns {Promise<Lyrics>} The lyrics of the current track.
+	 * @throws {RangeError} If the 'lavalyrics-plugin' is not available on the Lavalink node.
+	 */
+	public async getCurrentLyrics(skipTrackSource: boolean = false): Promise<Lyrics> {
+		// Check if the 'lavalyrics-plugin' is available on the node
+		if (!this.node.info.plugins.some((plugin: { name: string }) => plugin.name === "lavalyrics-plugin")) {
+			throw new RangeError(`There is no lavalyrics-plugin available in the Lavalink node: ${this.node.options.identifier}`);
+		}
+
+		let result = (await this.node.rest.get(`/v4/lyrics?track=${encodeURIComponent(this.queue.current.track)}&skipTrackSource=${skipTrackSource}`)) as Lyrics;
+		if (!result) {
+			result = {
+				source: null,
+				provider: null,
+				text: null,
+				lines: [],
+				plugin: [],
+			};
+		}
+
+		return result;
 	}
 }
 

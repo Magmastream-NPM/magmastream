@@ -20,7 +20,7 @@ import {
 import { Collection } from "@discordjs/collection";
 import { EventEmitter } from "events";
 import { Node, NodeOptions } from "./Node";
-import { Player, PlayerOptions, Track, UnresolvedTrack } from "./Player";
+import { Player, PlayerOptions, Track } from "./Player";
 import { VoiceState } from "..";
 import managerCheck from "../utils/managerCheck";
 import { ClientUser, User } from "discord.js";
@@ -131,7 +131,7 @@ export class Manager extends EventEmitter {
 						for (const key in state.queue) {
 							if (!isNaN(Number(key)) && key !== "current" && key !== "previous" && key !== "manager") {
 								const song = state.queue[key];
-								tracks.push(TrackUtils.buildUnresolved(song, song.requester));
+								tracks.push(song, song.requester);
 							}
 						}
 
@@ -162,7 +162,7 @@ export class Manager extends EventEmitter {
 					for (const key in state.queue) {
 						if (!isNaN(Number(key)) && key !== "current" && key !== "previous" && key !== "manager") {
 							const song = state.queue[key];
-							tracks.push(TrackUtils.buildUnresolved(song, song.requester));
+							tracks.push(song, song.requester);
 						}
 					}
 					player.queue.add(tracks);
@@ -987,7 +987,7 @@ interface PauseChangeEvent {
 
 interface QueueChangeEvent {
 	changeType: "add" | "remove" | "clear" | "shuffle" | "roundRobin" | "userBlock" | "autoPlayAdd";
-	tracks?: (Track | UnresolvedTrack)[];
+	tracks?: Track[];
 }
 
 interface TrackChangeEvent {
@@ -1124,14 +1124,14 @@ export interface ManagerEvents {
 	[ManagerEventTypes.PlayerStateUpdate]: [oldPlayer: Player, newPlayer: Player, changeType: PlayerStateUpdateEvent];
 	[ManagerEventTypes.PlayerMove]: [player: Player, initChannel: string, newChannel: string];
 	[ManagerEventTypes.PlayerDisconnect]: [player: Player, oldChannel: string];
-	[ManagerEventTypes.QueueEnd]: [player: Player, track: Track | UnresolvedTrack, payload: TrackEndEvent];
+	[ManagerEventTypes.QueueEnd]: [player: Player, track: Track, payload: TrackEndEvent];
 	[ManagerEventTypes.SocketClosed]: [player: Player, payload: WebSocketClosedEvent];
 	[ManagerEventTypes.TrackStart]: [player: Player, track: Track, payload: TrackStartEvent];
 	[ManagerEventTypes.TrackEnd]: [player: Player, track: Track, payload: TrackEndEvent];
 	[ManagerEventTypes.TrackStuck]: [player: Player, track: Track, payload: TrackStuckEvent];
-	[ManagerEventTypes.TrackError]: [player: Player, track: Track | UnresolvedTrack, payload: TrackExceptionEvent];
-	[ManagerEventTypes.SegmentsLoaded]: [player: Player, track: Track | UnresolvedTrack, payload: SponsorBlockSegmentsLoaded];
-	[ManagerEventTypes.SegmentSkipped]: [player: Player, track: Track | UnresolvedTrack, payload: SponsorBlockSegmentSkipped];
-	[ManagerEventTypes.ChapterStarted]: [player: Player, track: Track | UnresolvedTrack, payload: SponsorBlockChapterStarted];
-	[ManagerEventTypes.ChaptersLoaded]: [player: Player, track: Track | UnresolvedTrack, payload: SponsorBlockChaptersLoaded];
+	[ManagerEventTypes.TrackError]: [player: Player, track: Track, payload: TrackExceptionEvent];
+	[ManagerEventTypes.SegmentsLoaded]: [player: Player, track: Track, payload: SponsorBlockSegmentsLoaded];
+	[ManagerEventTypes.SegmentSkipped]: [player: Player, track: Track, payload: SponsorBlockSegmentSkipped];
+	[ManagerEventTypes.ChapterStarted]: [player: Player, track: Track, payload: SponsorBlockChapterStarted];
+	[ManagerEventTypes.ChaptersLoaded]: [player: Player, track: Track, payload: SponsorBlockChaptersLoaded];
 }
