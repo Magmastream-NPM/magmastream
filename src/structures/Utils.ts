@@ -179,6 +179,8 @@ export abstract class TrackUtils {
 	 * @param query The query to resolve the track from, can be a string or an UnresolvedQuery object.
 	 * @param requester The user who requested the track, if any.
 	 * @returns The built UnresolvedTrack.
+	 * 
+	 * @deprecated use the {@link manager.search()} method instead
 	 */
 	static buildUnresolved<T = User | ClientUser>(query: string | UnresolvedQuery, requester?: T): UnresolvedTrack {
 		if (typeof query === "undefined") throw new RangeError('Argument "query" must be present.');
@@ -212,6 +214,8 @@ export abstract class TrackUtils {
 	 *
 	 * @throws {RangeError} If the manager has not been initialized or the provided track is not an UnresolvedTrack.
 	 *
+	 * @deprecated use the {@link manager.search()} method instead
+	 * 
 	 * The method performs a search using the track's URI or a combination of its author and title.
 	 * It attempts to find an exact match for the author and title, or a track with a similar duration.
 	 * If no exact or similar match is found, it returns the first track from the search results.
