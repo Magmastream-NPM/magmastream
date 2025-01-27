@@ -56,8 +56,7 @@ export class Manager extends EventEmitter {
 	 * @returns A promise that resolves when the player states have been loaded.
 	 */
 	public async loadPlayerStates(nodeId: string): Promise<void> {
-		// Changed to async and added Promise<void>
-		this.emit("debug", "[MANAGER] Loading saved players.");
+		this.emit(ManagerEventTypes.Debug, "[MANAGER] Loading saved players.");
 		const node = this.nodes.get(nodeId);
 		if (!node) throw new Error(`Could not find node: ${nodeId}`);
 
@@ -70,28 +69,6 @@ export class Manager extends EventEmitter {
 		}
 
 		const playerFiles = fs.readdirSync(playerStatesDir);
-
-		/**
-		 * Converts a track from the Lavalink format to the Magmastream format.
-		 * @param song The track in the Lavalink format.
-		 * @returns The track in the Magmastream format.
-		 */
-		const createTrackData = (song): TrackData => ({
-			encoded: song.track,
-			info: {
-				identifier: song.identifier,
-				isSeekable: song.isSeekable,
-				author: song.author,
-				length: song.duration,
-				isrc: song.isrc,
-				isStream: song.isStream,
-				title: song.title,
-				uri: song.uri,
-				artworkUrl: song.artworkUrl,
-				sourceName: song.sourceName,
-			},
-			pluginInfo: song.pluginInfo,
-		});
 
 		for (const file of playerFiles) {
 			const filePath = path.join(playerStatesDir, file);
@@ -117,7 +94,7 @@ export class Manager extends EventEmitter {
 					volume: lavaPlayer.volume || state.options.volume,
 				};
 
-				this.emit("debug", `[MANAGER] Recreating player: ${state.guildId} from saved file: ${JSON.stringify(state.options)}`);
+				this.emit(ManagerEventTypes.Debug, `[MANAGER] Recreating player: ${state.guildId} from saved file: ${JSON.stringify(state.options)}`);
 				const player = this.create(playerOptions);
 
 				if (!lavaPlayer.state.connected) {
@@ -142,30 +119,30 @@ export class Manager extends EventEmitter {
 							const payload = {
 								reason: "finished",
 							};
-							node.queueEnd(player, state.queue.current, payload as TrackEndEvent);
+							await node.queueEnd(player, state.queue.current, payload as TrackEndEvent);
 						}
 					} else {
 						if (state.queue.previous !== null) {
 							const payload = {
 								reason: "finished",
 							};
-							node.queueEnd(player, state.queue.previous, payload as TrackEndEvent);
+							await node.queueEnd(player, state.queue.previous, payload as TrackEndEvent);
 						} else {
 							this.destroy(state.guildId);
 							continue;
 						}
 					}
 				} else {
-					const currentTrack = state.queue.current;
-					tracks.push(TrackUtils.build(createTrackData(currentTrack), currentTrack.requester));
+					tracks.push(state.queue.current as Track);
 
 					for (const key in state.queue) {
 						if (!isNaN(Number(key)) && key !== "current" && key !== "previous" && key !== "manager") {
 							const song = state.queue[key];
-							tracks.push(song, song.requester);
+							// tracks.push(song, song.requester);
+							tracks.push(song as Track);
 						}
 					}
-					player.queue.add(tracks);
+					player.queue.add(tracks as Track[]);
 				}
 
 				if (state.paused) player.pause(true);
@@ -177,13 +154,27 @@ export class Manager extends EventEmitter {
 				if (state.isAutoplay && state?.data?.Internal_BotUser) {
 					player.setAutoplay(state.isAutoplay, state.data.Internal_BotUser as User | ClientUser);
 				}
-
-				// Delete the file after the player is successfully loaded
-				fs.unlinkSync(filePath);
-				this.emit("debug", `[MANAGER] Deleted player state file after loading: ${filePath}`);
 			}
 		}
-		this.emit("debug", "[MANAGER] Finished loading saved players.");
+
+		// Delete all files inside playerStatesDir where nodeId matches
+		for (const file of playerFiles) {
+			const filePath = path.join(playerStatesDir, file);
+
+			if (!fs.existsSync(filePath)) {
+				continue;
+			}
+
+			const data = fs.readFileSync(filePath, "utf-8");
+			const state = JSON.parse(data);
+
+			if (state && typeof state === "object" && state.node.options.identifier === nodeId) {
+				fs.unlinkSync(filePath);
+				this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleted player state file: ${filePath}`);
+			}
+		}
+
+		this.emit(ManagerEventTypes.Debug, "[MANAGER] Finished loading saved players.");
 	}
 
 	/**
