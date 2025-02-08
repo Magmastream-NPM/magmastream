@@ -132,6 +132,17 @@ export abstract class TrackUtils {
 		if (typeof data === "undefined") throw new RangeError('Argument "data" must be present.');
 
 		try {
+			const sourceNameMap: Record<string, TrackSourceName> = {
+				applemusic: "AppleMusic",
+				bandcamp: "Bandcamp",
+				deezer: "Deezer",
+				jiosaavn: "Jiosaavn",
+				soundcloud: "SoundCloud",
+				spotify: "Spotify",
+				tidal: "Tidal",
+				youtube: "YouTube",
+			};
+
 			const track: Track = {
 				track: data.encoded,
 				title: data.info.title,
@@ -143,7 +154,7 @@ export abstract class TrackUtils {
 				isStream: data.info.isStream,
 				uri: data.info.uri,
 				artworkUrl: data.info?.artworkUrl,
-				sourceName: data.info?.sourceName,
+				sourceName: sourceNameMap[data.info?.sourceName?.toLowerCase() ?? ""] ?? data.info?.sourceName,
 				thumbnail: data.info.uri.includes("youtube") ? `https://img.youtube.com/vi/${data.info.identifier}/default.jpg` : null,
 				displayThumbnail(size = "default"): string | null {
 					const finalSize = SIZES.find((s) => s === size) ?? "default";

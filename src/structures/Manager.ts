@@ -391,7 +391,7 @@ export class Manager extends EventEmitter {
 	 * Optionally, it also calls {@link cleanupInactivePlayers} to remove any stale player state files.
 	 * After saving and cleaning up, it exits the process.
 	 */
-	private async handleShutdown(): Promise<void> {
+	public async handleShutdown(): Promise<void> {
 		console.warn("\x1b[31m%s\x1b[0m", "MAGMASTREAM WARNING: Shutting down! Please wait, saving active players...");
 
 		// Create an array of promises for saving player states
