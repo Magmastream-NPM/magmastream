@@ -141,6 +141,7 @@ export abstract class TrackUtils {
 				spotify: "Spotify",
 				tidal: "Tidal",
 				youtube: "YouTube",
+				vkmusic: "Vkmusic",
 			};
 
 			const track: Track = {
@@ -393,6 +394,7 @@ export enum TrackSourceTypes {
 	Spotify = "spotify",
 	Tidal = "tidal",
 	YouTube = "youtube",
+	Vkmusic = "vkmusic",
 }
 
 export type TrackSourceName = keyof typeof TrackSourceTypes;
