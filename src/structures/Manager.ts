@@ -177,6 +177,10 @@ export class Manager extends EventEmitter {
 				if (state.isAutoplay && state?.data?.Internal_BotUser) {
 					player.setAutoplay(state.isAutoplay, state.data.Internal_BotUser as User | ClientUser);
 				}
+
+				// Delete the file after the player is successfully loaded
+				fs.unlinkSync(filePath);
+				this.emit("debug", `[MANAGER] Deleted player state file after loading: ${filePath}`);
 			}
 		}
 		this.emit("debug", "[MANAGER] Finished loading saved players.");
@@ -387,7 +391,7 @@ export class Manager extends EventEmitter {
 	 * Optionally, it also calls {@link cleanupInactivePlayers} to remove any stale player state files.
 	 * After saving and cleaning up, it exits the process.
 	 */
-	private async handleShutdown(): Promise<void> {
+	public async handleShutdown(): Promise<void> {
 		console.warn("\x1b[31m%s\x1b[0m", "MAGMASTREAM WARNING: Shutting down! Please wait, saving active players...");
 
 		// Create an array of promises for saving player states
@@ -921,15 +925,16 @@ export enum UseNodeOptions {
 export type UseNodeOption = keyof typeof UseNodeOptions;
 
 export enum SearchPlatform {
-	YouTubeMusic = "ytmsearch",
-	YouTube = "ytsearch",
-	Spotify = "spsearch",
-	Jiosaavn = "jssearch",
-	SoundCloud = "scsearch",
-	Deezer = "dzsearch",
-	Tidal = "tdsearch",
 	AppleMusic = "amsearch",
 	Bandcamp = "bcsearch",
+	Deezer = "dzsearch",
+	Jiosaavn = "jssearch",
+	SoundCloud = "scsearch",
+	Spotify = "spsearch",
+	Tidal = "tdsearch",
+	VKMusic = "vksearch",
+	YouTube = "ytsearch",
+	YouTubeMusic = "ytmsearch",
 }
 
 export enum PlayerStateEventTypes {
@@ -1098,9 +1103,6 @@ export enum ManagerEventTypes {
 	SocketClosed = "socketClosed",
 	TrackStart = "trackStart",
 	TrackEnd = "trackEnd",
-	TrackEndReason = "trackEndReason",
-	TrackEndReasonRaw = "trackEndReasonRaw",
-	TrackEndReasonData = "trackEndReasonData",
 	TrackStuck = "trackStuck",
 	TrackError = "trackError",
 	SegmentsLoaded = "segmentsLoaded",

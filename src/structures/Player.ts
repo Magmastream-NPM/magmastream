@@ -1,11 +1,12 @@
 import { Filters } from "./Filters";
-import { LavalinkResponse, Manager, ManagerEventTypes, PlayerStateEventTypes, PlaylistRawData, SearchQuery, SearchResult } from "./Manager";
-import { LavalinkInfo, Node, SponsorBlockSegment } from "./Node";
+import { Manager, ManagerEventTypes, PlayerStateEventTypes, SearchPlatform, SearchQuery, SearchResult } from "./Manager";
+import { Node, SponsorBlockSegment } from "./Node";
 import { Queue } from "./Queue";
 import { LoadTypes, Sizes, StateTypes, Structure, TrackSourceName, TrackUtils, VoiceState } from "./Utils";
 import * as _ from "lodash";
 import playerCheck from "../utils/playerCheck";
 import { ClientUser, Message, User } from "discord.js";
+import axios from "axios";
 
 export class Player {
 	/** The Queue for the Player. */
@@ -52,6 +53,7 @@ export class Player {
 	private static _manager: Manager;
 	private readonly data: Record<string, unknown> = {};
 	private dynamicLoopInterval: NodeJS.Timeout | null = null;
+	private dynamicRepeatIntervalMs: number | null = null;
 
 	/**
 	 * Set custom data.
@@ -239,6 +241,7 @@ export class Player {
 
 		this.node.rest.destroyPlayer(this.guildId);
 		this.manager.emit(ManagerEventTypes.PlayerDestroy, this);
+		this.queue.clear();
 		this.manager.players.delete(this.guildId);
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.PlayerDestroy,
@@ -423,98 +426,135 @@ export class Player {
 	 * @param {User | ClientUser} requester - The user who requested the track.
 	 * @returns {Promise<Track[]>} - Array of recommended tracks.
 	 */
-	public async getRecommended<T = User | ClientUser>(track: Track, requester?: T): Promise<Track[]> {
+	public async getRecommendedTracks(track: Track): Promise<Track[]> {
 		const node = this.manager.useableNode;
 
 		if (!node) {
 			throw new Error("No available nodes.");
 		}
 
-		const hasSpotifyURL = ["spotify.com", "open.spotify.com"].some((url) => track.uri.includes(url));
+		if (!TrackUtils.validate(track)) {
+			throw new RangeError('"Track must be a "Track" or "Track[]');
+		}
+
+		// Get the Last.fm API key and the available source managers
+		const apiKey = this.manager.options.lastFmApiKey;
+		const enabledSources = node.info.sourceManagers;
+
+		// Determine if YouTube should be used
+		if (!apiKey && enabledSources.includes("youtube")) {
+			// Use YouTube-based autoplay
+			return await this.handleYouTubeRecommendations(node, track);
+		}
+
+		if (!apiKey) return [];
+		// Handle Last.fm-based autoplay (or other platforms)
+		const selectedSource = node.selectPlatform(enabledSources);
+
+		if (selectedSource) {
+			// Use the selected source to handle autoplay
+			return this.handlePlatformAutoplay(track, selectedSource, apiKey);
+		}
+
+		// If no source is available, return false
+		return [];
+	}
+
+	private async handleYouTubeRecommendations(node: Node, track: Track): Promise<Track[]> {
+		// Check if the previous track has a YouTube URL
 		const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) => track.uri.includes(url));
+		// Get the video ID from the previous track's URL
 
-		/**
-		 * If the track has a Spotify URL, use the Spotify plugin to get recommendations.
-		 * @see {@link https://github.com/topi314/LavaSrc}
-		 */
-		if (hasSpotifyURL) {
-			const res = await node.rest.get(`/v4/info`);
-			const info = res as LavalinkInfo;
-
-			/**
-			 * Check if the Spotify plugin is enabled and if the Spotify source manager is enabled.
-			 * @see {@link https://lavalink.dev/api/rest.html#info-response}
-			 */
-			const isSpotifyPluginEnabled = info.plugins.some((plugin: { name: string }) => plugin.name === "lavasrc-plugin");
-			const isSpotifySourceManagerEnabled = info.sourceManagers.includes("spotify");
-
-			if (isSpotifyPluginEnabled && isSpotifySourceManagerEnabled) {
-				const trackID = node.extractSpotifyTrackID(track.uri);
-				const artistID = node.extractSpotifyArtistID(track.pluginInfo.artistUrl);
-
-				let identifier = "";
-				if (trackID && artistID) {
-					identifier = `sprec:seed_artists=${artistID}&seed_tracks=${trackID}`;
-				} else if (trackID) {
-					identifier = `sprec:seed_tracks=${trackID}`;
-				} else if (artistID) {
-					identifier = `sprec:seed_artists=${artistID}`;
-				}
-
-				if (identifier) {
-					const recommendedResult = (await node.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(identifier)}`)) as LavalinkResponse;
-
-					if (recommendedResult.loadType === "playlist") {
-						const playlistData = recommendedResult.data as PlaylistRawData;
-						const recommendedTracks = playlistData.tracks;
-
-						if (recommendedTracks) {
-							return recommendedTracks.map((track) => TrackUtils.build(track, requester));
-						}
-					}
-				}
-			}
+		let videoID: string | null = null;
+		if (hasYouTubeURL) {
+			videoID = track.uri.split("=").pop();
+		} else {
+			const searchResult = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.YouTube }, track.requester);
+			videoID = searchResult.tracks[0]?.uri.split("=").pop();
 		}
 
-		// If the track has a YouTube URL, use YouTube to get recommendations.
-		let videoID = track.uri.substring(track.uri.indexOf("=") + 1);
+		// If the video ID is not found, return false
+		if (!videoID) return [];
 
-		if (!hasYouTubeURL) {
-			const res = await this.manager.search(`${track.author} - ${track.title}`);
+		// Get a random video index between 2 and 24
+		let randomIndex: number;
+		let searchURI: string;
+		do {
+			// Generate a random index between 2 and 24
+			randomIndex = Math.floor(Math.random() * 23) + 2;
+			// Build the search URI
+			searchURI = `https://www.youtube.com/watch?v=${videoID}&list=RD${videoID}&index=${randomIndex}`;
+		} while (track.uri.includes(searchURI));
 
-			videoID = res.tracks[0].uri.substring(res.tracks[0].uri.indexOf("=") + 1);
-		}
+		// Search for the video and return false if the search fails
+		const res = await this.manager.search({ query: searchURI, source: SearchPlatform.YouTube }, track.requester);
+		if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return [];
 
-		const searchURI = `https://www.youtube.com/watch?v=${videoID}&list=RD${videoID}`;
-
-		const res = await this.manager.search(searchURI);
-
-		if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return;
-
-		let tracks = res.tracks;
-
-		if (res.loadType === LoadTypes.Playlist) {
-			tracks = res.playlist.tracks;
-		}
-
-		const filteredTracks = tracks.filter((track) => track.uri !== `https://www.youtube.com/watch?v=${videoID}`);
-
-		if (this.manager.options.replaceYouTubeCredentials) {
-			for (const track of filteredTracks) {
-				track.author = track.author.replace("- Topic", "");
-				track.title = track.title.replace("Topic -", "");
-
-				if (track.title.includes("-")) {
-					const [author, title] = track.title.split("-").map((str: string) => str.trim());
-					track.author = author;
-					track.title = title;
-				}
-			}
-		}
-
+		// Return all track titles that do not have the same URI as the track.uri from before
+		const filteredTracks = res.tracks.filter((t) => t.uri !== track.uri);
 		return filteredTracks;
 	}
 
+	private async handlePlatformAutoplay(track: Track, source: SearchPlatform, apiKey: string): Promise<Track[]> {
+		let { author: artist } = track;
+		const { title } = track;
+
+		if (!artist || !title) {
+			if (!title) {
+				// No title provided, search for the artist's top tracks
+				const noTitleUrl = `https://ws.audioscrobbler.com/2.0/?method=artist.getTopTracks&artist=${artist}&autocorrect=1&api_key=${apiKey}&format=json`;
+				const response = await axios.get(noTitleUrl);
+
+				if (response.data.error || !response.data.toptracks?.track?.length) return [];
+
+				const randomTrack = response.data.toptracks.track[Math.floor(Math.random() * response.data.toptracks.track.length)];
+				const res = await this.manager.search({ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: source }, track.requester);
+				if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return [];
+
+				const filteredTracks = res.tracks.filter((t) => t.uri !== track.uri);
+				if (!filteredTracks) return [];
+
+				return filteredTracks;
+			}
+			if (!artist) {
+				// No artist provided, search for the track title
+				const noArtistUrl = `https://ws.audioscrobbler.com/2.0/?method=track.search&track=${title}&api_key=${apiKey}&format=json`;
+				const response = await axios.get(noArtistUrl);
+				artist = response.data.results.trackmatches?.track?.[0]?.artist;
+				if (!artist) return [];
+			}
+		}
+
+		// Search for similar tracks to the current track
+		const url = `https://ws.audioscrobbler.com/2.0/?method=track.getSimilar&artist=${artist}&track=${title}&limit=10&autocorrect=1&api_key=${apiKey}&format=json`;
+		let response: axios.AxiosResponse;
+
+		try {
+			response = await axios.get(url);
+		} catch (error) {
+			if (error) return [];
+		}
+
+		if (response.data.error || !response.data.similartracks?.track?.length) {
+			// Retry the request if the first attempt fails
+			const retryUrl = `https://ws.audioscrobbler.com/2.0/?method=artist.getTopTracks&artist=${artist}&autocorrect=1&api_key=${apiKey}&format=json`;
+			const retryResponse = await axios.get(retryUrl);
+
+			if (retryResponse.data.error || !retryResponse.data.toptracks?.track?.length) return [];
+
+			const randomTrack = retryResponse.data.toptracks.track[Math.floor(Math.random() * retryResponse.data.toptracks.track.length)];
+			const res = await this.manager.search({ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: source }, track.requester);
+			if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return [];
+
+			const filteredTracks = res.tracks.filter((t) => t.uri !== track.uri);
+			if (!filteredTracks) return [];
+
+			return filteredTracks;
+		}
+
+		const filteredTracks = response.data.similartracks.track.filter((t: { uri: string }) => t.uri !== track.uri);
+		return filteredTracks;
+	}
 	/**
 	 * Sets the player volume.
 	 * @param {number} volume - The volume to set the player to. Must be between 0 and 100.
@@ -522,6 +562,8 @@ export class Player {
 	 */
 	public setVolume(volume: number): this {
 		if (isNaN(volume)) throw new TypeError("Volume must be a number.");
+
+		if (volume < 0 || volume > 1000) throw new RangeError("Volume must be between 0 and 1000.");
 
 		const oldPlayer = this ? { ...this } : null;
 		this.node.rest.updatePlayer({
@@ -682,9 +724,13 @@ export class Player {
 					this.queue.add(track);
 				});
 			}, ms);
+
+			// Store the ms value
+			this.dynamicRepeatIntervalMs = ms;
 		} else {
 			// Clear the interval and reset repeat states
 			clearInterval(this.dynamicLoopInterval);
+			this.dynamicRepeatIntervalMs = null;
 			this.trackRepeat = false;
 			this.queueRepeat = false;
 			this.dynamicRepeat = false;
@@ -902,72 +948,132 @@ export class Player {
 	}
 
 	/**
-	 * Transfers the player to a different node.
-	 * @param identifier The identifier of the node to transfer the player to.
-	 * @returns The player instance.
+	 * Automatically moves the player to a usable node.
+	 * @returns {Promise<Player | void>} - The player instance or void if not moved.
 	 */
-	public async moveNode(identifier: string): Promise<Player> {
-		const node = this.manager.nodes.get(identifier);
-
-		if (!node) return this;
-		if (node.options.identifier === this.node.options.identifier) return this;
-		if (!node.connected) throw new Error("Provided node is not connected.");
-
-		await this.node.rest.destroyPlayer(this.guildId).catch(() => {});
-		this.manager.players.delete(this.guildId);
-		this.node = node;
-		this.manager.players.set(this.guildId, this);
-		return await this.restart();
-	}
-
-	/**
-	 * Transfers the player to a node with with the method you chose in ManagerOptions.
-	 * @returns The player instance.
-	 */
-	public async autoMoveNode(): Promise<Player> {
+	public async autoMoveNode(): Promise<Player | void> {
+		// Get a usable node from the manager
 		const node = this.manager.useableNode;
 
-		if (!node.connected) throw new Error("No nodes are available.");
-
+		// Move the player to the usable node and return the result
 		return await this.moveNode(node.options.identifier);
 	}
 
 	/**
-	 * Transfers a player from one server to another, including all its tracks.
-	 * @param guildId The ID of the server to transfer the player from.
-	 * @param newOptions The new PlayerOptions for the player.
+	 * Moves the player to another node.
+	 * @param {string} identifier - The identifier of the node to move to.
+	 * @returns {Promise<Player>} - The player instance after being moved.
 	 */
-	public async switchGuild(guildId: string, newOptions: PlayerOptions) {
-		const currentPlayer = this.manager.players.get(guildId);
+	public async moveNode(identifier: string): Promise<Player> {
+		const node = this.manager.nodes.get(identifier);
 
-		if (this.manager.players.get(newOptions.guildId)) return this;
+		if (node.options.identifier === this.node.options.identifier) return this;
 
-		const newPlayer = this.manager.create({
-			guildId: newOptions.guildId,
-			textChannelId: newOptions.textChannelId,
-			voiceChannelId: newOptions.voiceChannelId,
-			volume: newOptions.volume,
-			selfMute: newOptions.selfMute,
-			selfDeafen: newOptions.selfDeafen,
-		});
+		// Try to destroy the player on the current node and move to the new node
+		try {
+			// Destroy the player on the current node
+			await this.node.rest.destroyPlayer(this.guildId).catch(() => {});
+			// Remove the player from the manager's players collection
+			this.manager.players.delete(this.guildId);
+			// Set the new node for the player
+			this.node = node;
+			// Add the player back to the manager's players collection
+			this.manager.players.set(this.guildId, this);
 
-		newPlayer.connect();
+			// Update the player's position and track on the new node
+			await this.node.rest.updatePlayer({
+				guildId: this.guildId,
+				data: {
+					position: this.position,
+					encodedTrack: this.queue.current.track,
+				},
+			});
+		} catch (error) {
+			// If there is an error, destroy the player and throw the error
+			this.destroy();
+			throw new Error(error);
+		}
+	}
 
-		const tracks = currentPlayer.queue.map((t) => t);
+	/**
+	 * Transfers the player to a new server. If the player already exists on the new server
+	 * and force is false, this method will return the existing player. Otherwise, a new player
+	 * will be created and the current player will be destroyed.
+	 * @param {PlayerOptions} newOptions - The new options for the player.
+	 * @param {boolean} force - Whether to force the creation of a new player.
+	 * @returns {Promise<Player>} - The new player instance.
+	 */
+	public async switchGuild(newOptions: PlayerOptions, force: boolean = false): Promise<Player> {
+		let newPlayer = this.manager.players.get(newOptions.guildId);
 
-		await newPlayer.play(currentPlayer.queue.current);
+		// If the player already exists and force is false, return the existing player
+		if (newPlayer && !force) {
+			return newPlayer;
+		}
 
-		newPlayer.queue.add(tracks);
-		currentPlayer.queue.clear();
-		currentPlayer.destroy();
-
-		const debugInfo = {
-			success: true,
-			message: `Transferred ${tracks.length} tracks successfully to ${newOptions.voiceChannelId} bound to ${newOptions.textChannelId}.`,
+		// Helper function to build tracks
+		const buildTrack = (trackData: Track | UnresolvedTrack) => {
+			return TrackUtils.buildUnresolved(trackData, trackData.requester);
 		};
 
-		this.manager.emit(ManagerEventTypes.Debug, `[PLAYER] Transferred player to a new server: ${JSON.stringify(debugInfo)}.`);
+		// Create a new player if it doesn't exist or force is true
+		if (!newPlayer || force) {
+			newPlayer = this.manager.create({
+				guildId: newOptions.guildId,
+				textChannelId: newOptions.textChannelId,
+				voiceChannelId: newOptions.voiceChannelId,
+				volume: newOptions.volume ?? this.volume,
+				node: newOptions.node ?? this.node.options.identifier,
+				selfMute: newOptions.selfMute ?? this.options.selfMute,
+				selfDeafen: newOptions.selfDeafen ?? this.options.selfDeafen,
+			});
 
+			// Connect the new player
+			newPlayer.connect();
+
+			// Build tracks from the current player's queue
+			const tracks = [buildTrack(this.queue.current), ...this.queue.map(buildTrack)];
+
+			// Add tracks to the new player
+			newPlayer.queue.add(tracks);
+
+			// Play the first track if the old player was playing
+			if (this.playing) {
+				await newPlayer.play();
+				newPlayer.seek(this.position);
+			}
+
+			// Pause the new player if the old player was paused
+			if (this.paused) newPlayer.pause(true);
+
+			// Set repeat settings
+			if (this.queueRepeat) newPlayer.setQueueRepeat(true);
+			if (this.trackRepeat) newPlayer.setTrackRepeat(true);
+			if (this.dynamicRepeat && this.dynamicRepeatIntervalMs) {
+				newPlayer.setDynamicRepeat(true, this.dynamicRepeatIntervalMs);
+			}
+
+			// Destroy the current player
+			this.destroy();
+
+			// Emit a debug event with the transfer information
+			const debugInfo = {
+				success: true,
+				message: `Transferred ${tracks.length} tracks successfully to <#${newOptions.voiceChannelId}> bound to <#${newOptions.textChannelId}>.`,
+				player: {
+					guildId: newPlayer.guildId,
+					voiceChannelId: newPlayer.voiceChannelId,
+					textChannelId: newPlayer.textChannelId,
+					volume: newPlayer.volume,
+					playing: newPlayer.playing,
+					queueSize: newPlayer.queue.size,
+				},
+			};
+
+			this.manager.emit(ManagerEventTypes.Debug, `[PLAYER] Transferred player to a new server: ${JSON.stringify(debugInfo)}.`);
+		}
+
+		// Return the new player
 		return newPlayer;
 	}
 }
