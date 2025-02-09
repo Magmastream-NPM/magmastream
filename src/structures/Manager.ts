@@ -199,7 +199,7 @@ export class Manager extends EventEmitter {
 	 * Saves player states to the JSON file.
 	 * @param {string} guildId - The guild ID of the player to save
 	 */
-	public savePlayerState(guildId: string): void {
+	public async savePlayerState(guildId: string): Promise<void> {
 		// Get the full path to the player's JSON file
 		const playerStateFilePath = this.getPlayerFilePath(guildId);
 
@@ -209,7 +209,7 @@ export class Manager extends EventEmitter {
 		// If the player does not exist or is disconnected, or the voice channel is not specified, do not save the player state
 		if (!player || player.state === StateTypes.Disconnected || !player.voiceChannelId) {
 			// Clean up any inactive players
-			return this.cleanupInactivePlayers();
+			return await this.cleanupInactivePlayers();
 		}
 
 		// Serialize the player instance to avoid circular references
@@ -266,7 +266,7 @@ export class Manager extends EventEmitter {
 	 * Checks for players that are no longer active and deletes their saved state files.
 	 * This is done to prevent stale state files from accumulating on the file system.
 	 */
-	private cleanupInactivePlayers(): void {
+	private async cleanupInactivePlayers(): Promise<void> {
 		const playerStatesDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
 
 		// Create the directory if it does not exist
