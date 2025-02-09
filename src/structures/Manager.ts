@@ -1,6 +1,5 @@
 import {
 	LoadTypes,
-	Plugin,
 	SponsorBlockChaptersLoaded,
 	SponsorBlockChapterStarted,
 	SponsorBlockSegmentSkipped,
@@ -21,7 +20,7 @@ import { Collection } from "@discordjs/collection";
 import { EventEmitter } from "events";
 import { Node, NodeOptions } from "./Node";
 import { Player, PlayerOptions, Track, UnresolvedTrack } from "./Player";
-import { VoiceState } from "..";
+import { Plugin, VoiceState } from "..";
 import managerCheck from "../utils/managerCheck";
 import { ClientUser, User } from "discord.js";
 import { blockedWords } from "../config/blockedWords";
@@ -194,7 +193,6 @@ export class Manager extends EventEmitter {
 	private getPlayerFilePath(guildId: string): string {
 		// Get the directory path to where the player's JSON file will be saved
 		const configDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
-
 		// Make sure the directory exists, create it if it doesn't
 		if (!fs.existsSync(configDir)) {
 			fs.mkdirSync(configDir, { recursive: true });
@@ -210,20 +208,27 @@ export class Manager extends EventEmitter {
 	 */
 	public savePlayerState(guildId: string): void {
 		// Get the full path to the player's JSON file
+		console.log("Saving player state for guild:", guildId);
+
 		const playerStateFilePath = this.getPlayerFilePath(guildId);
+		console.log("Saving player state to:", playerStateFilePath);
 
 		// Get the player instance from the manager's collection
 		const player = this.players.get(guildId);
+		console.log("Saving found player for guild:", guildId);
 
 		// If the player does not exist or is disconnected, or the voice channel is not specified, do not save the player state
 		if (!player || player.state === StateTypes.Disconnected || !player.voiceChannelId) {
 			// Clean up any inactive players
+			console.log("Cleaning up inactive players");
 			return this.cleanupInactivePlayers();
 		}
 
 		// Serialize the player instance to avoid circular references
+		console.log("Serializing player for guild:", guildId);
 		const serializedPlayer = this.serializePlayer(player) as unknown as Player;
 
+		console.log("Writing player state for guild:", guildId);
 		// Write the serialized player state to the JSON file
 		fs.writeFileSync(playerStateFilePath, JSON.stringify(serializedPlayer, null, 2), "utf-8");
 
@@ -237,6 +242,7 @@ export class Manager extends EventEmitter {
 	 * @returns The serialized Player instance
 	 */
 	private serializePlayer(player: Player): Record<string, unknown> {
+		console.log("Serializing player for guild:", player.guildId);
 		const seen = new WeakSet();
 
 		/**
@@ -245,9 +251,14 @@ export class Manager extends EventEmitter {
 		 * @returns The serialized object
 		 */
 		const serialize = (obj: unknown): unknown => {
+			console.log("Serializing object for guild:", player.guildId);
 			if (obj && typeof obj === "object") {
-				if (seen.has(obj)) return;
+				if (seen.has(obj)) {
+					console.log("Seen object for guild:", player.guildId);
+					return;
+				}
 
+				console.log("Adding object to seen for guild:", player.guildId);
 				seen.add(obj);
 			}
 			return obj;
@@ -256,21 +267,23 @@ export class Manager extends EventEmitter {
 		return JSON.parse(
 			JSON.stringify(player, (key, value) => {
 				if (key === "filters" || key === "manager") {
+					console.log("Skipping key for guild:", player.guildId);
 					return null;
 				}
 
 				if (key === "queue") {
+					console.log("Serializing queue for guild:", player.guildId);
 					return {
 						...value,
 						current: value.current || null,
 					};
 				}
 
+				console.log("Serializing value for guild:", player.guildId);
 				return serialize(value);
 			})
 		);
 	}
-
 	/**
 	 * Checks for players that are no longer active and deletes their saved state files.
 	 * This is done to prevent stale state files from accumulating on the file system.
@@ -391,7 +404,7 @@ export class Manager extends EventEmitter {
 	 * Optionally, it also calls {@link cleanupInactivePlayers} to remove any stale player state files.
 	 * After saving and cleaning up, it exits the process.
 	 */
-	public async handleShutdown(): Promise<void> {
+	private async handleShutdown(): Promise<void> {
 		console.warn("\x1b[31m%s\x1b[0m", "MAGMASTREAM WARNING: Shutting down! Please wait, saving active players...");
 
 		// Create an array of promises for saving player states
@@ -442,9 +455,6 @@ export class Manager extends EventEmitter {
 	constructor(options: ManagerOptions) {
 		super();
 
-		process.on("SIGINT", async () => await this.handleShutdown());
-		process.on("SIGTERM", async () => await this.handleShutdown());
-
 		managerCheck(options);
 
 		Structure.get("Player").init(this);
@@ -475,16 +485,12 @@ export class Manager extends EventEmitter {
 			...options,
 		};
 
-		if (this.options.plugins) {
-			for (const [index, plugin] of this.options.plugins.entries()) {
-				if (!(plugin instanceof Plugin)) throw new RangeError(`Plugin at index ${index} does not extend Plugin.`);
-				plugin.load(this);
-			}
-		}
-
 		if (this.options.nodes) {
 			for (const nodeOptions of this.options.nodes) new (Structure.get("Node"))(nodeOptions);
 		}
+
+		process.on("SIGINT", async () => await this.handleShutdown());
+		process.on("SIGTERM", async () => await this.handleShutdown());
 	}
 
 	/**
@@ -497,26 +503,27 @@ export class Manager extends EventEmitter {
 			return this;
 		}
 
-		// Validate clientId
 		if (typeof clientId !== "string" || !/^\d+$/.test(clientId)) {
 			throw new Error('"clientId" must be a valid Discord client ID.');
 		}
 
-		// Set the validated clientId
 		this.options.clientId = clientId;
 
-		// Attempt to connect nodes
 		for (const node of this.nodes.values()) {
 			try {
-				// Connect the node
 				node.connect();
 			} catch (err) {
-				// Handle any errors that occur during the connection process
 				this.emit("nodeError", node, err);
 			}
 		}
 
-		// Set the initiated flag to true
+		if (this.options.plugins) {
+			for (const [index, plugin] of this.options.plugins.entries()) {
+				if (!(plugin instanceof Plugin)) throw new RangeError(`Plugin at index ${index} does not extend Plugin.`);
+				plugin.load(this);
+			}
+		}
+
 		this.initiated = true;
 		return this;
 	}

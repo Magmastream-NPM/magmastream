@@ -429,6 +429,7 @@ export class Node {
 				this.handleEvent(payload);
 				break;
 			case "ready":
+				console.log(payload);
 				this.manager.emit(ManagerEventTypes.Debug, `[NODE] Node message: ${JSON.stringify(payload)}`);
 				this.rest.setSessionId(payload.sessionId);
 				this.sessionId = payload.sessionId;

@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-require-imports */
+/* eslint-disable @typescript-eslint/no-require-imports */
 import { ClientUser, User } from "discord.js";
 import { Manager } from "./Manager";
 import { Node, NodeStats } from "./Node";
@@ -284,12 +284,6 @@ export abstract class Structure {
 		if (!structure) throw new TypeError('"structure" must be provided.');
 		return structure;
 	}
-}
-
-export class Plugin {
-	public load(manager: Manager): void {}
-
-	public unload(manager: Manager): void {}
 }
 
 const structures = {
