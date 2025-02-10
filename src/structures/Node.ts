@@ -15,7 +15,7 @@ import {
 	TrackEndReasonTypes,
 } from "./Utils";
 import { Manager, ManagerEventTypes, PlayerStateEventTypes, SearchPlatform } from "./Manager";
-import { Player, Track, UnresolvedTrack } from "./Player";
+import { Player, Track } from "./Player";
 import { Rest } from "./Rest";
 import nodeCheck from "../utils/nodeCheck";
 import WebSocket from "ws";
@@ -429,6 +429,7 @@ export class Node {
 				this.handleEvent(payload);
 				break;
 			case "ready":
+				console.log(payload);
 				this.manager.emit(ManagerEventTypes.Debug, `[NODE] Node message: ${JSON.stringify(payload)}`);
 				this.rest.setSessionId(payload.sessionId);
 				this.sessionId = payload.sessionId;
@@ -692,12 +693,12 @@ export class Node {
 	/**
 	 * Handles Last.fm-based autoplay.
 	 * @param {Player} player - The player instance.
-	 * @param {Track | UnresolvedTrack} previousTrack - The previous track.
+	 * @param {Track} previousTrack - The previous track.
 	 * @param {SearchPlatform} platform - The selected platform.
 	 * @param {string} apiKey - The Last.fm API key.
 	 * @returns {Promise<boolean>} - Whether the autoplay was successful.
 	 */
-	private async handlePlatformAutoplay(player: Player, previousTrack: Track | UnresolvedTrack, platform: SearchPlatform, apiKey: string): Promise<boolean> {
+	private async handlePlatformAutoplay(player: Player, previousTrack: Track, platform: SearchPlatform, apiKey: string): Promise<boolean> {
 		let { author: artist } = previousTrack;
 		const { title } = previousTrack;
 
@@ -782,10 +783,10 @@ export class Node {
 	/**
 	 * Handles YouTube-based autoplay.
 	 * @param {Player} player - The player instance.
-	 * @param {Track | UnresolvedTrack} previousTrack - The previous track.
+	 * @param {Track} previousTrack - The previous track.
 	 * @returns {Promise<boolean>} - Whether the autoplay was successful.
 	 */
-	private async handleYouTubeAutoplay(player: Player, previousTrack: Track | UnresolvedTrack): Promise<boolean> {
+	private async handleYouTubeAutoplay(player: Player, previousTrack: Track): Promise<boolean> {
 		// Check if the previous track has a YouTube URL
 		const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) => previousTrack.uri.includes(url));
 		// Get the video ID from the previous track's URL
@@ -859,12 +860,12 @@ export class Node {
 		}
 		// If the queue is set to repeat, add the current track back to the end of the queue
 		else if (queueRepeat) {
-			queue.add(queue.current);
+			queue.add(queue.current as Track);
 		}
 
 		// Update the previous and current tracks in the queue
 		queue.previous = queue.current;
-		queue.current = queue.shift();
+		queue.current = queue.shift() as Track;
 
 		// Emit the track end event
 		this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
@@ -939,6 +940,32 @@ export class Node {
 	}
 
 	/**
+	 * Fetches the lyrics of a track from the Lavalink node.
+	 * This method uses the `lavalyrics-plugin` to fetch the lyrics.
+	 * If the plugin is not available, it will throw a RangeError.
+	 *
+	 * @param {Track} track - The track to fetch the lyrics for.
+	 * @param {boolean} [skipTrackSource=false] - Whether to skip using the track's source URL.
+	 * @returns {Promise<Lyrics>} A promise that resolves with the lyrics data.
+	 */
+	public async getLyrics(track: Track, skipTrackSource: boolean = false): Promise<Lyrics> {
+		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "lavalyrics-plugin"))
+			throw new RangeError(`there is no lavalyrics-plugin available in the lavalink node: ${this.options.identifier}`);
+
+		// Make a GET request to the Lavalink node to fetch the lyrics
+		// The request includes the track URL and the skipTrackSource parameter
+		const result = ((await this.rest.get(`/v4/lyrics?track=${encodeURIComponent(track.track)}&skipTrackSource=${skipTrackSource}`)) as Lyrics) || {
+			source: null,
+			provider: null,
+			text: null,
+			lines: [],
+			plugin: [],
+		};
+
+		return result;
+	}
+
+	/**
 	 * Handles the event when a track gets stuck during playback.
 	 * Stops the current track and emits a `trackStuck` event.
 	 *
@@ -958,12 +985,12 @@ export class Node {
 	 * Stops the current track and emits a `trackError` event.
 	 *
 	 * @param {Player} player - The player associated with the track that encountered an error.
-	 * @param {Track | UnresolvedTrack} track - The track that encountered an error.
+	 * @param {Track} track - The track that encountered an error.
 	 * @param {TrackExceptionEvent} payload - The event payload containing additional data about the track error event.
 	 * @returns {void}
 	 * @protected
 	 */
-	protected trackError(player: Player, track: Track | UnresolvedTrack, payload: TrackExceptionEvent): void {
+	protected trackError(player: Player, track: Track, payload: TrackExceptionEvent): void {
 		player.stop();
 		this.manager.emit(ManagerEventTypes.TrackError, player, track, payload);
 	}
@@ -1180,4 +1207,19 @@ export interface LavalinkInfo {
 	sourceManagers: string[];
 	filters: string[];
 	plugins: { name: string; version: string }[];
+}
+
+export interface LyricsLine {
+	timestamp: number;
+	duration: number;
+	line: string;
+	plugin: object;
+}
+
+export interface Lyrics {
+	source: string;
+	provider: string;
+	text?: string;
+	lines: LyricsLine[];
+	plugin: object[];
 }

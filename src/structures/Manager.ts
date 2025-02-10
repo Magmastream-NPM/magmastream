@@ -1,6 +1,5 @@
 import {
 	LoadTypes,
-	Plugin,
 	SponsorBlockChaptersLoaded,
 	SponsorBlockChapterStarted,
 	SponsorBlockSegmentSkipped,
@@ -20,8 +19,8 @@ import {
 import { Collection } from "@discordjs/collection";
 import { EventEmitter } from "events";
 import { Node, NodeOptions } from "./Node";
-import { Player, PlayerOptions, Track, UnresolvedTrack } from "./Player";
-import { VoiceState } from "..";
+import { Player, PlayerOptions, Track } from "./Player";
+import { VoiceState, Plugin } from "..";
 import managerCheck from "../utils/managerCheck";
 import { ClientUser, User } from "discord.js";
 import { blockedWords } from "../config/blockedWords";
@@ -56,8 +55,7 @@ export class Manager extends EventEmitter {
 	 * @returns A promise that resolves when the player states have been loaded.
 	 */
 	public async loadPlayerStates(nodeId: string): Promise<void> {
-		// Changed to async and added Promise<void>
-		this.emit("debug", "[MANAGER] Loading saved players.");
+		this.emit(ManagerEventTypes.Debug, "[MANAGER] Loading saved players.");
 		const node = this.nodes.get(nodeId);
 		if (!node) throw new Error(`Could not find node: ${nodeId}`);
 
@@ -70,28 +68,6 @@ export class Manager extends EventEmitter {
 		}
 
 		const playerFiles = fs.readdirSync(playerStatesDir);
-
-		/**
-		 * Converts a track from the Lavalink format to the Magmastream format.
-		 * @param song The track in the Lavalink format.
-		 * @returns The track in the Magmastream format.
-		 */
-		const createTrackData = (song): TrackData => ({
-			encoded: song.track,
-			info: {
-				identifier: song.identifier,
-				isSeekable: song.isSeekable,
-				author: song.author,
-				length: song.duration,
-				isrc: song.isrc,
-				isStream: song.isStream,
-				title: song.title,
-				uri: song.uri,
-				artworkUrl: song.artworkUrl,
-				sourceName: song.sourceName,
-			},
-			pluginInfo: song.pluginInfo,
-		});
 
 		for (const file of playerFiles) {
 			const filePath = path.join(playerStatesDir, file);
@@ -117,7 +93,7 @@ export class Manager extends EventEmitter {
 					volume: lavaPlayer.volume || state.options.volume,
 				};
 
-				this.emit("debug", `[MANAGER] Recreating player: ${state.guildId} from saved file: ${JSON.stringify(state.options)}`);
+				this.emit(ManagerEventTypes.Debug, `[MANAGER] Recreating player: ${state.guildId} from saved file: ${JSON.stringify(state.options)}`);
 				const player = this.create(playerOptions);
 
 				if (!lavaPlayer.state.connected) {
@@ -131,7 +107,7 @@ export class Manager extends EventEmitter {
 						for (const key in state.queue) {
 							if (!isNaN(Number(key)) && key !== "current" && key !== "previous" && key !== "manager") {
 								const song = state.queue[key];
-								tracks.push(TrackUtils.buildUnresolved(song, song.requester));
+								tracks.push(song, song.requester);
 							}
 						}
 
@@ -142,30 +118,30 @@ export class Manager extends EventEmitter {
 							const payload = {
 								reason: "finished",
 							};
-							node.queueEnd(player, state.queue.current, payload as TrackEndEvent);
+							await node.queueEnd(player, state.queue.current, payload as TrackEndEvent);
 						}
 					} else {
 						if (state.queue.previous !== null) {
 							const payload = {
 								reason: "finished",
 							};
-							node.queueEnd(player, state.queue.previous, payload as TrackEndEvent);
+							await node.queueEnd(player, state.queue.previous, payload as TrackEndEvent);
 						} else {
 							this.destroy(state.guildId);
 							continue;
 						}
 					}
 				} else {
-					const currentTrack = state.queue.current;
-					tracks.push(TrackUtils.build(createTrackData(currentTrack), currentTrack.requester));
+					tracks.push(state.queue.current as Track);
 
 					for (const key in state.queue) {
 						if (!isNaN(Number(key)) && key !== "current" && key !== "previous" && key !== "manager") {
 							const song = state.queue[key];
-							tracks.push(TrackUtils.buildUnresolved(song, song.requester));
+							// tracks.push(song, song.requester);
+							tracks.push(song as Track);
 						}
 					}
-					player.queue.add(tracks);
+					player.queue.add(tracks as Track[]);
 				}
 
 				if (state.paused) player.pause(true);
@@ -177,13 +153,27 @@ export class Manager extends EventEmitter {
 				if (state.isAutoplay && state?.data?.Internal_BotUser) {
 					player.setAutoplay(state.isAutoplay, state.data.Internal_BotUser as User | ClientUser);
 				}
-
-				// Delete the file after the player is successfully loaded
-				fs.unlinkSync(filePath);
-				this.emit("debug", `[MANAGER] Deleted player state file after loading: ${filePath}`);
 			}
 		}
-		this.emit("debug", "[MANAGER] Finished loading saved players.");
+
+		// Delete all files inside playerStatesDir where nodeId matches
+		for (const file of playerFiles) {
+			const filePath = path.join(playerStatesDir, file);
+
+			if (!fs.existsSync(filePath)) {
+				continue;
+			}
+
+			const data = fs.readFileSync(filePath, "utf-8");
+			const state = JSON.parse(data);
+
+			if (state && typeof state === "object" && state.node.options.identifier === nodeId) {
+				fs.unlinkSync(filePath);
+				this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleted player state file: ${filePath}`);
+			}
+		}
+
+		this.emit(ManagerEventTypes.Debug, "[MANAGER] Finished loading saved players.");
 	}
 
 	/**
@@ -194,7 +184,6 @@ export class Manager extends EventEmitter {
 	private getPlayerFilePath(guildId: string): string {
 		// Get the directory path to where the player's JSON file will be saved
 		const configDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
-
 		// Make sure the directory exists, create it if it doesn't
 		if (!fs.existsSync(configDir)) {
 			fs.mkdirSync(configDir, { recursive: true });
@@ -210,20 +199,27 @@ export class Manager extends EventEmitter {
 	 */
 	public savePlayerState(guildId: string): void {
 		// Get the full path to the player's JSON file
+		console.log("Saving player state for guild:", guildId);
+
 		const playerStateFilePath = this.getPlayerFilePath(guildId);
+		console.log("Saving player state to:", playerStateFilePath);
 
 		// Get the player instance from the manager's collection
 		const player = this.players.get(guildId);
+		console.log("Saving found player for guild:", guildId);
 
 		// If the player does not exist or is disconnected, or the voice channel is not specified, do not save the player state
 		if (!player || player.state === StateTypes.Disconnected || !player.voiceChannelId) {
 			// Clean up any inactive players
+			console.log("Cleaning up inactive players");
 			return this.cleanupInactivePlayers();
 		}
 
 		// Serialize the player instance to avoid circular references
+		console.log("Serializing player for guild:", guildId);
 		const serializedPlayer = this.serializePlayer(player) as unknown as Player;
 
+		console.log("Writing player state for guild:", guildId);
 		// Write the serialized player state to the JSON file
 		fs.writeFileSync(playerStateFilePath, JSON.stringify(serializedPlayer, null, 2), "utf-8");
 
@@ -237,6 +233,7 @@ export class Manager extends EventEmitter {
 	 * @returns The serialized Player instance
 	 */
 	private serializePlayer(player: Player): Record<string, unknown> {
+		console.log("Serializing player for guild:", player.guildId);
 		const seen = new WeakSet();
 
 		/**
@@ -245,9 +242,14 @@ export class Manager extends EventEmitter {
 		 * @returns The serialized object
 		 */
 		const serialize = (obj: unknown): unknown => {
+			console.log("Serializing object for guild:", player.guildId);
 			if (obj && typeof obj === "object") {
-				if (seen.has(obj)) return;
+				if (seen.has(obj)) {
+					console.log("Seen object for guild:", player.guildId);
+					return;
+				}
 
+				console.log("Adding object to seen for guild:", player.guildId);
 				seen.add(obj);
 			}
 			return obj;
@@ -256,21 +258,23 @@ export class Manager extends EventEmitter {
 		return JSON.parse(
 			JSON.stringify(player, (key, value) => {
 				if (key === "filters" || key === "manager") {
+					console.log("Skipping key for guild:", player.guildId);
 					return null;
 				}
 
 				if (key === "queue") {
+					console.log("Serializing queue for guild:", player.guildId);
 					return {
 						...value,
 						current: value.current || null,
 					};
 				}
 
+				console.log("Serializing value for guild:", player.guildId);
 				return serialize(value);
 			})
 		);
 	}
-
 	/**
 	 * Checks for players that are no longer active and deletes their saved state files.
 	 * This is done to prevent stale state files from accumulating on the file system.
@@ -391,7 +395,7 @@ export class Manager extends EventEmitter {
 	 * Optionally, it also calls {@link cleanupInactivePlayers} to remove any stale player state files.
 	 * After saving and cleaning up, it exits the process.
 	 */
-	public async handleShutdown(): Promise<void> {
+	private async handleShutdown(): Promise<void> {
 		console.warn("\x1b[31m%s\x1b[0m", "MAGMASTREAM WARNING: Shutting down! Please wait, saving active players...");
 
 		// Create an array of promises for saving player states
@@ -442,9 +446,6 @@ export class Manager extends EventEmitter {
 	constructor(options: ManagerOptions) {
 		super();
 
-		process.on("SIGINT", async () => await this.handleShutdown());
-		process.on("SIGTERM", async () => await this.handleShutdown());
-
 		managerCheck(options);
 
 		Structure.get("Player").init(this);
@@ -475,16 +476,12 @@ export class Manager extends EventEmitter {
 			...options,
 		};
 
-		if (this.options.plugins) {
-			for (const [index, plugin] of this.options.plugins.entries()) {
-				if (!(plugin instanceof Plugin)) throw new RangeError(`Plugin at index ${index} does not extend Plugin.`);
-				plugin.load(this);
-			}
-		}
-
 		if (this.options.nodes) {
 			for (const nodeOptions of this.options.nodes) new (Structure.get("Node"))(nodeOptions);
 		}
+
+		process.on("SIGINT", async () => await this.handleShutdown());
+		process.on("SIGTERM", async () => await this.handleShutdown());
 	}
 
 	/**
@@ -497,26 +494,27 @@ export class Manager extends EventEmitter {
 			return this;
 		}
 
-		// Validate clientId
 		if (typeof clientId !== "string" || !/^\d+$/.test(clientId)) {
 			throw new Error('"clientId" must be a valid Discord client ID.');
 		}
 
-		// Set the validated clientId
 		this.options.clientId = clientId;
 
-		// Attempt to connect nodes
 		for (const node of this.nodes.values()) {
 			try {
-				// Connect the node
 				node.connect();
 			} catch (err) {
-				// Handle any errors that occur during the connection process
 				this.emit("nodeError", node, err);
 			}
 		}
 
-		// Set the initiated flag to true
+		if (this.options.plugins) {
+			for (const [index, plugin] of this.options.plugins.entries()) {
+				if (!(plugin instanceof Plugin)) throw new RangeError(`Plugin at index ${index} does not extend Plugin.`);
+				plugin.load(this);
+			}
+		}
+
 		this.initiated = true;
 		return this;
 	}
@@ -987,7 +985,7 @@ interface PauseChangeEvent {
 
 interface QueueChangeEvent {
 	changeType: "add" | "remove" | "clear" | "shuffle" | "roundRobin" | "userBlock" | "autoPlayAdd";
-	tracks?: (Track | UnresolvedTrack)[];
+	tracks?: Track[];
 }
 
 interface TrackChangeEvent {
@@ -1124,14 +1122,14 @@ export interface ManagerEvents {
 	[ManagerEventTypes.PlayerStateUpdate]: [oldPlayer: Player, newPlayer: Player, changeType: PlayerStateUpdateEvent];
 	[ManagerEventTypes.PlayerMove]: [player: Player, initChannel: string, newChannel: string];
 	[ManagerEventTypes.PlayerDisconnect]: [player: Player, oldChannel: string];
-	[ManagerEventTypes.QueueEnd]: [player: Player, track: Track | UnresolvedTrack, payload: TrackEndEvent];
+	[ManagerEventTypes.QueueEnd]: [player: Player, track: Track, payload: TrackEndEvent];
 	[ManagerEventTypes.SocketClosed]: [player: Player, payload: WebSocketClosedEvent];
 	[ManagerEventTypes.TrackStart]: [player: Player, track: Track, payload: TrackStartEvent];
 	[ManagerEventTypes.TrackEnd]: [player: Player, track: Track, payload: TrackEndEvent];
 	[ManagerEventTypes.TrackStuck]: [player: Player, track: Track, payload: TrackStuckEvent];
-	[ManagerEventTypes.TrackError]: [player: Player, track: Track | UnresolvedTrack, payload: TrackExceptionEvent];
-	[ManagerEventTypes.SegmentsLoaded]: [player: Player, track: Track | UnresolvedTrack, payload: SponsorBlockSegmentsLoaded];
-	[ManagerEventTypes.SegmentSkipped]: [player: Player, track: Track | UnresolvedTrack, payload: SponsorBlockSegmentSkipped];
-	[ManagerEventTypes.ChapterStarted]: [player: Player, track: Track | UnresolvedTrack, payload: SponsorBlockChapterStarted];
-	[ManagerEventTypes.ChaptersLoaded]: [player: Player, track: Track | UnresolvedTrack, payload: SponsorBlockChaptersLoaded];
+	[ManagerEventTypes.TrackError]: [player: Player, track: Track, payload: TrackExceptionEvent];
+	[ManagerEventTypes.SegmentsLoaded]: [player: Player, track: Track, payload: SponsorBlockSegmentsLoaded];
+	[ManagerEventTypes.SegmentSkipped]: [player: Player, track: Track, payload: SponsorBlockSegmentSkipped];
+	[ManagerEventTypes.ChapterStarted]: [player: Player, track: Track, payload: SponsorBlockChapterStarted];
+	[ManagerEventTypes.ChaptersLoaded]: [player: Player, track: Track, payload: SponsorBlockChaptersLoaded];
 }

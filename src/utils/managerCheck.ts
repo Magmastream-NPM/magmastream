@@ -8,8 +8,20 @@ import { ManagerOptions, SearchPlatform, UseNodeOptions } from "../structures/Ma
 export default function managerCheck(options: ManagerOptions) {
 	if (!options) throw new TypeError("ManagerOptions must not be empty.");
 
-	const { autoPlay, clientName, defaultSearchPlatform, autoPlaySearchPlatform, nodes, plugins, send, trackPartial, usePriority, useNode, replaceYouTubeCredentials, lastFmApiKey } =
-		options;
+	const {
+		autoPlay,
+		clientName,
+		defaultSearchPlatform,
+		autoPlaySearchPlatform,
+		nodes,
+		plugins,
+		send,
+		trackPartial,
+		usePriority,
+		useNode,
+		replaceYouTubeCredentials,
+		lastFmApiKey,
+	} = options;
 
 	// Validate autoPlay option
 	if (typeof autoPlay !== "boolean") {
