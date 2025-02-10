@@ -4,7 +4,7 @@ import {
 	SponsorBlockChapterStarted,
 	SponsorBlockSegmentSkipped,
 	SponsorBlockSegmentsLoaded,
-	StateTypes,
+	// StateTypes,
 	Structure,
 	TrackData,
 	TrackEndEvent,
@@ -24,7 +24,7 @@ import { VoiceState, Plugin } from "..";
 import managerCheck from "../utils/managerCheck";
 import { ClientUser, User } from "discord.js";
 import { blockedWords } from "../config/blockedWords";
-import fs from "fs";
+import fs from "fs/promises";
 import path from "path";
 
 /**
@@ -63,114 +63,129 @@ export class Manager extends EventEmitter {
 
 		const playerStatesDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
 
-		if (!fs.existsSync(playerStatesDir)) {
-			fs.mkdirSync(playerStatesDir, { recursive: true });
-		}
+		try {
+			// Check if the directory exists, and create it if it doesn't
+			await fs.access(playerStatesDir).catch(async () => {
+				await fs.mkdir(playerStatesDir, { recursive: true });
+				this.emit(ManagerEventTypes.Debug, `[MANAGER] Created directory: ${playerStatesDir}`);
+			});
 
-		const playerFiles = fs.readdirSync(playerStatesDir);
+			// Read the contents of the directory
+			const playerFiles = await fs.readdir(playerStatesDir);
 
-		for (const file of playerFiles) {
-			const filePath = path.join(playerStatesDir, file);
+			// Process each file in the directory
+			for (const file of playerFiles) {
+				const filePath = path.join(playerStatesDir, file);
 
-			if (!fs.existsSync(filePath)) {
-				continue;
-			}
+				try {
+					// Check if the file exists (though readdir should only return valid files)
+					await fs.access(filePath);
 
-			const data = fs.readFileSync(filePath, "utf-8");
-			const state = JSON.parse(data);
+					// Read the file asynchronously
+					const data = await fs.readFile(filePath, "utf-8");
+					const state = JSON.parse(data);
 
-			if (state && typeof state === "object" && state.guildId && state.node.options.identifier === nodeId) {
-				const lavaPlayer = info.find((player) => player.guildId === state.guildId);
-				if (!lavaPlayer) {
-					this.destroy(state.guildId);
-					continue;
-				}
-				const playerOptions: PlayerOptions = {
-					guildId: state.options.guildId,
-					textChannelId: state.options.textChannelId,
-					voiceChannelId: state.options.voiceChannelId,
-					selfDeafen: state.options.selfDeafen,
-					volume: lavaPlayer.volume || state.options.volume,
-				};
-
-				this.emit(ManagerEventTypes.Debug, `[MANAGER] Recreating player: ${state.guildId} from saved file: ${JSON.stringify(state.options)}`);
-				const player = this.create(playerOptions);
-
-				if (!lavaPlayer.state.connected) {
-					player.connect();
-				}
-
-				const tracks = [];
-
-				if (!lavaPlayer.track) {
-					if (state.queue.current !== null) {
-						for (const key in state.queue) {
-							if (!isNaN(Number(key)) && key !== "current" && key !== "previous" && key !== "manager") {
-								const song = state.queue[key];
-								tracks.push(song, song.requester);
-							}
-						}
-
-						if (tracks.length > 0) {
-							player.queue.add(tracks);
-							if (!state.paused && lavaPlayer.state.connected) player.play();
-						} else {
-							const payload = {
-								reason: "finished",
-							};
-							await node.queueEnd(player, state.queue.current, payload as TrackEndEvent);
-						}
-					} else {
-						if (state.queue.previous !== null) {
-							const payload = {
-								reason: "finished",
-							};
-							await node.queueEnd(player, state.queue.previous, payload as TrackEndEvent);
-						} else {
+					if (state && typeof state === "object" && state.guildId && state.node.options.identifier === nodeId) {
+						const lavaPlayer = info.find((player) => player.guildId === state.guildId);
+						if (!lavaPlayer) {
 							this.destroy(state.guildId);
 							continue;
 						}
-					}
-				} else {
-					tracks.push(state.queue.current as Track);
 
-					for (const key in state.queue) {
-						if (!isNaN(Number(key)) && key !== "current" && key !== "previous" && key !== "manager") {
-							const song = state.queue[key];
-							// tracks.push(song, song.requester);
-							tracks.push(song as Track);
+						const playerOptions: PlayerOptions = {
+							guildId: state.options.guildId,
+							textChannelId: state.options.textChannelId,
+							voiceChannelId: state.options.voiceChannelId,
+							selfDeafen: state.options.selfDeafen,
+							volume: lavaPlayer.volume || state.options.volume,
+						};
+
+						this.emit(ManagerEventTypes.Debug, `[MANAGER] Recreating player: ${state.guildId} from saved file: ${JSON.stringify(state.options)}`);
+						const player = this.create(playerOptions);
+
+						if (!lavaPlayer.state.connected) {
+							player.connect();
+						}
+
+						const tracks = [];
+
+						if (!lavaPlayer.track) {
+							if (state.queue.current !== null) {
+								for (const key in state.queue) {
+									if (!isNaN(Number(key)) && key !== "current" && key !== "previous" && key !== "manager") {
+										const song = state.queue[key];
+										tracks.push(song, song.requester);
+									}
+								}
+
+								if (tracks.length > 0) {
+									player.queue.add(tracks);
+									if (!state.paused && lavaPlayer.state.connected) player.play();
+								} else {
+									const payload = {
+										reason: "finished",
+									};
+									await node.queueEnd(player, state.queue.current, payload as TrackEndEvent);
+								}
+							} else {
+								if (state.queue.previous !== null) {
+									const payload = {
+										reason: "finished",
+									};
+									await node.queueEnd(player, state.queue.previous, payload as TrackEndEvent);
+								} else {
+									this.destroy(state.guildId);
+									continue;
+								}
+							}
+						} else {
+							tracks.push(state.queue.current as Track);
+
+							for (const key in state.queue) {
+								if (!isNaN(Number(key)) && key !== "current" && key !== "previous" && key !== "manager") {
+									const song = state.queue[key];
+									tracks.push(song as Track);
+								}
+							}
+							player.queue.add(tracks as Track[]);
+						}
+
+						if (state.paused) player.pause(true);
+						player.setTrackRepeat(state.trackRepeat);
+						player.setQueueRepeat(state.queueRepeat);
+						if (state.dynamicRepeat) {
+							player.setDynamicRepeat(state.dynamicRepeat, state.dynamicLoopInterval._idleTimeout);
+						}
+						if (state.isAutoplay && state?.data?.Internal_BotUser) {
+							player.setAutoplay(state.isAutoplay, state.data.Internal_BotUser as User | ClientUser);
 						}
 					}
-					player.queue.add(tracks as Track[]);
-				}
-
-				if (state.paused) player.pause(true);
-				player.setTrackRepeat(state.trackRepeat);
-				player.setQueueRepeat(state.queueRepeat);
-				if (state.dynamicRepeat) {
-					player.setDynamicRepeat(state.dynamicRepeat, state.dynamicLoopInterval._idleTimeout);
-				}
-				if (state.isAutoplay && state?.data?.Internal_BotUser) {
-					player.setAutoplay(state.isAutoplay, state.data.Internal_BotUser as User | ClientUser);
+				} catch (error) {
+					this.emit(ManagerEventTypes.Debug, `[MANAGER] Error processing file ${filePath}: ${error}`);
+					continue; // Skip to the next file if there's an error
 				}
 			}
-		}
 
-		// Delete all files inside playerStatesDir where nodeId matches
-		for (const file of playerFiles) {
-			const filePath = path.join(playerStatesDir, file);
+			// Delete all files inside playerStatesDir where nodeId matches
+			for (const file of playerFiles) {
+				const filePath = path.join(playerStatesDir, file);
 
-			if (!fs.existsSync(filePath)) {
-				continue;
+				try {
+					await fs.access(filePath); // Check if the file exists
+					const data = await fs.readFile(filePath, "utf-8");
+					const state = JSON.parse(data);
+
+					if (state && typeof state === "object" && state.node.options.identifier === nodeId) {
+						await fs.unlink(filePath); // Delete the file asynchronously
+						this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleted player state file: ${filePath}`);
+					}
+				} catch (error) {
+					this.emit(ManagerEventTypes.Debug, `[MANAGER] Error deleting file ${filePath}: ${error}`);
+					continue; // Skip to the next file if there's an error
+				}
 			}
-
-			const data = fs.readFileSync(filePath, "utf-8");
-			const state = JSON.parse(data);
-
-			if (state && typeof state === "object" && state.node.options.identifier === nodeId) {
-				fs.unlinkSync(filePath);
-				this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleted player state file: ${filePath}`);
-			}
+		} catch (error) {
+			this.emit(ManagerEventTypes.Debug, `[MANAGER] Error loading player states: ${error}`);
 		}
 
 		this.emit(ManagerEventTypes.Debug, "[MANAGER] Finished loading saved players.");
@@ -181,12 +196,15 @@ export class Manager extends EventEmitter {
 	 * @param {string} guildId - The guild ID
 	 * @returns {string} The path to the player's JSON file
 	 */
-	private getPlayerFilePath(guildId: string): string {
+	private async getPlayerFilePath(guildId: string): Promise<string> {
 		// Get the directory path to where the player's JSON file will be saved
 		const configDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
 		// Make sure the directory exists, create it if it doesn't
-		if (!fs.existsSync(configDir)) {
-			fs.mkdirSync(configDir, { recursive: true });
+		try {
+			await fs.mkdir(configDir, { recursive: true });
+		} catch (err) {
+			console.error("Error creating directory:", err);
+			throw err; // Re-throw to let the caller handle it
 		}
 
 		// Generate the full path to the player's JSON file
@@ -197,29 +215,25 @@ export class Manager extends EventEmitter {
 	 * Saves player states to the JSON file.
 	 * @param {string} guildId - The guild ID of the player to save
 	 */
-	public savePlayerState(guildId: string): void {
-		// Get the full path to the player's JSON file
-		console.log("Saving player state for guild:", guildId);
+	public async savePlayerState(guildId: string): Promise<void> {
+		console.log("Entering savePlayerState method for guild:", guildId); // Check if function is called
 
-		const playerStateFilePath = this.getPlayerFilePath(guildId);
-		console.log("Saving player state to:", playerStateFilePath);
+		// Make sure getPlayerFilePath is awaited
+		const playerStateFilePath = await this.getPlayerFilePath(guildId);
 
-		// Get the player instance from the manager's collection
+		console.log("Players map:", this.players);
+		console.log("Guild ID:", guildId);
 		const player = this.players.get(guildId);
-		console.log("Saving found player for guild:", guildId);
 
 		// If the player does not exist or is disconnected, or the voice channel is not specified, do not save the player state
 		if (!player || player.state === StateTypes.Disconnected || !player.voiceChannelId) {
 			// Clean up any inactive players
-			console.log("Cleaning up inactive players");
 			return this.cleanupInactivePlayers();
 		}
 
 		// Serialize the player instance to avoid circular references
-		console.log("Serializing player for guild:", guildId);
 		const serializedPlayer = this.serializePlayer(player) as unknown as Player;
 
-		console.log("Writing player state for guild:", guildId);
 		// Write the serialized player state to the JSON file
 		fs.writeFileSync(playerStateFilePath, JSON.stringify(serializedPlayer, null, 2), "utf-8");
 
@@ -233,7 +247,6 @@ export class Manager extends EventEmitter {
 	 * @returns The serialized Player instance
 	 */
 	private serializePlayer(player: Player): Record<string, unknown> {
-		console.log("Serializing player for guild:", player.guildId);
 		const seen = new WeakSet();
 
 		/**
@@ -242,14 +255,9 @@ export class Manager extends EventEmitter {
 		 * @returns The serialized object
 		 */
 		const serialize = (obj: unknown): unknown => {
-			console.log("Serializing object for guild:", player.guildId);
 			if (obj && typeof obj === "object") {
-				if (seen.has(obj)) {
-					console.log("Seen object for guild:", player.guildId);
-					return;
-				}
+				if (seen.has(obj)) return;
 
-				console.log("Adding object to seen for guild:", player.guildId);
 				seen.add(obj);
 			}
 			return obj;
@@ -258,19 +266,16 @@ export class Manager extends EventEmitter {
 		return JSON.parse(
 			JSON.stringify(player, (key, value) => {
 				if (key === "filters" || key === "manager") {
-					console.log("Skipping key for guild:", player.guildId);
 					return null;
 				}
 
 				if (key === "queue") {
-					console.log("Serializing queue for guild:", player.guildId);
 					return {
 						...value,
 						current: value.current || null,
 					};
 				}
 
-				console.log("Serializing value for guild:", player.guildId);
 				return serialize(value);
 			})
 		);
@@ -279,31 +284,36 @@ export class Manager extends EventEmitter {
 	 * Checks for players that are no longer active and deletes their saved state files.
 	 * This is done to prevent stale state files from accumulating on the file system.
 	 */
-	private cleanupInactivePlayers(): void {
+	private async cleanupInactivePlayers(): Promise<void> {
 		const playerStatesDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
 
-		// Create the directory if it does not exist
-		if (!fs.existsSync(playerStatesDir)) {
-			fs.mkdirSync(playerStatesDir, { recursive: true });
-		}
+		try {
+			// Check if the directory exists, and create it if it doesn't
+			await fs.access(playerStatesDir).catch(async () => {
+				await fs.mkdir(playerStatesDir, { recursive: true });
+				this.emit("debug", `[MANAGER] Created directory: ${playerStatesDir}`);
+			});
 
-		// Get the list of player state files
-		const playerFiles = fs.readdirSync(playerStatesDir);
+			// Get the list of player state files
+			const playerFiles = await fs.readdir(playerStatesDir);
 
-		// Get the set of active guild IDs from the manager's player collection
-		const activeGuildIds = new Set(this.players.keys());
+			// Get the set of active guild IDs from the manager's player collection
+			const activeGuildIds = new Set(this.players.keys());
 
-		// Iterate over the player state files
-		for (const file of playerFiles) {
-			// Get the guild ID from the file name
-			const guildId = path.basename(file, ".json");
+			// Iterate over the player state files
+			for (const file of playerFiles) {
+				// Get the guild ID from the file name
+				const guildId = path.basename(file, ".json");
 
-			// If the guild ID is not in the set of active guild IDs, delete the file
-			if (!activeGuildIds.has(guildId)) {
-				const filePath = path.join(playerStatesDir, file);
-				fs.unlinkSync(filePath);
-				this.emit("debug", `[MANAGER] Deleting inactive player: ${guildId}`);
+				// If the guild ID is not in the set of active guild IDs, delete the file
+				if (!activeGuildIds.has(guildId)) {
+					const filePath = path.join(playerStatesDir, file);
+					await fs.unlink(filePath); // Delete the file asynchronously
+					this.emit("debug", `[MANAGER] Deleting inactive player: ${guildId}`);
+				}
 			}
+		} catch (error) {
+			this.emit("debug", `[MANAGER] Error cleaning up inactive players: ${error}`);
 		}
 	}
 
@@ -400,14 +410,13 @@ export class Manager extends EventEmitter {
 
 		// Create an array of promises for saving player states
 		const savePromises = Array.from(this.players.keys()).map((guildId) => {
-			return new Promise<void>((resolve) => {
+			return new Promise<void>(async (resolve, reject) => {
 				try {
-					this.savePlayerState(guildId);
-					resolve(); // Resolve immediately after calling savePlayerState
+					await this.savePlayerState(guildId); // Await the save operation
+					resolve();
 				} catch (error) {
 					console.error(`Error saving player state for guild ${guildId}:`, error);
-
-					throw error;
+					reject(error); // Reject the promise to propagate the error
 				}
 			});
 		});
