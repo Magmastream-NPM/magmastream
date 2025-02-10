@@ -522,9 +522,10 @@ export class Manager extends EventEmitter {
 	/**
 	 * Initiates the Manager.
 	 * @param clientId - The Discord client ID (required).
+	 * @param clusterId - The cluster ID which runs the current process (required).
 	 * @returns The manager instance.
 	 */
-	public init(clientId: string): this {
+	public init(clientId: string, clusterId: number = 0): this {
 		if (this.initiated) {
 			return this;
 		}
@@ -534,10 +535,15 @@ export class Manager extends EventEmitter {
 		}
 
 		this.options.clientId = clientId;
+		if (typeof clusterId !== "number") {
+			console.warn('"clusterId" is not a valid number, defaulting to 0.');
+			clusterId = 0;
+		}
+		this.options.clusterId = clusterId;
 
 		for (const node of this.nodes.values()) {
 			try {
-				node.connect();
+				node.connect(); // Connect the node
 			} catch (err) {
 				this.emit("nodeError", node, err);
 			}
@@ -924,6 +930,8 @@ export interface ManagerOptions {
 	clientId?: string;
 	/** Value to use for the `Client-Name` header. */
 	clientName?: string;
+	/** The array of shard IDs connected to this manager instance. */
+	clusterId?: number;
 	/** A array of plugins to use. */
 	plugins?: Plugin[];
 	/** Whether players should automatically play the next song. */
