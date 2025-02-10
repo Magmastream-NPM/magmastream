@@ -197,18 +197,15 @@ export class Manager extends EventEmitter {
 	 * @returns {string} The path to the player's JSON file
 	 */
 	private async getPlayerFilePath(guildId: string): Promise<string> {
-		// Get the directory path to where the player's JSON file will be saved
 		const configDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
-		// Make sure the directory exists, create it if it doesn't
+
 		try {
 			await fs.mkdir(configDir, { recursive: true });
+			return path.join(configDir, `${guildId}.json`);
 		} catch (err) {
-			console.error("Error creating directory:", err);
-			throw err; // Re-throw to let the caller handle it
+			console.error("Error ensuring player data directory exists:", err);
+			throw new Error(`Failed to resolve player file path for guild ${guildId}`);
 		}
-
-		// Generate the full path to the player's JSON file
-		return path.join(configDir, `${guildId}.json`);
 	}
 
 	/**
@@ -216,29 +213,29 @@ export class Manager extends EventEmitter {
 	 * @param {string} guildId - The guild ID of the player to save
 	 */
 	public async savePlayerState(guildId: string): Promise<void> {
-		console.log("Entering savePlayerState method for guild:", guildId); // Check if function is called
+		console.log(`Attempting to save player state for guild: ${guildId}`);
 
-		// Make sure getPlayerFilePath is awaited
-		const playerStateFilePath = await this.getPlayerFilePath(guildId);
+		try {
+			const playerStateFilePath = await this.getPlayerFilePath(guildId);
+			console.log(`Resolved file path: ${playerStateFilePath}`);
 
-		console.log("Players map:", this.players);
-		console.log("Guild ID:", guildId);
-		const player = this.players.get(guildId);
+			const player = this.players.get(guildId);
+			if (!player || player.state === StateTypes.Disconnected || !player.voiceChannelId) {
+				console.warn(`Skipping save for inactive player: ${guildId}`);
+				return;
+			}
 
-		// If the player does not exist or is disconnected, or the voice channel is not specified, do not save the player state
-		if (!player || player.state === StateTypes.Disconnected || !player.voiceChannelId) {
-			// Clean up any inactive players
-			return this.cleanupInactivePlayers();
+			console.log(`Serializing player state for: ${guildId}`);
+			const serializedPlayer = this.serializePlayer(player);
+
+			console.log(`Writing player state to file: ${playerStateFilePath}`);
+			await fs.writeFile(playerStateFilePath, JSON.stringify(serializedPlayer, null, 2), "utf-8");
+			console.log(`Successfully saved player state for: ${guildId}`);
+
+			this.emit("debug", `[MANAGER] Player state saved: ${guildId}`);
+		} catch (error) {
+			console.error(`Error saving player state for guild ${guildId}:`, error);
 		}
-
-		// Serialize the player instance to avoid circular references
-		const serializedPlayer = this.serializePlayer(player) as unknown as Player;
-
-		// Write the serialized player state to the JSON file
-		fs.writeFile(playerStateFilePath, JSON.stringify(serializedPlayer, null, 2), "utf-8");
-
-		// Emit a debug event to indicate the player state has been saved
-		this.emit("debug", `[MANAGER] Saving player: ${guildId} at location: ${playerStateFilePath}`);
 	}
 
 	/**
@@ -405,36 +402,37 @@ export class Manager extends EventEmitter {
 	 * Optionally, it also calls {@link cleanupInactivePlayers} to remove any stale player state files.
 	 * After saving and cleaning up, it exits the process.
 	 */
-	private async handleShutdown(): Promise<void> {
+	public async handleShutdown(): Promise<void> {
 		console.warn("\x1b[31m%s\x1b[0m", "MAGMASTREAM WARNING: Shutting down! Please wait, saving active players...");
 
-		// Create an array of promises for saving player states
-		const savePromises = Array.from(this.players.keys()).map((guildId) => {
-			return new Promise<void>(async (resolve, reject) => {
+		try {
+			const savePromises = Array.from(this.players.keys()).map(async (guildId) => {
+				console.log(`Saving state for guild: ${guildId}`); // Debugging
 				try {
-					await this.savePlayerState(guildId); // Await the save operation
-					resolve();
+					await this.savePlayerState(guildId);
 				} catch (error) {
 					console.error(`Error saving player state for guild ${guildId}:`, error);
-					reject(error); // Reject the promise to propagate the error
 				}
 			});
-		});
 
-		// Wait for all save operations to complete and check for errors
-		const results = await Promise.allSettled(savePromises);
-		const errors = results.filter((result) => result.status === "rejected");
+			console.log("Waiting for all player states to save...");
+			await Promise.allSettled(savePromises);
+			console.log("All player states saved.");
 
-		if (errors.length > 0) {
-			console.error("`\x1b[31m%s\x1b[0m", `MAGMASTREAM ERROR: ${errors.length} player states failed to save.`);
+			console.log("Cleaning up inactive players...");
+			await this.cleanupInactivePlayers();
+			console.log("Cleanup complete.");
+
+			console.warn("\x1b[32m%s\x1b[0m", "MAGMASTREAM INFO: Shutting down complete, exiting...");
+
+			setTimeout(() => {
+				console.log("Exiting process...");
+				process.exit(0);
+			}, 500);
+		} catch (error) {
+			console.error("Unexpected error during shutdown:", error);
+			process.exit(1);
 		}
-
-		// Clean up inactive players here
-		this.cleanupInactivePlayers();
-
-		console.warn("\x1b[32m%s\x1b[0m", "MAGMASTREAM INFO: Shutting down complete, exiting...");
-
-		setTimeout(() => process.exit(errors.length > 0 ? 1 : 0), 100);
 	}
 
 	/**
@@ -489,8 +487,36 @@ export class Manager extends EventEmitter {
 			for (const nodeOptions of this.options.nodes) new (Structure.get("Node"))(nodeOptions);
 		}
 
-		process.on("SIGINT", async () => await this.handleShutdown());
-		process.on("SIGTERM", async () => await this.handleShutdown());
+		process.on("SIGINT", async () => {
+			console.warn("\x1b[33mSIGINT received! Graceful shutdown initiated...\x1b[0m");
+
+			try {
+				await this.handleShutdown();
+				console.warn("\x1b[32mShutdown complete. Waiting for Node.js event loop to empty...\x1b[0m");
+
+				// Prevent forced exit by Windows
+				setTimeout(() => {
+					console.log("Exiting now...");
+					process.exit(0);
+				}, 2000);
+			} catch (error) {
+				console.error("Error during shutdown:", error);
+				process.exit(1);
+			}
+		});
+
+		process.on("SIGTERM", async () => {
+			console.warn("\x1b[33mSIGTERM received! Graceful shutdown initiated...\x1b[0m");
+
+			try {
+				await this.handleShutdown();
+				console.warn("\x1b[32mShutdown complete. Exiting now...\x1b[0m");
+				process.exit(0);
+			} catch (error) {
+				console.error("Error during SIGTERM shutdown:", error);
+				process.exit(1);
+			}
+		});
 	}
 
 	/**
