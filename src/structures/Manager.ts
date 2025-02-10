@@ -4,7 +4,7 @@ import {
 	SponsorBlockChapterStarted,
 	SponsorBlockSegmentSkipped,
 	SponsorBlockSegmentsLoaded,
-	// StateTypes,
+	StateTypes,
 	Structure,
 	TrackData,
 	TrackEndEvent,
@@ -235,7 +235,7 @@ export class Manager extends EventEmitter {
 		const serializedPlayer = this.serializePlayer(player) as unknown as Player;
 
 		// Write the serialized player state to the JSON file
-		fs.writeFileSync(playerStateFilePath, JSON.stringify(serializedPlayer, null, 2), "utf-8");
+		fs.writeFile(playerStateFilePath, JSON.stringify(serializedPlayer, null, 2), "utf-8");
 
 		// Emit a debug event to indicate the player state has been saved
 		this.emit("debug", `[MANAGER] Saving player: ${guildId} at location: ${playerStateFilePath}`);
