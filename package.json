@@ -83,7 +83,7 @@
 		"magmastream"
 	],
 	"repository": {
-		"url": "https://github.com/Blackfort-Hosting/magmastream/tree/main"
+		"url": "git+https://github.com/Blackfort-Hosting/magmastream.git#main"
 	},
 	"homepage": "https://docs.magmastream.com",
 	"author": "Abel Purnwasy",
