@@ -1,18 +1,18 @@
 import {
+	LoadTypes,
 	PlayerEvent,
 	PlayerEvents,
+	SponsorBlockChaptersLoaded,
+	SponsorBlockChapterStarted,
+	SponsorBlockSegmentSkipped,
+	SponsorBlockSegmentsLoaded,
 	Structure,
 	TrackEndEvent,
+	TrackEndReasonTypes,
 	TrackExceptionEvent,
 	TrackStartEvent,
 	TrackStuckEvent,
-	WebSocketClosedEvent,
-	SponsorBlockChapterStarted,
-	SponsorBlockChaptersLoaded,
-	SponsorBlockSegmentsLoaded,
-	SponsorBlockSegmentSkipped,
-	LoadTypes,
-	TrackEndReasonTypes,
+	WebSocketClosedEvent
 } from "./Utils";
 import { Manager, ManagerEventTypes, PlayerStateEventTypes, SearchPlatform } from "./Manager";
 import { Player, Track } from "./Player";
@@ -24,8 +24,18 @@ import path from "path";
 import { ClientUser } from "discord.js";
 import axios from "axios";
 
-export const validSponsorBlocks = ["sponsor", "selfpromo", "interaction", "intro", "outro", "preview", "music_offtopic", "filler"];
-export type SponsorBlockSegment = "sponsor" | "selfpromo" | "interaction" | "intro" | "outro" | "preview" | "music_offtopic" | "filler";
+export enum SponsorBlockSegment {
+	Sponsor = "sponsor",
+	SelfPromo = "selfpromo",
+	Interaction = "interaction",
+	Intro = "intro",
+	Outro = "outro",
+	Preview = "preview",
+	MusicOfftopic = "music_offtopic",
+	Filler = "filler",
+}
+
+const validSponsorBlocks = Object.values(SponsorBlockSegment).map((v) => v.toLowerCase());
 
 const sessionIdsFilePath = path.join(process.cwd(), "magmastream", "dist", "sessionData", "sessionIds.json");
 let sessionIdsMap: Map<string, string> = new Map();
@@ -40,39 +50,23 @@ export class Node {
 	public socket: WebSocket | null = null;
 	/** The stats for the node. */
 	public stats: NodeStats;
+	/** The manager for the node */
 	public manager: Manager;
 	/** The node's session ID. */
 	public sessionId: string | null;
 	/** The REST instance. */
 	public readonly rest: Rest;
+	/** Actual Lavalink information of the node. */
+	public info: LavalinkInfo | null = null;
 
 	private static _manager: Manager;
 	private reconnectTimeout?: NodeJS.Timeout;
 	private reconnectAttempts = 1;
 
-	/** Actual Lavalink information of the node. */
-	public info: LavalinkInfo | null = null;
-
-	/** Returns if connected to the Node. */
-	public get connected(): boolean {
-		if (!this.socket) return false;
-		return this.socket.readyState === WebSocket.OPEN;
-	}
-
-	/** Returns the address for this node. */
-	public get address(): string {
-		return `${this.options.host}:${this.options.port}`;
-	}
-
-	/** @hidden */
-	public static init(manager: Manager): void {
-		this._manager = manager;
-	}
-
 	/**
-	 * Creates an instance of Node.
-	 * @param options
-	 */
+		* Creates an instance of Node.
+		* @param options
+		*/
 	constructor(public options: NodeOptions) {
 		if (!this.manager) this.manager = Structure.get("Node")._manager;
 		if (!this.manager) throw new RangeError("Manager has not been initiated.");
@@ -129,6 +123,22 @@ export class Node {
 
 		// Create README file to inform the user about the magmastream folder
 		this.createReadmeFile();
+	}
+
+	/** Returns if connected to the Node. */
+	public get connected(): boolean {
+		if (!this.socket) return false;
+		return this.socket.readyState === WebSocket.OPEN;
+	}
+
+	/** Returns the address for this node. */
+	public get address(): string {
+		return `${this.options.host}:${this.options.port}`;
+	}
+
+	/** @hidden */
+	public static init(manager: Manager): void {
+		this._manager = manager;
 	}
 
 	/**
@@ -627,7 +637,6 @@ export class Node {
 	 * and executing it. If autoplay is not enabled or all attempts have failed,
 	 * it will return false.
 	 * @param {Player} player - The player to handle autoplay for.
-	 * @param {Track} track - The track that has ended.
 	 * @param {number} attempt - The current attempt number of the autoplay.
 	 * @returns {Promise<boolean>} A promise that resolves to a boolean indicating if autoplay was successful.
 	 * @private
@@ -976,15 +985,13 @@ export class Node {
 
 		// Make a GET request to the Lavalink node to fetch the lyrics
 		// The request includes the track URL and the skipTrackSource parameter
-		const result = ((await this.rest.get(`/v4/lyrics?track=${encodeURIComponent(track.track)}&skipTrackSource=${skipTrackSource}`)) as Lyrics) || {
+		return ((await this.rest.get(`/v4/lyrics?track=${encodeURIComponent(track.track)}&skipTrackSource=${skipTrackSource}`)) as Lyrics) || {
 			source: null,
 			provider: null,
 			text: null,
 			lines: [],
 			plugin: [],
 		};
-
-		return result;
 	}
 
 	/**
@@ -1095,8 +1102,8 @@ export class Node {
 
 	/**
 	 * Sets the sponsorblock segments for a player.
-	 * @param {Player} player - The player to set the sponsorblocks for.
-	 * @param {SponsorBlockSegment[]} segments - The sponsorblock segments to set. Defaults to `["sponsor", "selfpromo"]` if not provided.
+	 * @param {Player} player - The player to set the sponsor blocks for.
+	 * @param {SponsorBlockSegment[]} segments - The sponsorblock segments to set. Defaults to `[SponsorBlockSegment.Sponsor, SponsorBlockSegment.SelfPromo]` if not provided.
 	 * @returns {Promise<void>} The promise is resolved when the operation is complete.
 	 * @throws {RangeError} If the sponsorblock-plugin is not available in the Lavalink node.
 	 * @throws {RangeError} If no segments are provided.
@@ -1104,10 +1111,10 @@ export class Node {
 	 * @example
 	 * ```ts
 	 * // use it on the player via player.setSponsorBlock();
-	 * player.setSponsorBlock(["sponsor", "selfpromo"]);
+	 * player.setSponsorBlock([SponsorBlockSegment.Sponsor, SponsorBlockSegment.SelfPromo]);
 	 * ```
 	 */
-	public async setSponsorBlock(player: Player, segments: SponsorBlockSegment[] = ["sponsor", "selfpromo"]): Promise<void> {
+	public async setSponsorBlock(player: Player, segments: SponsorBlockSegment[] = [SponsorBlockSegment.Sponsor, SponsorBlockSegment.SelfPromo]): Promise<void> {
 		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "sponsorblock-plugin"))
 			throw new RangeError(`there is no sponsorblock-plugin available in the lavalink node: ${this.options.identifier}`);
 

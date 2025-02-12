@@ -1,4 +1,4 @@
-import { ManagerOptions, SearchPlatform, UseNodeOptions } from "../structures/Manager";
+import { ManagerOptions, SearchPlatform, TrackPartial, UseNodeOptions } from "../structures/Manager";
 
 /**
  * Validates the provided ManagerOptions object.
@@ -64,13 +64,13 @@ export default function managerCheck(options: ManagerOptions) {
 		throw new TypeError('Manager option "send" must be present and a function.');
 	}
 
-	// Validate trackPartial option
+// Validate trackPartial option
 	if (typeof trackPartial !== "undefined") {
 		if (!Array.isArray(trackPartial)) {
 			throw new TypeError('Manager option "trackPartial" must be an array.');
 		}
-		if (!trackPartial.every((item) => typeof item === "string")) {
-			throw new TypeError('Manager option "trackPartial" must be an array of strings.');
+		if (!trackPartial.every((item) => Object.values(TrackPartial).includes(item))) {
+			throw new TypeError('Manager option "trackPartial" must be an array of valid TrackPartial values.');
 		}
 	}
 
