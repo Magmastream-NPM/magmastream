@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 import { ClientUser, User } from "discord.js";
-import { Manager } from "./Manager";
+import { Manager, TrackPartial } from "./Manager";
 import { Node, NodeStats } from "./Node";
 import { Player, Track, UnresolvedTrack } from "./Player";
 import { Queue } from "./Queue";
@@ -20,7 +20,7 @@ const TRACK_SYMBOL = Symbol("track"),
 const escapeRegExp = (str: string): string => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 export abstract class TrackUtils {
-	static trackPartial: string[] | null = null;
+	static trackPartial: TrackPartial[] | null = null;
 	private static manager: Manager;
 
 	/**
@@ -36,43 +36,31 @@ export abstract class TrackUtils {
 	/**
 	 * Sets the partial properties for the Track class. If a Track has some of its properties removed by the partial,
 	 * it will be considered a partial Track.
-	 * @param partial The array of string property names to remove from the Track class.
+	 * @param {TrackPartial} partial The array of string property names to remove from the Track class.
 	 */
-	static setTrackPartial(partial: string[]): void {
+	static setTrackPartial(partial: TrackPartial[]): void {
 		if (!Array.isArray(partial) || !partial.every((str) => typeof str === "string")) throw new Error("Provided partial is not an array or not a string array.");
 
 		const defaultProperties = [
-			/** The base64 encoded string of the track */
-			"encoded",
-			/** The plugin info of the track */
-			"pluginInfo",
-			/** The track identifier */
-			"identifier",
-			/** Whether the track is seekable */
-			"isSeekable",
-			/** The author of the track */
-			"author",
-			/** The length of the track in milliseconds */
-			"length",
-			/** The ISRC of the track */
-			"isrc",
-			/** Whether the track is a stream */
-			"isStream",
-			/** The title of the track */
-			"title",
-			/** The URI of the track */
-			"uri",
-			/** The artwork URL of the track */
-			"artworkUrl",
-			/** The source name of the track */
-			"sourceName",
+			TrackPartial.Encoded,
+			TrackPartial.PluginInfo,
+			TrackPartial.Identifier,
+			TrackPartial.IsSeekable,
+			TrackPartial.Author,
+			TrackPartial.Length,
+			TrackPartial.Isrc,
+			TrackPartial.IsStream,
+			TrackPartial.Title,
+			TrackPartial.Uri,
+			TrackPartial.ArtworkUrl,
+			TrackPartial.SourceName,
 		];
 
 		/** The array of property names that will be removed from the Track class */
 		this.trackPartial = Array.from(new Set([...defaultProperties, ...partial]));
 
 		/** Make sure that the "track" property is always included */
-		if (!this.trackPartial.includes("track")) this.trackPartial.unshift("track");
+		if (!this.trackPartial.includes(TrackPartial.Track)) this.trackPartial.unshift(TrackPartial.Track);
 	}
 
 	/**
@@ -170,7 +158,7 @@ export abstract class TrackUtils {
 
 			if (this.trackPartial) {
 				for (const key of Object.keys(track)) {
-					if (this.trackPartial.includes(key)) continue;
+					if (this.trackPartial.includes(key as TrackPartial)) continue;
 					delete track[key];
 				}
 			}

@@ -50,7 +50,7 @@ export class Manager extends EventEmitter {
 		* @param options.clientName - The name of the client to send to Lavalink.
 		* @param options.defaultSearchPlatform - The default search platform to use when searching for tracks.
 		* @param options.useNode - The strategy to use when selecting a node to play on.
-		* @param options.trackPartial - The partial track search results to use when searching for tracks.
+		* @param options.trackPartial - The partial track search results to use when searching for tracks. This partials will always be presented on each track.
 		* @param options.eventBatchDuration - The duration to wait before processing the collected player state events.
 		* @param options.eventBatchInterval - The interval to wait before processing the collected player state events.
 		*/
@@ -940,7 +940,7 @@ export interface ManagerOptions {
 	 * Use enum `SearchPlatform`. */
 	autoPlaySearchPlatform?: SearchPlatform;
 	/** An array of track properties to keep. `track` will always be present. */
-	trackPartial?: string[];
+	trackPartial?: TrackPartial[];
 	/** The default search platform to use.
 	 * Use enum `SearchPlatform`. */
 	defaultSearchPlatform?: SearchPlatform;
@@ -956,6 +956,34 @@ export interface ManagerOptions {
 	 * @param payload The payload to send.
 	 */
 	send(id: string, payload: Payload): void;
+}
+
+export enum TrackPartial {
+	/** The base64 encoded string of the track */
+	Encoded = "encoded",
+	/** The plugin info of the track */
+	PluginInfo = "pluginInfo",
+	/** The track identifier */
+	Identifier = "identifier",
+	/** Whether the track is seekable */
+	IsSeekable = "isSeekable",
+	/** The author of the track */
+	Author = "author",
+	/** The length of the track in milliseconds */
+	Length = "length",
+	/** The ISRC of the track */
+	Isrc = "isrc",
+	/** Whether the track is a stream */
+	IsStream = "isStream",
+	/** The title of the track */
+	Title = "title",
+	/** The URI of the track */
+	Uri = "uri",
+	/** The artwork URL of the track */
+	ArtworkUrl = "artworkUrl",
+	/** The source name of the track */
+	SourceName = "sourceName",
+	Track = "track"
 }
 
 export enum UseNodeOptions {
