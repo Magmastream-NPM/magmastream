@@ -571,7 +571,12 @@ export class Manager extends EventEmitter {
 							player.queue.add(tracks as Track[]);
 						}
 
-						if (state.paused) player.pause(true);
+						if (state.paused) {
+							player.pause(true);
+						} else {
+							player.paused = false;
+							player.playing = true;
+						}
 						player.setTrackRepeat(state.trackRepeat);
 						player.setQueueRepeat(state.queueRepeat);
 						if (state.dynamicRepeat) {
