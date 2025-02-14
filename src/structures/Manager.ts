@@ -149,7 +149,7 @@ export class Manager extends EventEmitter {
 			try {
 				node.connect(); // Connect the node
 			} catch (err) {
-				this.emit("nodeError", node, err);
+				this.emit(ManagerEventTypes.NodeError, node, err);
 			}
 		}
 
@@ -186,7 +186,7 @@ export class Manager extends EventEmitter {
 			search = `${_source}:${search}`;
 		}
 
-		this.emit("debug", `[MANAGER] Performing ${_source} search for: ${_query.query}`);
+		this.emit(ManagerEventTypes.Debug, `[MANAGER] Performing ${_source} search for: ${_query.query}`);
 
 		try {
 			const res = (await node.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(search)}`)) as LavalinkResponse;
@@ -250,7 +250,7 @@ export class Manager extends EventEmitter {
 				}
 			}
 
-			this.emit("debug", `[MANAGER] Result ${_source} search for: ${_query.query}: ${JSON.stringify(result)}`);
+			this.emit(ManagerEventTypes.Debug, `[MANAGER] Result ${_source} search for: ${_query.query}: ${JSON.stringify(result)}`);
 			return result;
 		} catch (err) {
 			throw new Error(err);
@@ -268,7 +268,7 @@ export class Manager extends EventEmitter {
 		}
 
 		// Create a new player with the given options
-		this.emit("debug", `[MANAGER] Creating new player with options: ${JSON.stringify(options)}`);
+		this.emit(ManagerEventTypes.Debug, `[MANAGER] Creating new player with options: ${JSON.stringify(options)}`);
 		return new (Structure.get("Player"))(options);
 	}
 
@@ -289,7 +289,7 @@ export class Manager extends EventEmitter {
 		*/
 	public destroy(guildId: string): void {
 		// Emit debug message for player destruction
-		this.emit("debug", `[MANAGER] Destroying player: ${guildId}`);
+		this.emit(ManagerEventTypes.Debug, `[MANAGER] Destroying player: ${guildId}`);
 
 		// Remove the player from the manager's collection
 		this.players.delete(guildId);
@@ -311,7 +311,7 @@ export class Manager extends EventEmitter {
 		}
 
 		// Emit a debug event for node creation
-		this.emit("debug", `[MANAGER] Creating new node with options: ${JSON.stringify(options)}`);
+		this.emit(ManagerEventTypes.Debug, `[MANAGER] Creating new node with options: ${JSON.stringify(options)}`);
 
 		// Create a new node with the given options
 		return new (Structure.get("Node"))(options);
@@ -326,7 +326,7 @@ export class Manager extends EventEmitter {
 	public destroyNode(identifier: string): void {
 		const node = this.nodes.get(identifier);
 		if (!node) return;
-		this.emit("debug", `[MANAGER] Destroying node: ${identifier}`);
+		this.emit(ManagerEventTypes.Debug, `[MANAGER] Destroying node: ${identifier}`);
 		node.destroy();
 		this.nodes.delete(identifier);
 	}
@@ -355,7 +355,7 @@ export class Manager extends EventEmitter {
 		const player = this.players.get(update.guild_id);
 
 		if (!player) return;
-		this.emit("debug", `[MANAGER] Updating voice state: ${JSON.stringify(update)}`);
+		this.emit(ManagerEventTypes.Debug, `[MANAGER] Updating voice state: ${JSON.stringify(update)}`);
 		if ("token" in update) {
 			player.voiceState.event = update;
 
@@ -375,7 +375,7 @@ export class Manager extends EventEmitter {
 		if (update.user_id !== this.options.clientId) return;
 		if (update.channel_id) {
 			if (player.voiceChannelId !== update.channel_id) {
-				this.emit("playerMove", player, player.voiceChannelId, update.channel_id);
+				this.emit(ManagerEventTypes.PlayerMove, player, player.voiceChannelId, update.channel_id);
 			}
 
 			player.voiceState.sessionId = update.session_id;
@@ -383,7 +383,7 @@ export class Manager extends EventEmitter {
 			return;
 		}
 
-		this.emit("playerDisconnect", player, player.voiceChannelId);
+		this.emit(ManagerEventTypes.PlayerDisconnect, player, player.voiceChannelId);
 		player.voiceChannelId = null;
 		player.voiceState = Object.assign({});
 		player.destroy();
@@ -398,7 +398,7 @@ export class Manager extends EventEmitter {
 		* @throws Will throw an error if no nodes are available or if the API request fails.
 		*/
 	public decodeTracks(tracks: string[]): Promise<TrackData[]> {
-		this.emit("debug", `[MANAGER] Decoding tracks: ${JSON.stringify(tracks)}`);
+		this.emit(ManagerEventTypes.Debug, `[MANAGER] Decoding tracks: ${JSON.stringify(tracks)}`);
 		return new Promise(async (resolve, reject) => {
 			const node = this.nodes.first();
 			if (!node) throw new Error("No available nodes.");
@@ -466,7 +466,7 @@ export class Manager extends EventEmitter {
 			await fs.writeFile(playerStateFilePath, JSON.stringify(serializedPlayer, null, 2), "utf-8");
 			console.log(`Successfully saved player state for: ${guildId}`);
 
-			this.emit("debug", `[MANAGER] Player state saved: ${guildId}`);
+			this.emit(ManagerEventTypes.Debug, `[MANAGER] Player state saved: ${guildId}`);
 		} catch (error) {
 			console.error(`Error saving player state for guild ${guildId}:`, error);
 		}
@@ -526,9 +526,7 @@ export class Manager extends EventEmitter {
 						this.emit(ManagerEventTypes.Debug, `[MANAGER] Recreating player: ${state.guildId} from saved file: ${JSON.stringify(state.options)}`);
 						const player = this.create(playerOptions);
 
-						if (!lavaPlayer.state.connected) {
-							player.connect();
-						}
+						player.connect();
 
 						const tracks = [];
 
@@ -664,7 +662,7 @@ export class Manager extends EventEmitter {
 			// Check if the directory exists, and create it if it doesn't
 			await fs.access(playerStatesDir).catch(async () => {
 				await fs.mkdir(playerStatesDir, { recursive: true });
-				this.emit("debug", `[MANAGER] Created directory: ${playerStatesDir}`);
+				this.emit(ManagerEventTypes.Debug, `[MANAGER] Created directory: ${playerStatesDir}`);
 			});
 
 			// Get the list of player state files
@@ -682,11 +680,11 @@ export class Manager extends EventEmitter {
 				if (!activeGuildIds.has(guildId)) {
 					const filePath = path.join(playerStatesDir, file);
 					await fs.unlink(filePath); // Delete the file asynchronously
-					this.emit("debug", `[MANAGER] Deleting inactive player: ${guildId}`);
+					this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleting inactive player: ${guildId}`);
 				}
 			}
 		} catch (error) {
-			this.emit("debug", `[MANAGER] Error cleaning up inactive players: ${error}`);
+			this.emit(ManagerEventTypes.Debug, `[MANAGER] Error cleaning up inactive players: ${error}`);
 		}
 	}
 
