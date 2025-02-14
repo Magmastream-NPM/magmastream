@@ -148,6 +148,10 @@ export class Node {
 	/**
 	 * Loads session IDs from the sessionIds.json file if it exists.
 	 * The session IDs are used to resume sessions for each node.
+	 *
+	 * The session IDs are stored in the sessionIds.json file as a composite key
+	 * of the node identifier and cluster ID. This allows multiple clusters to
+	 * be used with the same node identifier.
 	 */
 	public loadSessionIds(): void {
 		// Check if the sessionIds.json file exists
@@ -160,6 +164,13 @@ export class Node {
 
 			// Parse the JSON string into an object and convert it into a Map
 			sessionIdsMap = new Map(Object.entries(JSON.parse(sessionIdsData)));
+
+			// Check if the session IDs Map contains the session ID for this node
+			const compositeKey = `${this.options.identifier}::${this.manager.options.clusterId}`;
+			if (sessionIdsMap.has(compositeKey)) {
+				// Set the session ID on this node if it exists in the session IDs Map
+				this.sessionId = sessionIdsMap.get(compositeKey);
+			}
 		}
 	}
 
@@ -168,13 +179,21 @@ export class Node {
 	 *
 	 * This method is called after the session ID has been updated, and it
 	 * writes the new session ID to the sessionIds.json file.
+	 *
+	 * @remarks
+	 * The session ID is stored in the sessionIds.json file as a composite key
+	 * of the node identifier and cluster ID. This allows multiple clusters to
+	 * be used with the same node identifier.
 	 */
 	public updateSessionId(): void {
 		// Emit a debug event indicating that the session IDs are being updated
 		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Updating sessionIds to file: ${sessionIdsFilePath}`);
 
+		// Create a composite key using identifier and clusterId
+		const compositeKey = `${this.options.identifier}::${this.manager.options.clusterId}`;
+
 		// Update the session IDs Map with the new session ID
-		sessionIdsMap.set(this.options.identifier, this.sessionId);
+		sessionIdsMap.set(compositeKey, this.sessionId);
 
 		// Write the updated session IDs Map to the sessionIds.json file
 		fs.writeFileSync(sessionIdsFilePath, JSON.stringify(Object.fromEntries(sessionIdsMap)));
@@ -198,10 +217,13 @@ export class Node {
 			"Client-Name": this.manager.options.clientName,
 		};
 
+		// Create the composite key for the current node
+		const compositeKey = `${this.options.identifier}::${this.manager.options.clusterId}`;
+
 		if (this.sessionId) {
 			headers["Session-Id"] = this.sessionId;
-		} else if (this.options.resumeStatus && sessionIdsMap.has(this.options.identifier)) {
-			this.sessionId = sessionIdsMap.get(this.options.identifier) || null;
+		} else if (this.options.resumeStatus && sessionIdsMap.has(compositeKey)) {
+			this.sessionId = sessionIdsMap.get(compositeKey) || null;
 			headers["Session-Id"] = this.sessionId;
 		}
 

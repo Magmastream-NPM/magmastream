@@ -1079,17 +1079,21 @@ export class Player {
 
 	/**
 	 * Retrieves the current lyrics for the playing track.
-	 * @param skipTrackSource Indicates whether to skip the track source when fetching lyrics.
-	 * @returns {Promise<Lyrics>} The lyrics of the current track.
-	 * @throws {RangeError} If the 'lavalyrics-plugin' is not available on the Lavalink node.
+	 * @param skipTrackSource - Indicates whether to skip the track source when fetching lyrics.
+	 * @returns {Promise<Lyrics>} - The lyrics of the current track.
+	 * @throws {RangeError} - If the 'lavalyrics-plugin' is not available on the Lavalink node.
 	 */
 	public async getCurrentLyrics(skipTrackSource: boolean = false): Promise<Lyrics> {
 		// Check if the 'lavalyrics-plugin' is available on the node
-		if (!this.node.info.plugins.some((plugin: { name: string }) => plugin.name === "lavalyrics-plugin")) {
+		const hasLyricsPlugin = this.node.info.plugins.some((plugin: { name: string }) => plugin.name === "lavalyrics-plugin");
+		if (!hasLyricsPlugin) {
 			throw new RangeError(`There is no lavalyrics-plugin available in the Lavalink node: ${this.node.options.identifier}`);
 		}
 
-		let result = (await this.node.rest.get(`/v4/lyrics?track=${encodeURIComponent(this.queue.current.track)}&skipTrackSource=${skipTrackSource}`)) as Lyrics;
+		// Fetch the lyrics for the current track from the Lavalink node
+		let result = await this.node.getLyrics(this.queue.current, skipTrackSource) as Lyrics;
+
+		// If no lyrics are found, return a default empty lyrics object
 		if (!result) {
 			result = {
 				source: null,
@@ -1099,7 +1103,7 @@ export class Player {
 				plugin: [],
 			};
 		}
-
+		
 		return result;
 	}
 }
