@@ -585,6 +585,11 @@ export class Manager extends EventEmitter {
 						if (state.isAutoplay && state?.data?.Internal_BotUser) {
 							player.setAutoplay(state.isAutoplay, state.data.Internal_BotUser as User | ClientUser);
 						}
+						if(state.data) {
+							for (const [name, value] of  Object.entries(state.data)) {
+								player.set(name, value);
+							}
+						}
 					}
 				} catch (error) {
 					this.emit(ManagerEventTypes.Debug, `[MANAGER] Error processing file ${filePath}: ${error}`);
