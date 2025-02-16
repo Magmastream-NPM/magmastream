@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 import { ClientUser, User } from "discord.js";
 import { Manager, TrackPartial } from "./Manager";
-import { Manager, TrackPartial } from "./Manager";
 import { Node, NodeStats } from "./Node";
 import { Player, Track, UnresolvedTrack } from "./Player";
 import { Queue } from "./Queue";

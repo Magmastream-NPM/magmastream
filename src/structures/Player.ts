@@ -1,12 +1,5 @@
 import { Filters } from "./Filters";
-import {
-	Manager,
-	ManagerEventTypes,
-	PlayerStateEventTypes,
-	SearchPlatform,
-	SearchQuery,
-	SearchResult
-} from "./Manager";
+import { Manager, ManagerEventTypes, PlayerStateEventTypes, SearchPlatform, SearchQuery, SearchResult } from "./Manager";
 import { Lyrics, Node, SponsorBlockSegment } from "./Node";
 import { Queue } from "./Queue";
 import { LoadTypes, Sizes, StateTypes, Structure, TrackSourceName, TrackUtils, VoiceState } from "./Utils";
@@ -63,10 +56,10 @@ export class Player {
 	private dynamicRepeatIntervalMs: number | null = null;
 
 	/**
-		* Creates a new player, returns one if it already exists.
-		* @param options The player options.
-		* @see https://docs.magmastream.com/main/introduction/getting-started
-		*/
+	 * Creates a new player, returns one if it already exists.
+	 * @param options The player options.
+	 * @see https://docs.magmastream.com/main/introduction/getting-started
+	 */
 	constructor(public options: PlayerOptions) {
 		// If the Manager is not initiated, throw an error.
 		if (!this.manager) this.manager = Structure.get("Player")._manager;
@@ -986,8 +979,6 @@ export class Player {
 				volume: this.volume,
 				selfMute: this.options.selfMute,
 				selfDeafen: this.options.selfDeafen,
-				queueCurrent : this.queue.current,
-				queueArray: this.queue,
 				position: this.position,
 				paused: this.paused,
 				playing: this.playing,
@@ -998,6 +989,9 @@ export class Player {
 				isAutoplay: this.isAutoplay,
 				botUser: this.get("Internal_BotUser"),
 			};
+
+			// Build tracks from the current player's queue
+			const tracks = [this.queue.current, ...this.queue];
 
 			// Destroy the old player
 			this.disconnect();
@@ -1022,30 +1016,28 @@ export class Player {
 			// Restore state
 			newPlayer.connect();
 
-			if (playerToTransfer.queueCurrent) {
-				newPlayer.queue.add(playerToTransfer.queueCurrent);
+			// Add tracks to the new player
+			if (tracks.length) {
+				const res = await this.manager.search(tracks[0].uri, tracks[0].requester);
+				newPlayer.queue.add(res.tracks[0]);
+				tracks.shift();
+				newPlayer.queue.add(tracks as Track[]);
 			}
 
-			if (playerToTransfer.queueArray.length > 1) {	
-				newPlayer.queue.add(playerToTransfer.queueArray);
+			// Play the first track if the old player was playing
+			if (playerToTransfer.playing) {
+				await newPlayer.play();
+				newPlayer.seek(playerToTransfer.position);
 			}
 
-			await newPlayer.play();
-
-			newPlayer.seek(playerToTransfer.position);
-
-			if (playerToTransfer.paused) {
-				newPlayer.pause(true);
-			}
+			if (playerToTransfer.paused) newPlayer.pause(true);
 
 			newPlayer.setTrackRepeat(playerToTransfer.trackRepeat);
-
 			newPlayer.setQueueRepeat(playerToTransfer.queueRepeat);
-
 			if (playerToTransfer.dynamicRepeat) {
 				newPlayer.setDynamicRepeat(playerToTransfer.dynamicRepeat, playerToTransfer.dynamicRepeatIntervalMs);
 			}
-			
+
 			if (playerToTransfer.isAutoplay) {
 				newPlayer.setAutoplay(playerToTransfer.isAutoplay, playerToTransfer.botUser as ClientUser | User);
 			}
@@ -1163,7 +1155,7 @@ export class Player {
 				plugin: [],
 			};
 		}
-		
+
 		return result;
 	}
 }
