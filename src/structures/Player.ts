@@ -1,5 +1,12 @@
 import { Filters } from "./Filters";
-import { Manager, ManagerEventTypes, PlayerStateEventTypes, SearchPlatform, SearchQuery, SearchResult } from "./Manager";
+import {
+	Manager,
+	ManagerEventTypes,
+	PlayerStateEventTypes,
+	SearchPlatform,
+	SearchQuery,
+	SearchResult
+} from "./Manager";
 import { Lyrics, Node, SponsorBlockSegment } from "./Node";
 import { Queue } from "./Queue";
 import { LoadTypes, Sizes, StateTypes, Structure, TrackSourceName, TrackUtils, VoiceState } from "./Utils";
@@ -56,41 +63,10 @@ export class Player {
 	private dynamicRepeatIntervalMs: number | null = null;
 
 	/**
-	 * Set custom data.
-	 * @param key - The key to set the data for.
-	 * @param value - The value to set the data to.
-	 */
-	public set(key: string, value: unknown): void {
-		// Store the data in the data object using the key.
-		this.data[key] = value;
-	}
-
-	/**
-	 * Retrieves custom data associated with a given key.
-	 * @template T - The expected type of the data.
-	 * @param {string} key - The key to retrieve the data for.
-	 * @returns {T} - The data associated with the key, cast to the specified type.
-	 */
-	public get<T>(key: string): T {
-		// Access the data object using the key and cast it to the specified type T.
-		return this.data[key] as T;
-	}
-
-	/**
-	 * Initializes the static properties of the Player class.
-	 * @hidden
-	 * @param manager The Manager to use.
-	 */
-	public static init(manager: Manager): void {
-		// Set the Manager to use.
-		this._manager = manager;
-	}
-
-	/**
-	 * Creates a new player, returns one if it already exists.
-	 * @param options The player options.
-	 * @see https://docs.magmastream.com/main/introduction/getting-started
-	 */
+		* Creates a new player, returns one if it already exists.
+		* @param options The player options.
+		* @see https://docs.magmastream.com/main/introduction/getting-started
+		*/
 	constructor(public options: PlayerOptions) {
 		// If the Manager is not initiated, throw an error.
 		if (!this.manager) this.manager = Structure.get("Player")._manager;
@@ -136,6 +112,37 @@ export class Player {
 
 		// Initialize the filters.
 		this.filters = new Filters(this);
+	}
+
+	/**
+	 * Set custom data.
+	 * @param key - The key to set the data for.
+	 * @param value - The value to set the data to.
+	 */
+	public set(key: string, value: unknown): void {
+		// Store the data in the data object using the key.
+		this.data[key] = value;
+	}
+
+	/**
+	 * Retrieves custom data associated with a given key.
+	 * @template T - The expected type of the data.
+	 * @param {string} key - The key to retrieve the data for.
+	 * @returns {T} - The data associated with the key, cast to the specified type.
+	 */
+	public get<T>(key: string): T {
+		// Access the data object using the key and cast it to the specified type T.
+		return this.data[key] as T;
+	}
+
+	/**
+	 * Initializes the static properties of the Player class.
+	 * @hidden
+	 * @param manager The Manager to use.
+	 */
+	public static init(manager: Manager): void {
+		// Set the Manager to use.
+		this._manager = manager;
 	}
 
 	/**
@@ -423,7 +430,6 @@ export class Player {
 	/**
 	 * Gets recommended tracks and returns an array of tracks.
 	 * @param {Track} track - The track to find recommendations for.
-	 * @param {User | ClientUser} requester - The user who requested the track.
 	 * @returns {Promise<Track[]>} - Array of recommended tracks.
 	 */
 	public async getRecommendedTracks(track: Track): Promise<Track[]> {
@@ -491,8 +497,7 @@ export class Player {
 		if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return [];
 
 		// Return all track titles that do not have the same URI as the track.uri from before
-		const filteredTracks = res.tracks.filter((t) => t.uri !== track.uri);
-		return filteredTracks;
+		return res.tracks.filter((t) => t.uri !== track.uri);
 	}
 
 	private async handlePlatformAutoplay(track: Track, source: SearchPlatform, apiKey: string): Promise<Track[]> {
@@ -552,8 +557,7 @@ export class Player {
 			return filteredTracks;
 		}
 
-		const filteredTracks = response.data.similartracks.track.filter((t: { uri: string }) => t.uri !== track.uri);
-		return filteredTracks;
+		return response.data.similartracks.track.filter((t: { uri: string }) => t.uri !== track.uri);
 	}
 	/**
 	 * Sets the player volume.
@@ -585,10 +589,10 @@ export class Player {
 
 	/**
 	 * Sets the sponsorblock for the player. This will set the sponsorblock segments for the player to the given segments.
-	 * @param {SponsorBlockSegment[]} segments - The sponsorblock segments to set. Defaults to `["sponsor", "selfpromo"]` if not provided.
+	 * @param {SponsorBlockSegment[]} segments - The sponsorblock segments to set. Defaults to `[SponsorBlockSegment.Sponsor, SponsorBlockSegment.SelfPromo]` if not provided.
 	 * @returns {Promise<void>} The promise is resolved when the operation is complete.
 	 */
-	public async setSponsorBlock(segments: SponsorBlockSegment[] = ["sponsor", "selfpromo"]): Promise<void> {
+	public async setSponsorBlock(segments: SponsorBlockSegment[] = [SponsorBlockSegment.Sponsor, SponsorBlockSegment.SelfPromo]): Promise<void> {
 		return this.node.setSponsorBlock(this, segments);
 	}
 
@@ -757,7 +761,7 @@ export class Player {
 		// Check if there is a current track in the queue
 		if (!this.queue.current?.track) {
 			// If the queue has tracks, play the next one
-			if (this.queue.length) this.play();
+			if (this.queue.length) await this.play();
 			return this;
 		}
 
@@ -1135,13 +1139,14 @@ export class Player {
 
 	/**
 	 * Retrieves the current lyrics for the playing track.
-	 * @param skipTrackSource Indicates whether to skip the track source when fetching lyrics.
-	 * @returns {Promise<Lyrics>} The lyrics of the current track.
-	 * @throws {RangeError} If the 'lavalyrics-plugin' is not available on the Lavalink node.
+	 * @param skipTrackSource - Indicates whether to skip the track source when fetching lyrics.
+	 * @returns {Promise<Lyrics>} - The lyrics of the current track.
+	 * @throws {RangeError} - If the 'lavalyrics-plugin' is not available on the Lavalink node.
 	 */
 	public async getCurrentLyrics(skipTrackSource: boolean = false): Promise<Lyrics> {
 		// Check if the 'lavalyrics-plugin' is available on the node
-		if (!this.node.info.plugins.some((plugin: { name: string }) => plugin.name === "lavalyrics-plugin")) {
+		const hasLyricsPlugin = this.node.info.plugins.some((plugin: { name: string }) => plugin.name === "lavalyrics-plugin");
+		if (!hasLyricsPlugin) {
 			throw new RangeError(`There is no lavalyrics-plugin available in the Lavalink node: ${this.node.options.identifier}`);
 		}
 
@@ -1158,7 +1163,7 @@ export class Player {
 				plugin: [],
 			};
 		}
-
+		
 		return result;
 	}
 }

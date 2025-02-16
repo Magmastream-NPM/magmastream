@@ -31,29 +31,452 @@ import path from "path";
  * The main hub for interacting with Lavalink and using Magmastream,
  */
 export class Manager extends EventEmitter {
-	/**
-	 * Attaches an event listener to the manager.
-	 * @param event The event to listen for.
-	 * @param listener The function to call when the event is emitted.
-	 * @returns The manager instance for chaining.
-	 */
-	public on<T extends keyof ManagerEvents>(event: T, listener: (...args: ManagerEvents[T]) => void): this {
-		return super.on(event, listener);
-	}
-
 	/** The map of players. */
 	public readonly players = new Collection<string, Player>();
 	/** The map of nodes. */
 	public readonly nodes = new Collection<string, Node>();
 	/** The options that were set. */
 	public readonly options: ManagerOptions;
-	private initiated = false;
+	public initiated = false;
 
 	/**
-	 * Loads player states from the JSON file.
-	 * @param nodeId The ID of the node to load player states from.
-	 * @returns A promise that resolves when the player states have been loaded.
+		* Initiates the Manager class.
+		* @param options
+		* @param options.plugins - An array of plugins to load.
+		* @param options.nodes - An array of node options to create nodes from.
+		* @param options.autoPlay - Whether to automatically play the first track in the queue when the player is created.
+		* @param options.autoPlaySearchPlatform - The search platform autoplay will use. Fallback to Youtube if not found.
+		* @param options.usePriority - Whether to use the priority when selecting a node to play on.
+		* @param options.clientName - The name of the client to send to Lavalink.
+		* @param options.defaultSearchPlatform - The default search platform to use when searching for tracks.
+		* @param options.useNode - The strategy to use when selecting a node to play on.
+		* @param options.trackPartial - The partial track search results to use when searching for tracks. This partials will always be presented on each track.
+		* @param options.eventBatchDuration - The duration to wait before processing the collected player state events.
+		* @param options.eventBatchInterval - The interval to wait before processing the collected player state events.
+		*/
+	constructor(options: ManagerOptions) {
+		super();
+
+		managerCheck(options);
+
+		Structure.get("Player").init(this);
+		Structure.get("Node").init(this);
+		TrackUtils.init(this);
+
+		if (options.trackPartial) {
+			TrackUtils.setTrackPartial(options.trackPartial);
+			delete options.trackPartial;
+		}
+
+		this.options = {
+			plugins: [],
+			nodes: [
+				{
+					identifier: "default",
+					host: "localhost",
+					resumeStatus: false,
+					resumeTimeout: 1000,
+				},
+			],
+			autoPlay: true,
+			usePriority: false,
+			clientName: "Magmastream",
+			defaultSearchPlatform: SearchPlatform.YouTube,
+			autoPlaySearchPlatform: SearchPlatform.YouTube,
+			useNode: UseNodeOptions.LeastPlayers,
+			...options,
+		};
+
+		if (this.options.nodes) {
+			for (const nodeOptions of this.options.nodes) new (Structure.get("Node"))(nodeOptions);
+		}
+
+		process.on("SIGINT", async () => {
+			console.warn("\x1b[33mSIGINT received! Graceful shutdown initiated...\x1b[0m");
+
+			try {
+				await this.handleShutdown();
+				console.warn("\x1b[32mShutdown complete. Waiting for Node.js event loop to empty...\x1b[0m");
+
+				// Prevent forced exit by Windows
+				setTimeout(() => {
+					console.log("Exiting now...");
+					process.exit(0);
+				}, 2000);
+			} catch (error) {
+				console.error("Error during shutdown:", error);
+				process.exit(1);
+			}
+		});
+
+		process.on("SIGTERM", async () => {
+			console.warn("\x1b[33mSIGTERM received! Graceful shutdown initiated...\x1b[0m");
+
+			try {
+				await this.handleShutdown();
+				console.warn("\x1b[32mShutdown complete. Exiting now...\x1b[0m");
+				process.exit(0);
+			} catch (error) {
+				console.error("Error during SIGTERM shutdown:", error);
+				process.exit(1);
+			}
+		});
+	}
+
+	/**
+		* Initiates the Manager.
+		* @param clientId - The Discord client ID (required).
+		* @param clusterId - The cluster ID which runs the current process (required).
+		* @returns The manager instance.
+		*/
+	public init(clientId: string, clusterId: number = 0): this {
+		if (this.initiated) {
+			return this;
+		}
+
+		if (typeof clientId !== "string" || !/^\d+$/.test(clientId)) {
+			throw new Error('"clientId" must be a valid Discord client ID.');
+		}
+
+		this.options.clientId = clientId;
+		if (typeof clusterId !== "number") {
+			console.warn('"clusterId" is not a valid number, defaulting to 0.');
+			clusterId = 0;
+		}
+		this.options.clusterId = clusterId;
+
+		for (const node of this.nodes.values()) {
+			try {
+				node.connect(); // Connect the node
+			} catch (err) {
+				this.emit(ManagerEventTypes.NodeError, node, err);
+			}
+		}
+
+		if (this.options.plugins) {
+			for (const [index, plugin] of this.options.plugins.entries()) {
+				if (!(plugin instanceof Plugin)) throw new RangeError(`Plugin at index ${index} does not extend Plugin.`);
+				plugin.load(this);
+			}
+		}
+
+		this.initiated = true;
+		return this;
+	}
+
+	/**
+		* Searches the enabled sources based off the URL or the `source` property.
+		* @param query
+		* @param requester
+		* @returns The search result.
+		*/
+	public async search<T = User | ClientUser>(query: string | SearchQuery, requester?: T): Promise<SearchResult> {
+		const node = this.useableNode;
+
+		if (!node) {
+			throw new Error("No available nodes.");
+		}
+
+		const _query: SearchQuery = typeof query === "string" ? { query } : query;
+		const _source = _query.source ?? this.options.defaultSearchPlatform;
+
+		let search = _query.query;
+
+		if (!/^https?:\/\//.test(search)) {
+			search = `${_source}:${search}`;
+		}
+
+		this.emit(ManagerEventTypes.Debug, `[MANAGER] Performing ${_source} search for: ${_query.query}`);
+
+		try {
+			const res = (await node.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(search)}`)) as LavalinkResponse;
+
+			if (!res) {
+				throw new Error("Query not found.");
+			}
+
+			let searchData = [];
+			let playlistData: PlaylistRawData | undefined;
+
+			switch (res.loadType) {
+				case LoadTypes.Search:
+					searchData = res.data as TrackData[];
+					break;
+
+				case LoadTypes.Track:
+					searchData = [res.data as TrackData[]];
+					break;
+
+				case LoadTypes.Playlist:
+					playlistData = res.data as PlaylistRawData;
+					break;
+			}
+
+			const tracks = searchData.map((track) => TrackUtils.build(track, requester));
+			let playlist = null;
+
+			if (res.loadType === LoadTypes.Playlist) {
+				playlist = {
+					name: playlistData!.info.name,
+					playlistInfo: playlistData.pluginInfo,
+					requester: requester,
+					tracks: playlistData!.tracks.map((track) => TrackUtils.build(track, requester)),
+					duration: playlistData!.tracks.reduce((acc, cur) => acc + (cur.info.length || 0), 0),
+				};
+			}
+
+			const result: SearchResult = {
+				loadType: res.loadType,
+				tracks,
+				playlist,
+			};
+
+			if (this.options.replaceYouTubeCredentials) {
+				const replaceCreditsURLs = ["youtube.com", "youtu.be"];
+
+				const processTrack = (track: Track) => {
+					if (!replaceCreditsURLs.some((url) => track.uri.includes(url))) return track;
+
+					const { cleanTitle, cleanAuthor } = this.parseYouTubeTitle(track.title, track.author);
+					track.title = cleanTitle;
+					track.author = cleanAuthor;
+					return track;
+				};
+
+				if (result.loadType === LoadTypes.Playlist) {
+					result.playlist.tracks = result.playlist.tracks.map(processTrack);
+				} else {
+					result.tracks = result.tracks.map(processTrack);
+				}
+			}
+
+			this.emit(ManagerEventTypes.Debug, `[MANAGER] Result ${_source} search for: ${_query.query}: ${JSON.stringify(result)}`);
+			return result;
+		} catch (err) {
+			throw new Error(err);
+		}
+	}
+
+	/**
+		* Creates a player or returns one if it already exists.
+		* @param options The options to create the player with.
+		* @returns The created player.
+		*/
+	public create(options: PlayerOptions): Player {
+		if (this.players.has(options.guildId)) {
+			return this.players.get(options.guildId);
+		}
+
+		// Create a new player with the given options
+		this.emit(ManagerEventTypes.Debug, `[MANAGER] Creating new player with options: ${JSON.stringify(options)}`);
+		return new (Structure.get("Player"))(options);
+	}
+
+	/**
+		* Returns a player or undefined if it does not exist.
+		* @param guildId The guild ID of the player to retrieve.
+		* @returns The player if it exists, undefined otherwise.
+		*/
+	public get(guildId: string): Player | undefined {
+		return this.players.get(guildId);
+	}
+
+	/**
+		* Destroys a player if it exists and cleans up inactive players.
+		* @param guildId - The guild ID of the player to destroy.
+		* @returns {void}
+		* @emits {debug} - Emits a debug message indicating the player is being destroyed.
+		*/
+	public destroy(guildId: string): void {
+		// Emit debug message for player destruction
+		this.emit(ManagerEventTypes.Debug, `[MANAGER] Destroying player: ${guildId}`);
+
+		// Remove the player from the manager's collection
+		this.players.delete(guildId);
+
+		// Clean up any inactive players
+		this.cleanupInactivePlayers();
+	}
+
+	/**
+		* Creates a new node or returns an existing one if it already exists.
+		* @param options - The options to create the node with.
+		* @returns The created node.
+		*/
+	public createNode(options: NodeOptions): Node {
+		// Check if the node already exists in the manager's collection
+		if (this.nodes.has(options.identifier || options.host)) {
+			// Return the existing node if it does
+			return this.nodes.get(options.identifier || options.host);
+		}
+
+		// Emit a debug event for node creation
+		this.emit(ManagerEventTypes.Debug, `[MANAGER] Creating new node with options: ${JSON.stringify(options)}`);
+
+		// Create a new node with the given options
+		return new (Structure.get("Node"))(options);
+	}
+
+	/**
+		* Destroys a node if it exists. Emits a debug event if the node is found and destroyed.
+		* @param identifier - The identifier of the node to destroy.
+		* @returns {void}
+		* @emits {debug} - Emits a debug message indicating the node is being destroyed.
+		*/
+	public destroyNode(identifier: string): void {
+		const node = this.nodes.get(identifier);
+		if (!node) return;
+		this.emit(ManagerEventTypes.Debug, `[MANAGER] Destroying node: ${identifier}`);
+		node.destroy();
+		this.nodes.delete(identifier);
+	}
+
+	/**
+		* Attaches an event listener to the manager.
+		* @param event The event to listen for.
+		* @param listener The function to call when the event is emitted.
+		* @returns The manager instance for chaining.
+		*/
+	public on<T extends keyof ManagerEvents>(event: T, listener: (...args: ManagerEvents[T]) => void): this {
+		return super.on(event, listener);
+	}
+
+	/**
+		* Sends voice data to the Lavalink server.
+		* @param data
+		*/
+	public async updateVoiceState(data: VoicePacket | VoiceServer | VoiceState): Promise<void> {
+		if ("t" in data && !["VOICE_STATE_UPDATE", "VOICE_SERVER_UPDATE"].includes(data.t)) return;
+
+		const update = "d" in data ? data.d : data;
+
+		if (!update || (!("token" in update) && !("session_id" in update))) return;
+
+		const player = this.players.get(update.guild_id);
+
+		if (!player) return;
+		this.emit(ManagerEventTypes.Debug, `[MANAGER] Updating voice state: ${JSON.stringify(update)}`);
+		if ("token" in update) {
+			player.voiceState.event = update;
+
+			const {
+				sessionId,
+				event: { token, endpoint },
+			} = player.voiceState;
+
+			await player.node.rest.updatePlayer({
+				guildId: player.guildId,
+				data: { voice: { token, endpoint, sessionId } },
+			});
+
+			return;
+		}
+
+		if (update.user_id !== this.options.clientId) return;
+		if (update.channel_id) {
+			if (player.voiceChannelId !== update.channel_id) {
+				this.emit(ManagerEventTypes.PlayerMove, player, player.voiceChannelId, update.channel_id);
+			}
+
+			player.voiceState.sessionId = update.session_id;
+			player.voiceChannelId = update.channel_id;
+			return;
+		}
+
+		this.emit(ManagerEventTypes.PlayerDisconnect, player, player.voiceChannelId);
+		player.voiceChannelId = null;
+		player.voiceState = Object.assign({});
+		player.destroy();
+		return;
+	}
+
+	/**
+		* Decodes an array of base64 encoded tracks and returns an array of TrackData.
+		* Emits a debug event with the tracks being decoded.
+		* @param tracks - An array of base64 encoded track strings.
+		* @returns A promise that resolves to an array of TrackData objects.
+		* @throws Will throw an error if no nodes are available or if the API request fails.
+		*/
+	public decodeTracks(tracks: string[]): Promise<TrackData[]> {
+		this.emit(ManagerEventTypes.Debug, `[MANAGER] Decoding tracks: ${JSON.stringify(tracks)}`);
+		return new Promise(async (resolve, reject) => {
+			const node = this.nodes.first();
+			if (!node) throw new Error("No available nodes.");
+
+			const res = (await node.rest.post("/v4/decodetracks", JSON.stringify(tracks)).catch((err) => reject(err))) as TrackData[];
+
+			if (!res) {
+				return reject(new Error("No data returned from query."));
+			}
+
+			return resolve(res);
+		});
+	}
+
+	/**
+		* Decodes a base64 encoded track and returns a TrackData.
+		* @param track - The base64 encoded track string.
+		* @returns A promise that resolves to a TrackData object.
+		* @throws Will throw an error if no nodes are available or if the API request fails.
+		*/
+	public async decodeTrack(track: string): Promise<TrackData> {
+		const res = await this.decodeTracks([track]);
+		// Since we're only decoding one track, we can just return the first element of the array
+		return res[0];
+	}
+
+	/**
+	 * Gets each player's JSON file
+	 * @param {string} guildId - The guild ID
+	 * @returns {string} The path to the player's JSON file
 	 */
+	private async getPlayerFilePath(guildId: string): Promise<string> {
+		const configDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
+
+		try {
+			await fs.mkdir(configDir, { recursive: true });
+			return path.join(configDir, `${guildId}.json`);
+		} catch (err) {
+			console.error("Error ensuring player data directory exists:", err);
+			throw new Error(`Failed to resolve player file path for guild ${guildId}`);
+		}
+	}
+
+	/**
+	 * Saves player states to the JSON file.
+	 * @param {string} guildId - The guild ID of the player to save
+	 */
+	public async savePlayerState(guildId: string): Promise<void> {
+		console.log(`Attempting to save player state for guild: ${guildId}`);
+
+		try {
+			const playerStateFilePath = await this.getPlayerFilePath(guildId);
+			console.log(`Resolved file path: ${playerStateFilePath}`);
+
+			const player = this.players.get(guildId);
+			if (!player || player.state === StateTypes.Disconnected || !player.voiceChannelId) {
+				console.warn(`Skipping save for inactive player: ${guildId}`);
+				return;
+			}
+
+			console.log(`Serializing player state for: ${guildId}`);
+			const serializedPlayer = this.serializePlayer(player);
+
+			console.log(`Writing player state to file: ${playerStateFilePath}`);
+			await fs.writeFile(playerStateFilePath, JSON.stringify(serializedPlayer, null, 2), "utf-8");
+			console.log(`Successfully saved player state for: ${guildId}`);
+
+			this.emit(ManagerEventTypes.Debug, `[MANAGER] Player state saved: ${guildId}`);
+		} catch (error) {
+			console.error(`Error saving player state for guild ${guildId}:`, error);
+		}
+	}
+
+	/**
+		* Loads player states from the JSON file.
+		* @param nodeId The ID of the node to load player states from.
+		* @returns A promise that resolves when the player states have been loaded.
+		*/
 	public async loadPlayerStates(nodeId: string): Promise<void> {
 		this.emit(ManagerEventTypes.Debug, "[MANAGER] Loading saved players.");
 		const node = this.nodes.get(nodeId);
@@ -103,9 +526,7 @@ export class Manager extends EventEmitter {
 						this.emit(ManagerEventTypes.Debug, `[MANAGER] Recreating player: ${state.guildId} from saved file: ${JSON.stringify(state.options)}`);
 						const player = this.create(playerOptions);
 
-						if (!lavaPlayer.state.connected) {
-							player.connect();
-						}
+						player.connect();
 
 						const tracks = [];
 
@@ -150,7 +571,12 @@ export class Manager extends EventEmitter {
 							player.queue.add(tracks as Track[]);
 						}
 
-						if (state.paused) player.pause(true);
+						if (state.paused) {
+							player.pause(true);
+						} else {
+							player.paused = false;
+							player.playing = true;
+						}
 						player.setTrackRepeat(state.trackRepeat);
 						player.setQueueRepeat(state.queueRepeat);
 						if (state.dynamicRepeat) {
@@ -158,6 +584,11 @@ export class Manager extends EventEmitter {
 						}
 						if (state.isAutoplay && state?.data?.Internal_BotUser) {
 							player.setAutoplay(state.isAutoplay, state.data.Internal_BotUser as User | ClientUser);
+						}
+						if(state.data) {
+							for (const [name, value] of  Object.entries(state.data)) {
+								player.set(name, value);
+							}
 						}
 					}
 				} catch (error) {
@@ -189,53 +620,6 @@ export class Manager extends EventEmitter {
 		}
 
 		this.emit(ManagerEventTypes.Debug, "[MANAGER] Finished loading saved players.");
-	}
-
-	/**
-	 * Gets each player's JSON file
-	 * @param {string} guildId - The guild ID
-	 * @returns {string} The path to the player's JSON file
-	 */
-	private async getPlayerFilePath(guildId: string): Promise<string> {
-		const configDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
-
-		try {
-			await fs.mkdir(configDir, { recursive: true });
-			return path.join(configDir, `${guildId}.json`);
-		} catch (err) {
-			console.error("Error ensuring player data directory exists:", err);
-			throw new Error(`Failed to resolve player file path for guild ${guildId}`);
-		}
-	}
-
-	/**
-	 * Saves player states to the JSON file.
-	 * @param {string} guildId - The guild ID of the player to save
-	 */
-	public async savePlayerState(guildId: string): Promise<void> {
-		console.log(`Attempting to save player state for guild: ${guildId}`);
-
-		try {
-			const playerStateFilePath = await this.getPlayerFilePath(guildId);
-			console.log(`Resolved file path: ${playerStateFilePath}`);
-
-			const player = this.players.get(guildId);
-			if (!player || player.state === StateTypes.Disconnected || !player.voiceChannelId) {
-				console.warn(`Skipping save for inactive player: ${guildId}`);
-				return;
-			}
-
-			console.log(`Serializing player state for: ${guildId}`);
-			const serializedPlayer = this.serializePlayer(player);
-
-			console.log(`Writing player state to file: ${playerStateFilePath}`);
-			await fs.writeFile(playerStateFilePath, JSON.stringify(serializedPlayer, null, 2), "utf-8");
-			console.log(`Successfully saved player state for: ${guildId}`);
-
-			this.emit("debug", `[MANAGER] Player state saved: ${guildId}`);
-		} catch (error) {
-			console.error(`Error saving player state for guild ${guildId}:`, error);
-		}
 	}
 
 	/**
@@ -288,7 +672,7 @@ export class Manager extends EventEmitter {
 			// Check if the directory exists, and create it if it doesn't
 			await fs.access(playerStatesDir).catch(async () => {
 				await fs.mkdir(playerStatesDir, { recursive: true });
-				this.emit("debug", `[MANAGER] Created directory: ${playerStatesDir}`);
+				this.emit(ManagerEventTypes.Debug, `[MANAGER] Created directory: ${playerStatesDir}`);
 			});
 
 			// Get the list of player state files
@@ -306,11 +690,11 @@ export class Manager extends EventEmitter {
 				if (!activeGuildIds.has(guildId)) {
 					const filePath = path.join(playerStatesDir, file);
 					await fs.unlink(filePath); // Delete the file asynchronously
-					this.emit("debug", `[MANAGER] Deleting inactive player: ${guildId}`);
+					this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleting inactive player: ${guildId}`);
 				}
 			}
 		} catch (error) {
-			this.emit("debug", `[MANAGER] Error cleaning up inactive players: ${error}`);
+			this.emit(ManagerEventTypes.Debug, `[MANAGER] Error cleaning up inactive players: ${error}`);
 		}
 	}
 
@@ -436,218 +820,6 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-	 * Initiates the Manager class.
-	 * @param options
-	 * @param options.plugins - An array of plugins to load.
-	 * @param options.nodes - An array of node options to create nodes from.
-	 * @param options.autoPlay - Whether to automatically play the first track in the queue when the player is created.
-	 * @param options.autoPlaySearchPlatform - The search platform autoplay will use. Failback to Youtube if not found.
-	 * @param options.usePriority - Whether to use the priority when selecting a node to play on.
-	 * @param options.clientName - The name of the client to send to Lavalink.
-	 * @param options.defaultSearchPlatform - The default search platform to use when searching for tracks.
-	 * @param options.useNode - The strategy to use when selecting a node to play on.
-	 * @param options.trackPartial - The partial track search results to use when searching for tracks.
-	 * @param options.eventBatchDuration - The duration to wait before processing the collected player state events.
-	 * @param options.eventBatchInterval - The interval to wait before processing the collected player state events.
-	 */
-	constructor(options: ManagerOptions) {
-		super();
-
-		managerCheck(options);
-
-		Structure.get("Player").init(this);
-		Structure.get("Node").init(this);
-		TrackUtils.init(this);
-
-		if (options.trackPartial) {
-			TrackUtils.setTrackPartial(options.trackPartial);
-			delete options.trackPartial;
-		}
-
-		this.options = {
-			plugins: [],
-			nodes: [
-				{
-					identifier: "default",
-					host: "localhost",
-					resumeStatus: false,
-					resumeTimeout: 1000,
-				},
-			],
-			autoPlay: true,
-			usePriority: false,
-			clientName: "Magmastream",
-			defaultSearchPlatform: SearchPlatform.YouTube,
-			autoPlaySearchPlatform: SearchPlatform.YouTube,
-			useNode: UseNodeOptions.LeastPlayers,
-			...options,
-		};
-
-		if (this.options.nodes) {
-			for (const nodeOptions of this.options.nodes) new (Structure.get("Node"))(nodeOptions);
-		}
-
-		process.on("SIGINT", async () => {
-			console.warn("\x1b[33mSIGINT received! Graceful shutdown initiated...\x1b[0m");
-
-			try {
-				await this.handleShutdown();
-				console.warn("\x1b[32mShutdown complete. Waiting for Node.js event loop to empty...\x1b[0m");
-
-				// Prevent forced exit by Windows
-				setTimeout(() => {
-					console.log("Exiting now...");
-					process.exit(0);
-				}, 2000);
-			} catch (error) {
-				console.error("Error during shutdown:", error);
-				process.exit(1);
-			}
-		});
-
-		process.on("SIGTERM", async () => {
-			console.warn("\x1b[33mSIGTERM received! Graceful shutdown initiated...\x1b[0m");
-
-			try {
-				await this.handleShutdown();
-				console.warn("\x1b[32mShutdown complete. Exiting now...\x1b[0m");
-				process.exit(0);
-			} catch (error) {
-				console.error("Error during SIGTERM shutdown:", error);
-				process.exit(1);
-			}
-		});
-	}
-
-	/**
-	 * Initiates the Manager.
-	 * @param clientId - The Discord client ID (required).
-	 * @returns The manager instance.
-	 */
-	public init(clientId: string): this {
-		if (this.initiated) {
-			return this;
-		}
-
-		if (typeof clientId !== "string" || !/^\d+$/.test(clientId)) {
-			throw new Error('"clientId" must be a valid Discord client ID.');
-		}
-
-		this.options.clientId = clientId;
-
-		for (const node of this.nodes.values()) {
-			try {
-				node.connect();
-			} catch (err) {
-				this.emit("nodeError", node, err);
-			}
-		}
-
-		if (this.options.plugins) {
-			for (const [index, plugin] of this.options.plugins.entries()) {
-				if (!(plugin instanceof Plugin)) throw new RangeError(`Plugin at index ${index} does not extend Plugin.`);
-				plugin.load(this);
-			}
-		}
-
-		this.initiated = true;
-		return this;
-	}
-
-	/**
-	 * Searches the enabled sources based off the URL or the `source` property.
-	 * @param query
-	 * @param requester
-	 * @returns The search result.
-	 */
-	public async search<T = User | ClientUser>(query: string | SearchQuery, requester?: T): Promise<SearchResult> {
-		const node = this.useableNode;
-
-		if (!node) {
-			throw new Error("No available nodes.");
-		}
-
-		const _query: SearchQuery = typeof query === "string" ? { query } : query;
-		const _source = _query.source ?? this.options.defaultSearchPlatform;
-
-		let search = _query.query;
-
-		if (!/^https?:\/\//.test(search)) {
-			search = `${_source}:${search}`;
-		}
-
-		this.emit("debug", `[MANAGER] Performing ${_source} search for: ${_query.query}`);
-
-		try {
-			const res = (await node.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(search)}`)) as LavalinkResponse;
-
-			if (!res) {
-				throw new Error("Query not found.");
-			}
-
-			let searchData = [];
-			let playlistData: PlaylistRawData | undefined;
-
-			switch (res.loadType) {
-				case LoadTypes.Search:
-					searchData = res.data as TrackData[];
-					break;
-
-				case LoadTypes.Track:
-					searchData = [res.data as TrackData[]];
-					break;
-
-				case LoadTypes.Playlist:
-					playlistData = res.data as PlaylistRawData;
-					break;
-			}
-
-			const tracks = searchData.map((track) => TrackUtils.build(track, requester));
-			let playlist = null;
-
-			if (res.loadType === LoadTypes.Playlist) {
-				playlist = {
-					name: playlistData!.info.name,
-					playlistInfo: playlistData.pluginInfo,
-					requester: requester,
-					tracks: playlistData!.tracks.map((track) => TrackUtils.build(track, requester)),
-					duration: playlistData!.tracks.reduce((acc, cur) => acc + (cur.info.length || 0), 0),
-				};
-			}
-
-			const result: SearchResult = {
-				loadType: res.loadType,
-				tracks,
-				playlist,
-			};
-
-			if (this.options.replaceYouTubeCredentials) {
-				const replaceCreditsURLs = ["youtube.com", "youtu.be"];
-
-				const processTrack = (track: Track) => {
-					if (!replaceCreditsURLs.some((url) => track.uri.includes(url))) return track;
-
-					const { cleanTitle, cleanAuthor } = this.parseYouTubeTitle(track.title, track.author);
-					track.title = cleanTitle;
-					track.author = cleanAuthor;
-					return track;
-				};
-
-				if (result.loadType === LoadTypes.Playlist) {
-					result.playlist.tracks = result.playlist.tracks.map(processTrack);
-				} else {
-					result.tracks = result.tracks.map(processTrack);
-				}
-			}
-
-			this.emit("debug", `[MANAGER] Result ${_source} search for: ${_query.query}: ${JSON.stringify(result)}`);
-			return result;
-		} catch (err) {
-			throw new Error(err);
-		}
-	}
-
-	/**
 	 * Parses a YouTube title into a clean title and author.
 	 * @param title - The original title of the YouTube video.
 	 * @param originalAuthor - The original author of the YouTube video.
@@ -742,164 +914,6 @@ export class Manager extends EventEmitter {
 		// Replace special regex characters with their escaped counterparts
 		return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 	}
-
-	/**
-	 * Decodes an array of base64 encoded tracks and returns an array of TrackData.
-	 * Emits a debug event with the tracks being decoded.
-	 * @param tracks - An array of base64 encoded track strings.
-	 * @returns A promise that resolves to an array of TrackData objects.
-	 * @throws Will throw an error if no nodes are available or if the API request fails.
-	 */
-	public decodeTracks(tracks: string[]): Promise<TrackData[]> {
-		this.emit("debug", `[MANAGER] Decoding tracks: ${JSON.stringify(tracks)}`);
-		return new Promise(async (resolve, reject) => {
-			const node = this.nodes.first();
-			if (!node) throw new Error("No available nodes.");
-
-			const res = (await node.rest.post("/v4/decodetracks", JSON.stringify(tracks)).catch((err) => reject(err))) as TrackData[];
-
-			if (!res) {
-				return reject(new Error("No data returned from query."));
-			}
-
-			return resolve(res);
-		});
-	}
-
-	/**
-	 * Decodes a base64 encoded track and returns a TrackData.
-	 * @param track - The base64 encoded track string.
-	 * @returns A promise that resolves to a TrackData object.
-	 * @throws Will throw an error if no nodes are available or if the API request fails.
-	 */
-	public async decodeTrack(track: string): Promise<TrackData> {
-		const res = await this.decodeTracks([track]);
-		// Since we're only decoding one track, we can just return the first element of the array
-		return res[0];
-	}
-
-	/**
-	 * Creates a player or returns one if it already exists.
-	 * @param options The options to create the player with.
-	 * @returns The created player.
-	 */
-	public create(options: PlayerOptions): Player {
-		if (this.players.has(options.guildId)) {
-			return this.players.get(options.guildId);
-		}
-
-		// Create a new player with the given options
-		this.emit("debug", `[MANAGER] Creating new player with options: ${JSON.stringify(options)}`);
-		return new (Structure.get("Player"))(options);
-	}
-
-	/**
-	 * Returns a player or undefined if it does not exist.
-	 * @param guildId The guild ID of the player to retrieve.
-	 * @returns The player if it exists, undefined otherwise.
-	 */
-	public get(guildId: string): Player | undefined {
-		return this.players.get(guildId);
-	}
-
-	/**
-	 * Destroys a player if it exists and cleans up inactive players.
-	 * @param guildId - The guild ID of the player to destroy.
-	 * @returns {void}
-	 * @emits {debug} - Emits a debug message indicating the player is being destroyed.
-	 */
-	public destroy(guildId: string): void {
-		// Emit debug message for player destruction
-		this.emit("debug", `[MANAGER] Destroying player: ${guildId}`);
-
-		// Remove the player from the manager's collection
-		this.players.delete(guildId);
-
-		// Clean up any inactive players
-		this.cleanupInactivePlayers();
-	}
-
-	/**
-	 * Creates a new node or returns an existing one if it already exists.
-	 * @param options - The options to create the node with.
-	 * @returns The created node.
-	 */
-	public createNode(options: NodeOptions): Node {
-		// Check if the node already exists in the manager's collection
-		if (this.nodes.has(options.identifier || options.host)) {
-			// Return the existing node if it does
-			return this.nodes.get(options.identifier || options.host);
-		}
-
-		// Emit a debug event for node creation
-		this.emit("debug", `[MANAGER] Creating new node with options: ${JSON.stringify(options)}`);
-
-		// Create a new node with the given options
-		return new (Structure.get("Node"))(options);
-	}
-
-	/**
-	 * Destroys a node if it exists. Emits a debug event if the node is found and destroyed.
-	 * @param identifier - The identifier of the node to destroy.
-	 * @returns {void}
-	 * @emits {debug} - Emits a debug message indicating the node is being destroyed.
-	 */
-	public destroyNode(identifier: string): void {
-		const node = this.nodes.get(identifier);
-		if (!node) return;
-		this.emit("debug", `[MANAGER] Destroying node: ${identifier}`);
-		node.destroy();
-		this.nodes.delete(identifier);
-	}
-
-	/**
-	 * Sends voice data to the Lavalink server.
-	 * @param data
-	 */
-	public async updateVoiceState(data: VoicePacket | VoiceServer | VoiceState): Promise<void> {
-		if ("t" in data && !["VOICE_STATE_UPDATE", "VOICE_SERVER_UPDATE"].includes(data.t)) return;
-
-		const update = "d" in data ? data.d : data;
-
-		if (!update || (!("token" in update) && !("session_id" in update))) return;
-
-		const player = this.players.get(update.guild_id);
-
-		if (!player) return;
-		this.emit("debug", `[MANAGER] Updating voice state: ${JSON.stringify(update)}`);
-		if ("token" in update) {
-			player.voiceState.event = update;
-
-			const {
-				sessionId,
-				event: { token, endpoint },
-			} = player.voiceState;
-
-			await player.node.rest.updatePlayer({
-				guildId: player.guildId,
-				data: { voice: { token, endpoint, sessionId } },
-			});
-
-			return;
-		}
-
-		if (update.user_id !== this.options.clientId) return;
-		if (update.channel_id) {
-			if (player.voiceChannelId !== update.channel_id) {
-				this.emit("playerMove", player, player.voiceChannelId, update.channel_id);
-			}
-
-			player.voiceState.sessionId = update.session_id;
-			player.voiceChannelId = update.channel_id;
-			return;
-		}
-
-		this.emit("playerDisconnect", player, player.voiceChannelId);
-		player.voiceChannelId = null;
-		player.voiceState = Object.assign({});
-		player.destroy();
-		return;
-	}
 }
 
 export interface Payload {
@@ -924,6 +938,8 @@ export interface ManagerOptions {
 	clientId?: string;
 	/** Value to use for the `Client-Name` header. */
 	clientName?: string;
+	/** The array of shard IDs connected to this manager instance. */
+	clusterId?: number;
 	/** A array of plugins to use. */
 	plugins?: Plugin[];
 	/** Whether players should automatically play the next song. */
@@ -932,7 +948,7 @@ export interface ManagerOptions {
 	 * Use enum `SearchPlatform`. */
 	autoPlaySearchPlatform?: SearchPlatform;
 	/** An array of track properties to keep. `track` will always be present. */
-	trackPartial?: string[];
+	trackPartial?: TrackPartial[];
 	/** The default search platform to use.
 	 * Use enum `SearchPlatform`. */
 	defaultSearchPlatform?: SearchPlatform;

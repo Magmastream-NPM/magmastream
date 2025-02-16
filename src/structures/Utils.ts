@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 import { ClientUser, User } from "discord.js";
 import { Manager, TrackPartial } from "./Manager";
+import { Manager, TrackPartial } from "./Manager";
 import { Node, NodeStats } from "./Node";
 import { Player, Track, UnresolvedTrack } from "./Player";
 import { Queue } from "./Queue";
@@ -20,7 +21,7 @@ const TRACK_SYMBOL = Symbol("track"),
 const escapeRegExp = (str: string): string => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 export abstract class TrackUtils {
-	static trackPartial: string[] | null = null;
+	static trackPartial: TrackPartial[] | null = null;
 	private static manager: Manager;
 
 	/**
@@ -36,9 +37,9 @@ export abstract class TrackUtils {
 	/**
 	 * Sets the partial properties for the Track class. If a Track has some of its properties removed by the partial,
 	 * it will be considered a partial Track.
-	 * @param partial The array of string property names to remove from the Track class.
+	 * @param {TrackPartial} partial The array of string property names to remove from the Track class.
 	 */
-	static setTrackPartial(partial: string[]): void {
+	static setTrackPartial(partial: TrackPartial[]): void {
 		if (!Array.isArray(partial) || !partial.every((str) => typeof str === "string")) throw new Error("Provided partial is not an array or not a string array.");
 
 		const defaultProperties = [
@@ -63,7 +64,7 @@ export abstract class TrackUtils {
 		this.trackPartial = Array.from(new Set([...defaultProperties, ...partial]));
 
 		/** Make sure that the "track" property is always included */
-		if (!this.trackPartial.includes("track")) this.trackPartial.unshift("track");
+		if (!this.trackPartial.includes(TrackPartial.Track)) this.trackPartial.unshift(TrackPartial.Track);
 	}
 
 	/**
@@ -161,7 +162,7 @@ export abstract class TrackUtils {
 
 			if (this.trackPartial) {
 				for (const key of Object.keys(track)) {
-					if (this.trackPartial.includes(key)) continue;
+					if (this.trackPartial.includes(key as TrackPartial)) continue;
 					delete track[key];
 				}
 			}
