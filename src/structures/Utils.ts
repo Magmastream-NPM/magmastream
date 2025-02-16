@@ -42,30 +42,21 @@ export abstract class TrackUtils {
 		if (!Array.isArray(partial) || !partial.every((str) => typeof str === "string")) throw new Error("Provided partial is not an array or not a string array.");
 
 		const defaultProperties = [
-			/** The base64 encoded string of the track */
-			"encoded",
-			/** The plugin info of the track */
-			"pluginInfo",
-			/** The track identifier */
-			"identifier",
-			/** Whether the track is seekable */
-			"isSeekable",
-			/** The author of the track */
-			"author",
-			/** The length of the track in milliseconds */
-			"length",
-			/** The ISRC of the track */
-			"isrc",
-			/** Whether the track is a stream */
-			"isStream",
-			/** The title of the track */
-			"title",
-			/** The URI of the track */
-			"uri",
-			/** The artwork URL of the track */
-			"artworkUrl",
-			/** The source name of the track */
-			"sourceName",
+			TrackPartial.Track,
+			TrackPartial.Title,
+			TrackPartial.Identifier,
+			TrackPartial.Author,
+			TrackPartial.Duration,
+			TrackPartial.Isrc,
+			TrackPartial.IsSeekable,
+			TrackPartial.IsStream,
+			TrackPartial.Uri,
+			TrackPartial.ArtworkUrl,
+			TrackPartial.SourceName,
+			TrackPartial.ThumbNail,
+			TrackPartial.Requester,
+			TrackPartial.PluginInfo,
+			TrackPartial.CustomData,
 		];
 
 		/** The array of property names that will be removed from the Track class */

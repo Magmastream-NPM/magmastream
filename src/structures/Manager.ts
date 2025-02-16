@@ -950,6 +950,39 @@ export interface ManagerOptions {
 	send(id: string, payload: Payload): void;
 }
 
+export enum TrackPartial {
+	/** The base64 encoded string of the track */
+	Track = "track",
+	/** The title of the track */
+	Title = "title",
+	/** The track identifier */
+	Identifier = "identifier",
+	/** The author of the track */
+	Author = "author",
+	/** The length of the track in milliseconds */
+	Duration = "duration",
+	/** The ISRC of the track */
+	Isrc = "isrc",
+	/** Whether the track is seekable */
+	IsSeekable = "isSeekable",
+	/** Whether the track is a stream */
+	IsStream = "isStream",
+	/** The URI of the track */
+	Uri = "uri",
+	/** The artwork URL of the track */
+	ArtworkUrl = "artworkUrl",
+	/** The source name of the track */
+	SourceName = "sourceName",
+	/** The thumbnail of the track */
+	ThumbNail = "thumbnail",
+	/** The requester of the track */
+	Requester = "requester",
+	/** The plugin info of the track */
+	PluginInfo = "pluginInfo",
+	/** The custom data of the track */
+	CustomData = "customData",
+}
+
 export enum UseNodeOptions {
 	LeastLoad = "leastLoad",
 	LeastPlayers = "leastPlayers",

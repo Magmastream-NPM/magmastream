@@ -971,25 +971,81 @@ export class Player {
 
 		// Try to destroy the player on the current node and move to the new node
 		try {
-			// Destroy the player on the current node
-			await this.node.rest.destroyPlayer(this.guildId).catch(() => {});
-			// Remove the player from the manager's players collection
-			this.manager.players.delete(this.guildId);
-			// Set the new node for the player
-			this.node = node;
-			// Add the player back to the manager's players collection
-			this.manager.players.set(this.guildId, this);
+			console.log("Destroying player on current node");
 
-			// Update the player's position and track on the new node
-			await this.node.rest.updatePlayer({
+			// Extract only necessary properties
+			const playerToTransfer = {
 				guildId: this.guildId,
-				data: {
-					position: this.position,
-					encodedTrack: this.queue.current.track,
-				},
+				textChannelId: this.textChannelId,
+				voiceChannelId: this.voiceChannelId,
+				node: identifier,
+				volume: this.volume,
+				selfMute: this.options.selfMute,
+				selfDeafen: this.options.selfDeafen,
+				queueCurrent : this.queue.current,
+				queueArray: this.queue,
+				position: this.position,
+				paused: this.paused,
+				playing: this.playing,
+				trackRepeat: this.trackRepeat,
+				queueRepeat: this.queueRepeat,
+				dynamicRepeat: this.dynamicRepeat,
+				dynamicRepeatIntervalMs: this.dynamicRepeatIntervalMs,
+				isAutoplay: this.isAutoplay,
+				botUser: this.get("Internal_BotUser"),
+			};
+
+			// Destroy the old player
+			this.disconnect();
+			await this.node.rest.destroyPlayer(this.guildId);
+			this.manager.players.delete(this.guildId);
+
+			console.log("Creating player on new node");
+
+			// Recreate the player
+			const newPlayer = this.manager.create({
+				guildId: playerToTransfer.guildId,
+				textChannelId: playerToTransfer.textChannelId,
+				voiceChannelId: playerToTransfer.voiceChannelId,
+				node: identifier,
+				volume: playerToTransfer.volume,
+				selfMute: playerToTransfer.selfMute,
+				selfDeafen: playerToTransfer.selfDeafen,
 			});
+
+			console.log("Connecting player to new node");
+
+			// Restore state
+			newPlayer.connect();
+
+			if (playerToTransfer.queueCurrent) {
+				newPlayer.queue.add(playerToTransfer.queueCurrent);
+			}
+
+			if (playerToTransfer.queueArray.length > 1) {	
+				newPlayer.queue.add(playerToTransfer.queueArray);
+			}
+
+			await newPlayer.play();
+
+			newPlayer.seek(playerToTransfer.position);
+
+			if (playerToTransfer.paused) {
+				newPlayer.pause(true);
+			}
+
+			newPlayer.setTrackRepeat(playerToTransfer.trackRepeat);
+
+			newPlayer.setQueueRepeat(playerToTransfer.queueRepeat);
+
+			if (playerToTransfer.dynamicRepeat) {
+				newPlayer.setDynamicRepeat(playerToTransfer.dynamicRepeat, playerToTransfer.dynamicRepeatIntervalMs);
+			}
+			
+			if (playerToTransfer.isAutoplay) {
+				newPlayer.setAutoplay(playerToTransfer.isAutoplay, playerToTransfer.botUser as ClientUser | User);
+			}
 		} catch (error) {
-			// If there is an error, destroy the player and throw the error
 			this.destroy();
 			throw new Error(error);
 		}
@@ -1089,7 +1145,10 @@ export class Player {
 			throw new RangeError(`There is no lavalyrics-plugin available in the Lavalink node: ${this.node.options.identifier}`);
 		}
 
-		let result = (await this.node.rest.get(`/v4/lyrics?track=${encodeURIComponent(this.queue.current.track)}&skipTrackSource=${skipTrackSource}`)) as Lyrics;
+		// Fetch the lyrics for the current track from the Lavalink node
+		let result = (await this.node.getLyrics(this.queue.current, skipTrackSource)) as Lyrics;
+
+		// If no lyrics are found, return a default empty lyrics object
 		if (!result) {
 			result = {
 				source: null,
