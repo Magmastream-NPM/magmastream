@@ -231,7 +231,7 @@ export class Player {
 	 * @emits {playerDestroy} - The player that was destroyed.
 	 * @emits {playerStateUpdate} - The old and new player states after the destruction.
 	 */
-	public destroy(disconnect: boolean = true): void {
+	public async destroy(disconnect: boolean = true): Promise<void> {
 		const oldPlayer = this ? { ...this } : null;
 		this.state = StateTypes.Destroying;
 
@@ -239,7 +239,7 @@ export class Player {
 			this.disconnect();
 		}
 
-		this.node.rest.destroyPlayer(this.guildId);
+		await this.node.rest.destroyPlayer(this.guildId);
 		this.manager.emit(ManagerEventTypes.PlayerDestroy, this);
 		this.queue.clear();
 		this.manager.players.delete(this.guildId);
@@ -962,12 +962,16 @@ export class Player {
 	 * @returns {Promise<Player>} - The player instance after being moved.
 	 */
 	public async moveNode(identifier: string): Promise<Player> {
-		const node = this.manager.nodes.get(identifier);
-
-		if (node.options.identifier === this.node.options.identifier) return this;
-
-		// Try to destroy the player on the current node and move to the new node
 		try {
+			console.log(`Fetching node: ${identifier}`);
+			const node = this.manager.nodes.get(identifier);
+
+			if (!node) throw new Error(`Node with identifier ${identifier} not found`);
+			if (node.options.identifier === this.node.options.identifier) {
+				console.log("Already on the specified node, no need to move.");
+				return this;
+			}
+
 			console.log("Destroying player on current node");
 
 			// Extract only necessary properties
@@ -988,18 +992,18 @@ export class Player {
 				dynamicRepeatIntervalMs: this.dynamicRepeatIntervalMs,
 				isAutoplay: this.isAutoplay,
 				botUser: this.get("Internal_BotUser"),
+				nowPlayingMessage: this.nowPlayingMessage,
 			};
 
-			// Build tracks from the current player's queue
-			const tracks = [this.queue.current, ...this.queue];
+			console.log("Extracting tracks...");
+			// Ensure tracks are properly extracted
+			const tracks = this.queue.current ? [this.queue.current, ...this.queue] : [...this.queue];
 
 			// Destroy the old player
-			this.disconnect();
-			await this.node.rest.destroyPlayer(this.guildId);
-			this.manager.players.delete(this.guildId);
-
-			console.log("Creating player on new node");
-
+			await this.destroy();
+			console.log("Old player destroyed successfully");
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+			console.log("Creating player on new node", playerToTransfer);
 			// Recreate the player
 			const newPlayer = this.manager.create({
 				guildId: playerToTransfer.guildId,
@@ -1011,26 +1015,30 @@ export class Player {
 				selfDeafen: playerToTransfer.selfDeafen,
 			});
 
-			console.log("Connecting player to new node");
-
-			// Restore state
+			console.log("Connecting new player...");
 			newPlayer.connect();
 
 			// Add tracks to the new player
 			if (tracks.length) {
-				const res = await this.manager.search(tracks[0].uri, tracks[0].requester);
-				newPlayer.queue.add(res.tracks[0]);
-				tracks.shift();
-				newPlayer.queue.add(tracks as Track[]);
+				console.log(`Adding ${tracks.length} tracks to new player`);
+				newPlayer.queue.add(tracks);
+			} else {
+				console.warn("No tracks found in queue, player will be empty.");
 			}
 
 			// Play the first track if the old player was playing
 			if (playerToTransfer.playing) {
-				await newPlayer.play();
+				console.log("Playing the first track...");
+				await newPlayer.play().catch((err) => {
+					console.error("Error while playing track:", err);
+				});
 				newPlayer.seek(playerToTransfer.position);
 			}
 
-			if (playerToTransfer.paused) newPlayer.pause(true);
+			if (playerToTransfer.paused) {
+				console.log("Pausing player...");
+				newPlayer.pause(true);
+			}
 
 			newPlayer.setTrackRepeat(playerToTransfer.trackRepeat);
 			newPlayer.setQueueRepeat(playerToTransfer.queueRepeat);
@@ -1041,8 +1049,11 @@ export class Player {
 			if (playerToTransfer.isAutoplay) {
 				newPlayer.setAutoplay(playerToTransfer.isAutoplay, playerToTransfer.botUser as ClientUser | User);
 			}
+
+			console.log("Player transfer complete");
+			return newPlayer;
 		} catch (error) {
-			this.destroy();
+			console.error("Error moving node:", error);
 			throw new Error(error);
 		}
 	}
