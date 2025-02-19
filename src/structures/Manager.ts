@@ -386,7 +386,7 @@ export class Manager extends EventEmitter {
 		this.emit(ManagerEventTypes.PlayerDisconnect, player, player.voiceChannelId);
 		player.voiceChannelId = null;
 		player.voiceState = Object.assign({});
-		player.destroy();
+		await player.destroy();
 		return;
 	}
 

@@ -48,7 +48,7 @@ export class Player {
 	/** The autoplay state of the player. */
 	public isAutoplay: boolean = false;
 	/** The number of times to try autoplay before emitting queueEnd. */
-	public autoplayTries: number = 3;
+	public autoplayTries: number | null = null;
 
 	private static _manager: Manager;
 	private readonly data: Record<string, unknown> = {};
@@ -242,10 +242,10 @@ export class Player {
 		await this.node.rest.destroyPlayer(this.guildId);
 		this.manager.emit(ManagerEventTypes.PlayerDestroy, this);
 		this.queue.clear();
-		this.manager.players.delete(this.guildId);
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, null, {
 			changeType: PlayerStateEventTypes.PlayerDestroy,
 		});
+		this.manager.players.delete(this.guildId);
 	}
 
 	/**
@@ -390,24 +390,30 @@ export class Player {
 	 * recommended track if the first one doesn't work.
 	 * @returns {this} - The player instance.
 	 */
-	public setAutoplay(autoplayState: boolean, botUser: object, tries: number = 3) {
+	public setAutoplay(autoplayState: boolean, botUser?: object, tries?: number): this {
 		if (typeof autoplayState !== "boolean") {
 			throw new TypeError("autoplayState must be a boolean.");
 		}
 
-		if (typeof botUser !== "object") {
-			throw new TypeError("botUser must be a user-object.");
+		if (autoplayState) {
+			if (!botUser) {
+				throw new TypeError("botUser must be provided when enabling autoplay.");
+			}
+
+			if (!(botUser instanceof ClientUser) || !(botUser instanceof User)) {
+				throw new TypeError("botUser must be a user-object.");
+			}
+
+			this.autoplayTries = tries && typeof tries === "number" && tries > 0 ? tries : 3; // Default to 3 if invalid
+			this.isAutoplay = true;
+			this.set("Internal_BotUser", botUser);
+		} else {
+			this.isAutoplay = false;
+			this.autoplayTries = null;
+			this.set("Internal_BotUser", null);
 		}
 
-		if (typeof tries !== "number" || tries < 1) {
-			tries = 3; // Default to 3 if invalid
-		}
-
-		const oldPlayer = this ? { ...this } : null;
-
-		this.isAutoplay = autoplayState;
-		this.autoplayTries = tries;
-		this.set("Internal_BotUser", botUser);
+		const oldPlayer = { ...this };
 
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.AutoPlayChange,
@@ -962,99 +968,45 @@ export class Player {
 	 * @returns {Promise<Player>} - The player instance after being moved.
 	 */
 	public async moveNode(identifier: string): Promise<Player> {
+		console.log(`Fetching node: ${identifier}`);
+		const node = this.manager.nodes.get(identifier);
+
+		if (!node) throw new Error(`Node with identifier ${identifier} not found`);
+
+		if (node.options.identifier === this.node.options.identifier) {
+			console.log("Already on the specified node, no need to move.");
+			return this;
+		}
+
 		try {
-			console.log(`Fetching node: ${identifier}`);
-			const node = this.manager.nodes.get(identifier);
+			const playerPosition = this.position;
+			const {
+				sessionId,
+				event: { token, endpoint },
+			} = this.voiceState;
+			const currentTrack = this.queue.current ? this.queue.current : null;
 
-			if (!node) throw new Error(`Node with identifier ${identifier} not found`);
-			if (node.options.identifier === this.node.options.identifier) {
-				console.log("Already on the specified node, no need to move.");
-				return this;
-			}
+			await this.node.rest.destroyPlayer(this.guildId).catch(() => {});
 
-			console.log("Destroying player on current node");
+			this.manager.players.delete(this.guildId);
+			this.node = node;
+			this.manager.players.set(this.guildId, this);
 
-			// Extract only necessary properties
-			const playerToTransfer = {
+			await this.node.rest.updatePlayer({
 				guildId: this.guildId,
-				textChannelId: this.textChannelId,
-				voiceChannelId: this.voiceChannelId,
-				node: identifier,
-				volume: this.volume,
-				selfMute: this.options.selfMute,
-				selfDeafen: this.options.selfDeafen,
-				position: this.position,
-				paused: this.paused,
-				playing: this.playing,
-				trackRepeat: this.trackRepeat,
-				queueRepeat: this.queueRepeat,
-				dynamicRepeat: this.dynamicRepeat,
-				dynamicRepeatIntervalMs: this.dynamicRepeatIntervalMs,
-				isAutoplay: this.isAutoplay,
-				botUser: this.get("Internal_BotUser"),
-				nowPlayingMessage: this.nowPlayingMessage,
-			};
-
-			console.log("Extracting tracks...");
-			// Ensure tracks are properly extracted
-			const tracks = this.queue.current ? [this.queue.current, ...this.queue] : [...this.queue];
-
-			// Destroy the old player
-			await this.destroy();
-			console.log("Old player destroyed successfully");
-			await new Promise((resolve) => setTimeout(resolve, 1000));
-			console.log("Creating player on new node", playerToTransfer);
-			// Recreate the player
-			const newPlayer = this.manager.create({
-				guildId: playerToTransfer.guildId,
-				textChannelId: playerToTransfer.textChannelId,
-				voiceChannelId: playerToTransfer.voiceChannelId,
-				node: identifier,
-				volume: playerToTransfer.volume,
-				selfMute: playerToTransfer.selfMute,
-				selfDeafen: playerToTransfer.selfDeafen,
+				data: { position: playerPosition, encodedTrack: currentTrack?.track, voice: { token, endpoint, sessionId } },
 			});
 
-			console.log("Connecting new player...");
-			newPlayer.connect();
-
-			// Add tracks to the new player
-			if (tracks.length) {
-				console.log(`Adding ${tracks.length} tracks to new player`);
-				newPlayer.queue.add(tracks);
-			} else {
-				console.warn("No tracks found in queue, player will be empty.");
-			}
-
-			// Play the first track if the old player was playing
-			if (playerToTransfer.playing) {
-				console.log("Playing the first track...");
-				await newPlayer.play().catch((err) => {
-					console.error("Error while playing track:", err);
-				});
-				newPlayer.seek(playerToTransfer.position);
-			}
-
-			if (playerToTransfer.paused) {
-				console.log("Pausing player...");
-				newPlayer.pause(true);
-			}
-
-			newPlayer.setTrackRepeat(playerToTransfer.trackRepeat);
-			newPlayer.setQueueRepeat(playerToTransfer.queueRepeat);
-			if (playerToTransfer.dynamicRepeat) {
-				newPlayer.setDynamicRepeat(playerToTransfer.dynamicRepeat, playerToTransfer.dynamicRepeatIntervalMs);
-			}
-
-			if (playerToTransfer.isAutoplay) {
-				newPlayer.setAutoplay(playerToTransfer.isAutoplay, playerToTransfer.botUser as ClientUser | User);
-			}
-
-			console.log("Player transfer complete");
-			return newPlayer;
+			// await this.node.rest.updatePlayer({
+			// 	guildId: this.guildId,
+			// 	data: {
+			// 		position: playerPosition,
+			// 		encodedTrack: this.queue.current?.track,
+			// 	},
+			// });
+			// if (this.playing) await this.play();
 		} catch (error) {
-			console.error("Error moving node:", error);
-			throw new Error(error);
+			console.log(error);
 		}
 	}
 
@@ -1117,7 +1069,7 @@ export class Player {
 			}
 
 			// Destroy the current player
-			this.destroy();
+			await this.destroy();
 
 			// Emit a debug event with the transfer information
 			const debugInfo = {
