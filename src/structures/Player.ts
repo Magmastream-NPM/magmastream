@@ -247,7 +247,7 @@ export class Player {
 	 * @emits {playerDestroy} - The player that was destroyed.
 	 * @emits {playerStateUpdate} - The old and new player states after the destruction.
 	 */
-	public async destroy(disconnect: boolean = true): Promise<void> {
+	public async destroy(disconnect: boolean = true): Promise<boolean> {
 		const oldPlayer = this ? { ...this } : null;
 		this.state = StateTypes.Destroying;
 
@@ -261,7 +261,7 @@ export class Player {
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, null, {
 			changeType: PlayerStateEventTypes.PlayerDestroy,
 		});
-		this.manager.players.delete(this.guildId);
+		return this.manager.players.delete(this.guildId);
 	}
 
 	/**
@@ -903,7 +903,6 @@ export class Player {
 		return this;
 	}
 
-	
 	/**
 	 * Seeks to a position in the current track.
 	 * @param position The position in milliseconds to seek to.

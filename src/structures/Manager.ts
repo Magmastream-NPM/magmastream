@@ -40,20 +40,20 @@ export class Manager extends EventEmitter {
 	public initiated = false;
 
 	/**
-		* Initiates the Manager class.
-		* @param options
-		* @param options.plugins - An array of plugins to load.
-		* @param options.nodes - An array of node options to create nodes from.
-		* @param options.autoPlay - Whether to automatically play the first track in the queue when the player is created.
-		* @param options.autoPlaySearchPlatform - The search platform autoplay will use. Fallback to Youtube if not found.
-		* @param options.usePriority - Whether to use the priority when selecting a node to play on.
-		* @param options.clientName - The name of the client to send to Lavalink.
-		* @param options.defaultSearchPlatform - The default search platform to use when searching for tracks.
-		* @param options.useNode - The strategy to use when selecting a node to play on.
-		* @param options.trackPartial - The partial track search results to use when searching for tracks. This partials will always be presented on each track.
-		* @param options.eventBatchDuration - The duration to wait before processing the collected player state events.
-		* @param options.eventBatchInterval - The interval to wait before processing the collected player state events.
-		*/
+	 * Initiates the Manager class.
+	 * @param options
+	 * @param options.plugins - An array of plugins to load.
+	 * @param options.nodes - An array of node options to create nodes from.
+	 * @param options.autoPlay - Whether to automatically play the first track in the queue when the player is created.
+	 * @param options.autoPlaySearchPlatform - The search platform autoplay will use. Fallback to Youtube if not found.
+	 * @param options.usePriority - Whether to use the priority when selecting a node to play on.
+	 * @param options.clientName - The name of the client to send to Lavalink.
+	 * @param options.defaultSearchPlatform - The default search platform to use when searching for tracks.
+	 * @param options.useNode - The strategy to use when selecting a node to play on.
+	 * @param options.trackPartial - The partial track search results to use when searching for tracks. This partials will always be presented on each track.
+	 * @param options.eventBatchDuration - The duration to wait before processing the collected player state events.
+	 * @param options.eventBatchInterval - The interval to wait before processing the collected player state events.
+	 */
 	constructor(options: ManagerOptions) {
 		super();
 
@@ -124,11 +124,11 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-		* Initiates the Manager.
-		* @param clientId - The Discord client ID (required).
-		* @param clusterId - The cluster ID which runs the current process (required).
-		* @returns The manager instance.
-		*/
+	 * Initiates the Manager.
+	 * @param clientId - The Discord client ID (required).
+	 * @param clusterId - The cluster ID which runs the current process (required).
+	 * @returns The manager instance.
+	 */
 	public init(clientId: string, clusterId: number = 0): this {
 		if (this.initiated) {
 			return this;
@@ -165,11 +165,11 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-		* Searches the enabled sources based off the URL or the `source` property.
-		* @param query
-		* @param requester
-		* @returns The search result.
-		*/
+	 * Searches the enabled sources based off the URL or the `source` property.
+	 * @param query
+	 * @param requester
+	 * @returns The search result.
+	 */
 	public async search<T = User | ClientUser>(query: string | SearchQuery, requester?: T): Promise<SearchResult> {
 		const node = this.useableNode;
 
@@ -258,10 +258,10 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-		* Creates a player or returns one if it already exists.
-		* @param options The options to create the player with.
-		* @returns The created player.
-		*/
+	 * Creates a player or returns one if it already exists.
+	 * @param options The options to create the player with.
+	 * @returns The created player.
+	 */
 	public create(options: PlayerOptions): Player {
 		if (this.players.has(options.guildId)) {
 			return this.players.get(options.guildId);
@@ -273,20 +273,20 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-		* Returns a player or undefined if it does not exist.
-		* @param guildId The guild ID of the player to retrieve.
-		* @returns The player if it exists, undefined otherwise.
-		*/
+	 * Returns a player or undefined if it does not exist.
+	 * @param guildId The guild ID of the player to retrieve.
+	 * @returns The player if it exists, undefined otherwise.
+	 */
 	public get(guildId: string): Player | undefined {
 		return this.players.get(guildId);
 	}
 
 	/**
-		* Destroys a player if it exists and cleans up inactive players.
-		* @param guildId - The guild ID of the player to destroy.
-		* @returns {void}
-		* @emits {debug} - Emits a debug message indicating the player is being destroyed.
-		*/
+	 * Destroys a player if it exists and cleans up inactive players.
+	 * @param guildId - The guild ID of the player to destroy.
+	 * @returns {void}
+	 * @emits {debug} - Emits a debug message indicating the player is being destroyed.
+	 */
 	public destroy(guildId: string): void {
 		// Emit debug message for player destruction
 		this.emit(ManagerEventTypes.Debug, `[MANAGER] Destroying player: ${guildId}`);
@@ -299,10 +299,10 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-		* Creates a new node or returns an existing one if it already exists.
-		* @param options - The options to create the node with.
-		* @returns The created node.
-		*/
+	 * Creates a new node or returns an existing one if it already exists.
+	 * @param options - The options to create the node with.
+	 * @returns The created node.
+	 */
 	public createNode(options: NodeOptions): Node {
 		// Check if the node already exists in the manager's collection
 		if (this.nodes.has(options.identifier || options.host)) {
@@ -318,11 +318,11 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-		* Destroys a node if it exists. Emits a debug event if the node is found and destroyed.
-		* @param identifier - The identifier of the node to destroy.
-		* @returns {void}
-		* @emits {debug} - Emits a debug message indicating the node is being destroyed.
-		*/
+	 * Destroys a node if it exists. Emits a debug event if the node is found and destroyed.
+	 * @param identifier - The identifier of the node to destroy.
+	 * @returns {void}
+	 * @emits {debug} - Emits a debug message indicating the node is being destroyed.
+	 */
 	public destroyNode(identifier: string): void {
 		const node = this.nodes.get(identifier);
 		if (!node) return;
@@ -332,30 +332,36 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-		* Attaches an event listener to the manager.
-		* @param event The event to listen for.
-		* @param listener The function to call when the event is emitted.
-		* @returns The manager instance for chaining.
-		*/
+	 * Attaches an event listener to the manager.
+	 * @param event The event to listen for.
+	 * @param listener The function to call when the event is emitted.
+	 * @returns The manager instance for chaining.
+	 */
 	public on<T extends keyof ManagerEvents>(event: T, listener: (...args: ManagerEvents[T]) => void): this {
 		return super.on(event, listener);
 	}
 
 	/**
-		* Sends voice data to the Lavalink server.
-		* @param data
-		*/
+	 * Updates the voice state of a player based on incoming voice packet or server data.
+	 *
+	 * @param {VoicePacket | VoiceServer | VoiceState} data - The data containing the voice state update.
+	 *
+	 * This method processes voice state updates, handling both VOICE_STATE_UPDATE and
+	 * VOICE_SERVER_UPDATE events. It updates the player's voice state, triggers relevant
+	 * events, and manages player connections, including moving and disconnecting players.
+	 * Emits debug events with details about the updates.
+	 */
 	public async updateVoiceState(data: VoicePacket | VoiceServer | VoiceState): Promise<void> {
 		if ("t" in data && !["VOICE_STATE_UPDATE", "VOICE_SERVER_UPDATE"].includes(data.t)) return;
 
 		const update = "d" in data ? data.d : data;
-
 		if (!update || (!("token" in update) && !("session_id" in update))) return;
 
 		const player = this.players.get(update.guild_id);
-
 		if (!player) return;
+
 		this.emit(ManagerEventTypes.Debug, `[MANAGER] Updating voice state: ${JSON.stringify(update)}`);
+
 		if ("token" in update) {
 			player.voiceState.event = update;
 
@@ -391,12 +397,12 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-		* Decodes an array of base64 encoded tracks and returns an array of TrackData.
-		* Emits a debug event with the tracks being decoded.
-		* @param tracks - An array of base64 encoded track strings.
-		* @returns A promise that resolves to an array of TrackData objects.
-		* @throws Will throw an error if no nodes are available or if the API request fails.
-		*/
+	 * Decodes an array of base64 encoded tracks and returns an array of TrackData.
+	 * Emits a debug event with the tracks being decoded.
+	 * @param tracks - An array of base64 encoded track strings.
+	 * @returns A promise that resolves to an array of TrackData objects.
+	 * @throws Will throw an error if no nodes are available or if the API request fails.
+	 */
 	public decodeTracks(tracks: string[]): Promise<TrackData[]> {
 		this.emit(ManagerEventTypes.Debug, `[MANAGER] Decoding tracks: ${JSON.stringify(tracks)}`);
 		return new Promise(async (resolve, reject) => {
@@ -414,11 +420,11 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-		* Decodes a base64 encoded track and returns a TrackData.
-		* @param track - The base64 encoded track string.
-		* @returns A promise that resolves to a TrackData object.
-		* @throws Will throw an error if no nodes are available or if the API request fails.
-		*/
+	 * Decodes a base64 encoded track and returns a TrackData.
+	 * @param track - The base64 encoded track string.
+	 * @returns A promise that resolves to a TrackData object.
+	 * @throws Will throw an error if no nodes are available or if the API request fails.
+	 */
 	public async decodeTrack(track: string): Promise<TrackData> {
 		const res = await this.decodeTracks([track]);
 		// Since we're only decoding one track, we can just return the first element of the array
@@ -473,10 +479,10 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-		* Loads player states from the JSON file.
-		* @param nodeId The ID of the node to load player states from.
-		* @returns A promise that resolves when the player states have been loaded.
-		*/
+	 * Loads player states from the JSON file.
+	 * @param nodeId The ID of the node to load player states from.
+	 * @returns A promise that resolves when the player states have been loaded.
+	 */
 	public async loadPlayerStates(nodeId: string): Promise<void> {
 		this.emit(ManagerEventTypes.Debug, "[MANAGER] Loading saved players.");
 		const node = this.nodes.get(nodeId);
@@ -585,8 +591,8 @@ export class Manager extends EventEmitter {
 						if (state.isAutoplay && state?.data?.Internal_BotUser) {
 							player.setAutoplay(state.isAutoplay, state.data.Internal_BotUser as User | ClientUser);
 						}
-						if(state.data) {
-							for (const [name, value] of  Object.entries(state.data)) {
+						if (state.data) {
+							for (const [name, value] of Object.entries(state.data)) {
 								player.set(name, value);
 							}
 						}
