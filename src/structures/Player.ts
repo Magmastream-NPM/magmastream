@@ -148,18 +148,23 @@ export class Player {
 	}
 
 	/**
-	 * Connect to the voice channel.
-	 * @returns {this} - The player instance.
+	 * Connects the player to the voice channel.
 	 * @throws {RangeError} If no voice channel has been set.
+	 * @returns {void}
 	 */
-	public connect(): this {
-		if (!this.voiceChannelId) throw new RangeError("No voice channel has been set.");
+	public connect(): void {
+		// Check if the voice channel has been set.
+		if (!this.voiceChannelId) {
+			throw new RangeError("No voice channel has been set. You must use the `setVoiceChannelId()` method to set the voice channel before connecting.");
+		}
 
+		// Set the player state to connecting.
 		this.state = StateTypes.Connecting;
 
+		// Clone the current player state for comparison.
 		const oldPlayer = this ? { ...this } : null;
 
-		// Send the voice state update to the gateway
+		// Send the voice state update to the gateway.
 		this.manager.options.send(this.guildId, {
 			op: 4,
 			d: {
@@ -170,10 +175,10 @@ export class Player {
 			},
 		});
 
-		// Set the player state to connected
+		// Set the player state to connected.
 		this.state = StateTypes.Connected;
 
-		// Emit the player state update event
+		// Emit the player state update event.
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.ConnectionChange,
 			details: {
@@ -182,22 +187,29 @@ export class Player {
 				currentConnection: true,
 			},
 		});
-
-		return this;
 	}
 
 	/**
 	 * Disconnects the player from the voice channel.
-	 * @returns {this} - The player instance.
 	 * @throws {TypeError} If the player is not connected.
+	 * @returns {this} - The current instance of the Player class for method chaining.
 	 */
-	public disconnect(): this {
-		if (this.voiceChannelId === null) return this;
+	public async disconnect(): Promise<this> {
+		// Check if the player is connected.
+		if (this.voiceChannelId === null) {
+			throw new TypeError("The player is not connected.");
+		}
 
+		// Set the player state to disconnecting.
 		this.state = StateTypes.Disconnecting;
 
+		// Clone the current player state for comparison.
 		const oldPlayer = this ? { ...this } : null;
-		this.pause(true);
+
+		// Pause the player.
+		await this.pause(true);
+
+		// Send the voice state update to the gateway.
 		this.manager.options.send(this.guildId, {
 			op: 4,
 			d: {
@@ -208,9 +220,13 @@ export class Player {
 			},
 		});
 
+		// Set the player voice channel to null.
 		this.voiceChannelId = null;
+
+		// Set the player state to disconnected.
 		this.state = StateTypes.Disconnected;
 
+		// Emit the player state update event.
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.ConnectionChange,
 			details: {
@@ -236,7 +252,7 @@ export class Player {
 		this.state = StateTypes.Destroying;
 
 		if (disconnect) {
-			this.disconnect();
+			await this.disconnect();
 		}
 
 		await this.node.rest.destroyPlayer(this.guildId);
@@ -339,11 +355,11 @@ export class Player {
 	 *
 	 * @returns {Promise<void>}
 	 */
-	public async play(): Promise<void>;
-	public async play(track: Track): Promise<void>;
-	public async play(options: PlayOptions): Promise<void>;
-	public async play(track: Track, options: PlayOptions): Promise<void>;
-	public async play(optionsOrTrack?: PlayOptions | Track, playOptions?: PlayOptions): Promise<void> {
+	public async play(): Promise<Player>;
+	public async play(track: Track): Promise<Player>;
+	public async play(options: PlayOptions): Promise<Player>;
+	public async play(track: Track, options: PlayOptions): Promise<Player>;
+	public async play(optionsOrTrack?: PlayOptions | Track, playOptions?: PlayOptions): Promise<Player> {
 		if (typeof optionsOrTrack !== "undefined" && TrackUtils.validate(optionsOrTrack)) {
 			if (this.queue.current) this.queue.previous = this.queue.current;
 			this.queue.current = optionsOrTrack as Track;
@@ -357,16 +373,6 @@ export class Player {
 			? (optionsOrTrack as PlayOptions)
 			: {};
 
-		if (TrackUtils.isUnresolvedTrack(this.queue.current)) {
-			try {
-				this.queue.current = await TrackUtils.getClosestTrack(this.queue.current as UnresolvedTrack);
-			} catch (error) {
-				this.manager.emit(ManagerEventTypes.TrackError, this, this.queue.current, error);
-				if (this.queue[0]) return this.play(this.queue[0]);
-				return;
-			}
-		}
-
 		await this.node.rest.updatePlayer({
 			guildId: this.guildId,
 			data: {
@@ -375,7 +381,10 @@ export class Player {
 			},
 		});
 
-		Object.assign(this, { position: 0, playing: true });
+		this.playing = true;
+		this.position = 0;
+
+		return this;
 	}
 
 	/**
@@ -558,18 +567,24 @@ export class Player {
 
 		return response.data.similartracks.track.filter((t: { uri: string }) => t.uri !== track.uri);
 	}
+
 	/**
-	 * Sets the player volume.
-	 * @param {number} volume - The volume to set the player to. Must be between 0 and 100.
-	 * @returns {this} - The player instance.
+	 * Sets the volume of the player.
+	 * @param {number} volume - The new volume. Must be between 0 and 1000.
+	 * @returns {Promise<Player>} - The updated player.
+	 * @throws {TypeError} If the volume is not a number.
+	 * @throws {RangeError} If the volume is not between 0 and 1000.
+	 * @emits {PlayerStateUpdate} - Emitted when the volume is changed.
+	 * @example
+	 * player.setVolume(50);
 	 */
-	public setVolume(volume: number): this {
+	public async setVolume(volume: number): Promise<this> {
 		if (isNaN(volume)) throw new TypeError("Volume must be a number.");
 
 		if (volume < 0 || volume > 1000) throw new RangeError("Volume must be between 0 and 1000.");
 
 		const oldPlayer = this ? { ...this } : null;
-		this.node.rest.updatePlayer({
+		await this.node.rest.updatePlayer({
 			guildId: this.options.guildId,
 			data: {
 				volume,
@@ -777,11 +792,12 @@ export class Player {
 	}
 
 	/**
-	 * Stops the current track, optionally give an amount to skip to, e.g 5 would play the 5th song.
-	 * @param amount - The amount of tracks to skip, e.g 5 would play the 5th song.
-	 * @returns {this} - The player instance.
+	 * Stops the player and optionally removes tracks from the queue.
+	 * @param {number} [amount] The amount of tracks to remove from the queue. If not provided, removes the current track if it exists.
+	 * @returns {Promise<this>} - The player instance.
+	 * @throws {RangeError} If the amount is greater than the queue length.
 	 */
-	public stop(amount?: number): this {
+	public async stop(amount?: number): Promise<this> {
 		const oldPlayer = this ? { ...this } : null;
 
 		let removedTracks: Track[] = [];
@@ -802,7 +818,7 @@ export class Player {
 		}
 
 		// Stop the player and send an event to the manager.
-		this.node.rest.updatePlayer({
+		await this.node.rest.updatePlayer({
 			guildId: this.guildId,
 			data: {
 				encodedTrack: null,
@@ -821,11 +837,13 @@ export class Player {
 	}
 
 	/**
-	 * Pauses or resumes the current track.
-	 * @param pause - A boolean indicating whether to pause (true) or resume (false) the track.
+	 * Pauses or unpauses the player.
+	 * @param {boolean} pause - Whether to pause or unpause the player.
 	 * @returns {this} - The player instance.
+	 * @throws {RangeError} If the pause parameter is not a boolean.
+	 * @emits {PlayerStateUpdate} - With {@link PlayerStateEventTypes.PauseChange} as the change type.
 	 */
-	public pause(pause: boolean): this {
+	public async pause(pause: boolean): Promise<this> {
 		// Validate the pause parameter to ensure it's a boolean.
 		if (typeof pause !== "boolean") throw new RangeError('Pause can only be "true" or "false".');
 
@@ -840,7 +858,7 @@ export class Player {
 		this.paused = pause;
 
 		// Send an update to the backend to change the pause state of the player.
-		this.node.rest.updatePlayer({
+		await this.node.rest.updatePlayer({
 			guildId: this.guildId,
 			data: {
 				paused: pause,
@@ -885,12 +903,14 @@ export class Player {
 		return this;
 	}
 
+	
 	/**
-	 * Seeks to the specified position in the current track.
+	 * Seeks to a position in the current track.
 	 * @param position The position in milliseconds to seek to.
-	 * @returns {this} - The player instance.
+	 * @returns The player instance.
+	 * @throws {RangeError} If the position is not a number.
 	 */
-	public seek(position: number): this {
+	public async seek(position: number): Promise<this> {
 		if (!this.queue.current) return undefined;
 		position = Number(position);
 
@@ -911,7 +931,7 @@ export class Player {
 		this.position = position;
 
 		// Send the seek request to the node.
-		this.node.rest.updatePlayer({
+		await this.node.rest.updatePlayer({
 			guildId: this.guildId,
 			data: {
 				position: position,
