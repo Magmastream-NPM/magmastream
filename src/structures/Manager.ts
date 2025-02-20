@@ -612,7 +612,6 @@ export class Manager extends EventEmitter {
 							player.queue.add(tracks as Track[]);
 						}
 
-						console.log(state?.queue?.previous)
 						player.queue.previous = state.queue.previous || [];
 						
 						if (state.paused) {

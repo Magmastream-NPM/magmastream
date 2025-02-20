@@ -362,11 +362,6 @@ export class Player {
 	public async play(track: Track, options: PlayOptions): Promise<Player>;
 	public async play(optionsOrTrack?: PlayOptions | Track, playOptions?: PlayOptions): Promise<Player> {
 		if (typeof optionsOrTrack !== "undefined" && TrackUtils.validate(optionsOrTrack)) {
-			if (this.queue.current) {
-				// this.queue.previous = this.queue.current;
-				console.log("play");
-				this.queue.previous.push(this.queue.current);
-			}
 			this.queue.current = optionsOrTrack as Track;
 		}
 
@@ -895,19 +890,10 @@ export class Player {
 		const oldPlayer = { ...this };
 
 		// Get the last played track and remove it from the history
-		const lastTrack = this.queue.previous.pop()!;
+		const lastTrack = this.queue.previous.shift();
 
-		// Move the last played track to the beginning of the queue
-		this.queue.unshift(lastTrack);
-
-		// Stop the current track and prepare to play the previous one
-		await this.stop();
-		// await this.node.rest.updatePlayer({
-		// 	guildId: this.guildId,
-		// 	data: {
-		// 		encodedTrack: null,
-		// 	},
-		// });
+		this.set("skipFlag", true);
+		await this.play(lastTrack);
 
 		// Emit a player state update event indicating the track change to previous.
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
@@ -918,6 +904,7 @@ export class Player {
 			},
 		});
 
+		this.set("skipFlag", false);
 		return this;
 	}
 
