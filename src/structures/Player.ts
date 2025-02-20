@@ -93,6 +93,7 @@ export class Player {
 
 		// Initialize the queue with the guild ID and manager.
 		this.queue = new Queue(this.guildId, this.manager);
+		this.queue.previous = new Array<Track>();
 
 		// Add the player to the manager's player collection.
 		this.manager.players.set(options.guildId, this);
@@ -361,7 +362,11 @@ export class Player {
 	public async play(track: Track, options: PlayOptions): Promise<Player>;
 	public async play(optionsOrTrack?: PlayOptions | Track, playOptions?: PlayOptions): Promise<Player> {
 		if (typeof optionsOrTrack !== "undefined" && TrackUtils.validate(optionsOrTrack)) {
-			if (this.queue.current) this.queue.previous = this.queue.current;
+			if (this.queue.current) {
+				// this.queue.previous = this.queue.current;
+				console.log("play");
+				this.queue.previous.push(this.queue.current);
+			}
 			this.queue.current = optionsOrTrack as Track;
 		}
 
@@ -881,22 +886,35 @@ export class Player {
 	 * Goes back to the previous song in the queue.
 	 * @returns {this} - The player instance.
 	 */
-	public previous(): this {
+	public async previous(): Promise<this> {
+		if (!this.queue.previous.length) {
+			throw new Error("No previous track available.");
+		}
+
 		// Capture the current state of the player before making changes.
-		const oldPlayer = this ? { ...this } : null;
+		const oldPlayer = { ...this };
 
-		// Move the previous track to the beginning of the queue.
-		this.queue.unshift(this.queue.previous);
+		// Get the last played track and remove it from the history
+		const lastTrack = this.queue.previous.pop()!;
 
-		// Stop the current track to allow playing the previous track.
-		this.stop();
+		// Move the last played track to the beginning of the queue
+		this.queue.unshift(lastTrack);
+
+		// Stop the current track and prepare to play the previous one
+		await this.stop();
+		// await this.node.rest.updatePlayer({
+		// 	guildId: this.guildId,
+		// 	data: {
+		// 		encodedTrack: null,
+		// 	},
+		// });
 
 		// Emit a player state update event indicating the track change to previous.
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.TrackChange,
 			details: {
 				changeType: "previous",
-				track: this.queue.previous,
+				track: lastTrack,
 			},
 		});
 
