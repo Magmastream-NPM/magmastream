@@ -605,13 +605,16 @@ export class Node {
 		const oldPlayer = player;
 
 		// If the track failed to load or was cleaned up
+		console.log("Reason " + reason);
 		if (["loadFailed", "cleanup"].includes(reason)) {
 			this.handleFailedTrack(player, track, payload);
 		}
 		// If the track was forcibly replaced
 		else if (reason === TrackEndReasonTypes.Replaced) {
 			this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
-			player.queue.previous = player.queue.current;
+			// player.queue.previous = player.queue.current;
+			console.log("trackEnd");
+			player.queue.previous.push(player.queue.current);
 		}
 		// If the track ended and it's set to repeat (track or queue)
 		else if (track && (player.trackRepeat || player.queueRepeat)) {
@@ -662,7 +665,8 @@ export class Node {
 
 		if (shouldUseYouTube) {
 			// Use YouTube-based autoplay
-			return this.handleYouTubeAutoplay(player, player.queue.previous);
+			// return this.handleYouTubeAutoplay(player, player.queue.previous);
+			return this.handleYouTubeAutoplay(player, player.queue.previous?.at(-1) ?? null);
 		}
 
 		// Handle Last.fm-based autoplay (or other platforms)
@@ -670,7 +674,8 @@ export class Node {
 
 		if (selectedSource) {
 			// Use the selected source to handle autoplay
-			return this.handlePlatformAutoplay(player, player.queue.previous, selectedSource, apiKey);
+			// return this.handlePlatformAutoplay(player, player.queue.previous, selectedSource, apiKey);
+			return this.handlePlatformAutoplay(player, player.queue.previous?.at(-1) ?? null, selectedSource, apiKey);
 		}
 
 		// If no source is available, return false
@@ -865,7 +870,9 @@ export class Node {
 	}
 	// Handle the case when a track failed to load or was cleaned up
 	private handleFailedTrack(player: Player, track: Track, payload: TrackEndEvent): void {
-		player.queue.previous = player.queue.current;
+		// player.queue.previous = player.queue.current;
+		console.log("handleFailedTrack");
+		player.queue.previous.push(player.queue.current);
 		player.queue.current = player.queue.shift();
 
 		if (!player.queue.current) {
@@ -889,23 +896,31 @@ export class Node {
 		const { queue, trackRepeat, queueRepeat } = player;
 		const { autoPlay } = this.manager.options;
 
-		// If the track is set to repeat, put it at the beginning of the queue
-		if (trackRepeat) {
-			queue.unshift(queue.current);
-		}
-		// If the queue is set to repeat, add the current track back to the end of the queue
-		else if (queueRepeat) {
-			queue.add(queue.current as Track);
+		// Ensure previous track history is updated without duplicates
+		if (!queue.previous.length || queue.previous.at(-1) !== queue.current) {
+			console.log("handleRepeatedTrack");
+			queue.previous.push(queue.current);
 		}
 
-		// Update the previous and current tracks in the queue
-		queue.previous = queue.current;
+		if (trackRepeat) {
+			// Prevent duplicate repeat insertion
+			if (queue[0] !== queue.current) {
+				queue.unshift(queue.current);
+			}
+		} else if (queueRepeat) {
+			// Prevent duplicate queue insertion
+			if (queue[queue.length - 1] !== queue.current) {
+				queue.add(queue.current as Track);
+			}
+		}
+
+		// Move to the next track
 		queue.current = queue.shift() as Track;
 
-		// Emit the track end event
+		// Emit track end event
 		this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
 
-		// If the track was stopped manually and there are no more tracks in the queue, end the queue
+		// If the track was stopped manually and no more tracks exist, end the queue
 		if (payload.reason === TrackEndReasonTypes.Stopped && !(queue.current = queue.shift())) {
 			this.queueEnd(player, track, payload);
 			return;
@@ -928,7 +943,9 @@ export class Node {
 	 */
 	private playNextTrack(player: Player, track: Track, payload: TrackEndEvent): void {
 		// Update the previous track to the current one
-		player.queue.previous = player.queue.current;
+		// player.queue.previous = player.queue.current;
+		// console.log("playNextTrack");
+		player.queue.previous.push(player.queue.current);
 
 		// Shift the queue to set the next track as current
 		player.queue.current = player.queue.shift();
@@ -950,7 +967,9 @@ export class Node {
 	 * @returns {Promise<void>} A promise that resolves when the queue end processing is complete.
 	 */
 	public async queueEnd(player: Player, track: Track, payload: TrackEndEvent): Promise<void> {
-		player.queue.previous = player.queue.current;
+		// player.queue.previous = player.queue.current;
+		console.log("queueEnd");
+		player.queue.previous.push(player.queue.current);
 		player.queue.current = null;
 
 		if (!player.isAutoplay) {
