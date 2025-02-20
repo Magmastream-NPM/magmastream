@@ -605,16 +605,17 @@ export class Node {
 		const oldPlayer = player;
 
 		// If the track failed to load or was cleaned up
-		console.log("Reason " + reason);
+		const skipFlag = player.get<boolean>("skipFlag");
+		if (!skipFlag && (!player.queue.previous.length || player.queue.previous.at(-1) !== player.queue.current)) {
+			player.queue.previous.unshift(player.queue.current);
+		}
+
 		if (["loadFailed", "cleanup"].includes(reason)) {
 			this.handleFailedTrack(player, track, payload);
 		}
 		// If the track was forcibly replaced
 		else if (reason === TrackEndReasonTypes.Replaced) {
 			this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
-			// player.queue.previous = player.queue.current;
-			console.log("trackEnd");
-			player.queue.previous.push(player.queue.current);
 		}
 		// If the track ended and it's set to repeat (track or queue)
 		else if (track && (player.trackRepeat || player.queueRepeat)) {
@@ -650,7 +651,7 @@ export class Node {
 	 */
 	private async handleAutoplay(player: Player, attempt: number = 0): Promise<boolean> {
 		// If autoplay is not enabled or all attempts have failed, early exit
-		if (!player.isAutoplay || attempt === player.autoplayTries || !player.queue.previous) return false;
+		if (!player.isAutoplay || attempt === player.autoplayTries || !player.queue.previous[0]) return false;
 
 		// Get the Last.fm API key and the available source managers
 		const apiKey = this.manager.options.lastFmApiKey;
@@ -871,8 +872,6 @@ export class Node {
 	// Handle the case when a track failed to load or was cleaned up
 	private handleFailedTrack(player: Player, track: Track, payload: TrackEndEvent): void {
 		// player.queue.previous = player.queue.current;
-		console.log("handleFailedTrack");
-		player.queue.previous.push(player.queue.current);
 		player.queue.current = player.queue.shift();
 
 		if (!player.queue.current) {
@@ -895,12 +894,6 @@ export class Node {
 	private handleRepeatedTrack(player: Player, track: Track, payload: TrackEndEvent): void {
 		const { queue, trackRepeat, queueRepeat } = player;
 		const { autoPlay } = this.manager.options;
-
-		// Ensure previous track history is updated without duplicates
-		if (!queue.previous.length || queue.previous.at(-1) !== queue.current) {
-			console.log("handleRepeatedTrack");
-			queue.previous.push(queue.current);
-		}
 
 		if (trackRepeat) {
 			// Prevent duplicate repeat insertion
@@ -942,11 +935,6 @@ export class Node {
 	 * @private
 	 */
 	private playNextTrack(player: Player, track: Track, payload: TrackEndEvent): void {
-		// Update the previous track to the current one
-		// player.queue.previous = player.queue.current;
-		// console.log("playNextTrack");
-		player.queue.previous.push(player.queue.current);
-
 		// Shift the queue to set the next track as current
 		player.queue.current = player.queue.shift();
 
@@ -967,9 +955,6 @@ export class Node {
 	 * @returns {Promise<void>} A promise that resolves when the queue end processing is complete.
 	 */
 	public async queueEnd(player: Player, track: Track, payload: TrackEndEvent): Promise<void> {
-		// player.queue.previous = player.queue.current;
-		console.log("queueEnd");
-		player.queue.previous.push(player.queue.current);
 		player.queue.current = null;
 
 		if (!player.isAutoplay) {
@@ -988,7 +973,7 @@ export class Node {
 		}
 
 		// If all attempts fail, reset the player state and emit queueEnd
-		player.queue.previous = null;
+		player.queue.previous = [];
 		player.playing = false;
 		this.manager.emit(ManagerEventTypes.QueueEnd, player, track, payload);
 	}
