@@ -342,43 +342,79 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-	 * Updates the voice state of a player based on incoming voice packet or server data.
-	 *
-	 * @param {VoicePacket | VoiceServer | VoiceState} data - The data containing the voice state update.
-	 *
-	 * This method processes voice state updates, handling both VOICE_STATE_UPDATE and
-	 * VOICE_SERVER_UPDATE events. It updates the player's voice state, triggers relevant
-	 * events, and manages player connections, including moving and disconnecting players.
-	 * Emits debug events with details about the updates.
+	 * Updates the voice state of a player based on the provided data.
+	 * @param data - The data containing voice state information, which can be a VoicePacket, VoiceServer, or VoiceState.
+	 * @returns A promise that resolves when the voice state update is handled.
+	 * @emits {debug} - Emits a debug message indicating the voice state is being updated.
 	 */
 	public async updateVoiceState(data: VoicePacket | VoiceServer | VoiceState): Promise<void> {
-		if ("t" in data && !["VOICE_STATE_UPDATE", "VOICE_SERVER_UPDATE"].includes(data.t)) return;
+		if (!this.isVoiceUpdate(data)) return;
 
 		const update = "d" in data ? data.d : data;
-		if (!update || (!("token" in update) && !("session_id" in update))) return;
+		if (!this.isValidUpdate(update)) return;
 
 		const player = this.players.get(update.guild_id);
 		if (!player) return;
 
-		this.emit(ManagerEventTypes.Debug, `[MANAGER] Updating voice state: ${JSON.stringify(update)}`);
+		this.emit(ManagerEventTypes.Debug, `[MANAGER] Updating voice state: ${update.guild_id}`);
 
 		if ("token" in update) {
-			player.voiceState.event = update;
-
-			const {
-				sessionId,
-				event: { token, endpoint },
-			} = player.voiceState;
-
-			await player.node.rest.updatePlayer({
-				guildId: player.guildId,
-				data: { voice: { token, endpoint, sessionId } },
-			});
-
-			return;
+			return await this.handleVoiceServerUpdate(player, update);
 		}
 
 		if (update.user_id !== this.options.clientId) return;
+		return this.handleVoiceStateUpdate(player, update);
+	}
+
+	/**
+	 * Checks if the given data is a voice update.
+	 * @param data The data to check.
+	 * @returns Whether the data is a voice update.
+	 */
+	private isVoiceUpdate(data: VoicePacket | VoiceServer | VoiceState): boolean {
+		return "t" in data && ["VOICE_STATE_UPDATE", "VOICE_SERVER_UPDATE"].includes(data.t);
+	}
+
+	/**
+	 * Determines if the provided update is a valid voice update.
+	 * A valid update must contain either a token or a session_id.
+	 *
+	 * @param update - The voice update data to validate, which can be a VoicePacket, VoiceServer, or VoiceState.
+	 * @returns {boolean} - True if the update is valid, otherwise false.
+	 */
+	private isValidUpdate(update: VoicePacket | VoiceServer | VoiceState): boolean {
+		return update && ("token" in update || "session_id" in update);
+	}
+
+	/**
+	 * Handles a voice server update by updating the player's voice state and sending the voice state to the Lavalink node.
+	 * @param player The player for which the voice state is being updated.
+	 * @param update The voice server data received from Discord.
+	 * @returns A promise that resolves when the voice state update is handled.
+	 * @emits {debug} - Emits a debug message indicating the voice state is being updated.
+	 */
+	private async handleVoiceServerUpdate(player: Player, update: VoiceServer): Promise<void> {
+		player.voiceState.event = update;
+
+		const {
+			sessionId,
+			event: { token, endpoint },
+		} = player.voiceState;
+
+		await player.node.rest.updatePlayer({
+			guildId: player.guildId,
+			data: { voice: { token, endpoint, sessionId } },
+		});
+	}
+
+	/**
+	 * Handles a voice state update by updating the player's voice channel and session ID if provided, or by disconnecting and destroying the player if the channel ID is null.
+	 * @param player The player for which the voice state is being updated.
+	 * @param update The voice state data received from Discord.
+	 * @emits {playerMove} - Emits a player move event if the channel ID is provided and the player is currently connected to a different voice channel.
+	 * @emits {playerDisconnect} - Emits a player disconnect event if the channel ID is null.
+	 */
+	private handleVoiceStateUpdate(player: Player, update: VoiceState): void {
 		if (update.channel_id) {
 			if (player.voiceChannelId !== update.channel_id) {
 				this.emit(ManagerEventTypes.PlayerMove, player, player.voiceChannelId, update.channel_id);
@@ -392,8 +428,7 @@ export class Manager extends EventEmitter {
 		this.emit(ManagerEventTypes.PlayerDisconnect, player, player.voiceChannelId);
 		player.voiceChannelId = null;
 		player.voiceState = Object.assign({});
-		await player.destroy();
-		return;
+		player.destroy();
 	}
 
 	/**

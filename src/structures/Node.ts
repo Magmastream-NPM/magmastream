@@ -12,7 +12,7 @@ import {
 	TrackExceptionEvent,
 	TrackStartEvent,
 	TrackStuckEvent,
-	WebSocketClosedEvent
+	WebSocketClosedEvent,
 } from "./Utils";
 import { Manager, ManagerEventTypes, PlayerStateEventTypes, SearchPlatform } from "./Manager";
 import { Player, Track } from "./Player";
@@ -64,9 +64,9 @@ export class Node {
 	private reconnectAttempts = 1;
 
 	/**
-		* Creates an instance of Node.
-		* @param options
-		*/
+	 * Creates an instance of Node.
+	 * @param options
+	 */
 	constructor(public options: NodeOptions) {
 		if (!this.manager) this.manager = Structure.get("Node")._manager;
 		if (!this.manager) throw new RangeError("Manager has not been initiated.");
@@ -227,7 +227,6 @@ export class Node {
 			"Client-Name": this.manager.options.clientName,
 		};
 
-		// Create the composite key for the current node
 		const compositeKey = `${this.options.identifier}::${this.manager.options.clusterId}`;
 
 		if (this.sessionId) {
@@ -446,7 +445,6 @@ export class Node {
 		this.manager.emit(ManagerEventTypes.NodeRaw, payload);
 
 		let player: Player;
-
 		switch (payload.op) {
 			case "stats":
 				delete payload.op;
@@ -454,14 +452,20 @@ export class Node {
 				break;
 			case "playerUpdate":
 				player = this.manager.players.get(payload.guildId);
+				if (player && player.node.options.identifier !== this.options.identifier) {
+					return;
+				}
 				if (player) player.position = payload.state.position || 0;
 				break;
 			case "event":
+				player = this.manager.players.get(payload.guildId);
+				if (player && player.node.options.identifier !== this.options.identifier) {
+					return;
+				}
 				this.manager.emit(ManagerEventTypes.Debug, `[NODE] Node message: ${JSON.stringify(payload)}`);
 				this.handleEvent(payload);
 				break;
 			case "ready":
-				console.log(payload);
 				this.manager.emit(ManagerEventTypes.Debug, `[NODE] Node message: ${JSON.stringify(payload)}`);
 				this.rest.setSessionId(payload.sessionId);
 				this.sessionId = payload.sessionId;
@@ -985,13 +989,15 @@ export class Node {
 
 		// Make a GET request to the Lavalink node to fetch the lyrics
 		// The request includes the track URL and the skipTrackSource parameter
-		return ((await this.rest.get(`/v4/lyrics?track=${encodeURIComponent(track.track)}&skipTrackSource=${skipTrackSource}`)) as Lyrics) || {
-			source: null,
-			provider: null,
-			text: null,
-			lines: [],
-			plugin: [],
-		};
+		return (
+			((await this.rest.get(`/v4/lyrics?track=${encodeURIComponent(track.track)}&skipTrackSource=${skipTrackSource}`)) as Lyrics) || {
+				source: null,
+				provider: null,
+				text: null,
+				lines: [],
+				plugin: [],
+			}
+		);
 	}
 
 	/**

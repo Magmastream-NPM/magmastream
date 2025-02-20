@@ -196,9 +196,9 @@ export class Player {
 	 */
 	public async disconnect(): Promise<this> {
 		// Check if the player is connected.
-		if (this.voiceChannelId === null) {
-			throw new TypeError("The player is not connected.");
-		}
+		// if (this.state !== StateTypes.Connected) {
+		// 	throw new TypeError("The player is not connected.");
+		// }
 
 		// Set the player state to disconnecting.
 		this.state = StateTypes.Disconnecting;
