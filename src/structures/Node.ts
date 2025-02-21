@@ -587,7 +587,6 @@ export class Node {
 		});
 	}
 
-	
 	/**
 	 * Emitted when a track ends playing.
 	 * @param {Player} player - The player that the track ended on.
@@ -606,8 +605,8 @@ export class Node {
 			// Store the current track in the previous tracks queue
 			player.queue.previous.unshift(player.queue.current);
 
-			// Limit the previous tracks queue to maxTrackHistory
-			if (player.queue.previous.length > this.manager.options.maxTrackHistory) {
+			// Limit the previous tracks queue to maxPreviousTracks
+			if (player.queue.previous.length > this.manager.options.maxPreviousTracks) {
 				player.queue.previous.pop();
 			}
 		}

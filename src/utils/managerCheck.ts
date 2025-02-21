@@ -21,7 +21,7 @@ export default function managerCheck(options: ManagerOptions) {
 		useNode,
 		replaceYouTubeCredentials,
 		lastFmApiKey,
-		maxTrackHistory,
+		maxPreviousTracks,
 	} = options;
 
 	// Validate autoPlay option
@@ -110,13 +110,13 @@ export default function managerCheck(options: ManagerOptions) {
 		throw new TypeError('Manager option "lastFmApiKey" must be a non-empty string.');
 	}
 
-	// Validate maxTrackHistory option
-	if (typeof maxTrackHistory !== "undefined") {
-		if (typeof maxTrackHistory !== "number" || isNaN(maxTrackHistory)) {
-			throw new TypeError('Manager option "maxTrackHistory" must be a number.');
+	// Validate maxPreviousTracks option
+	if (typeof maxPreviousTracks !== "undefined") {
+		if (typeof maxPreviousTracks !== "number" || isNaN(maxPreviousTracks)) {
+			throw new TypeError('Manager option "maxPreviousTracks" must be a number.');
 		}
-		if (maxTrackHistory <= 0) {
-			throw new TypeError('Manager option "maxTrackHistory" must be a positive number.');
+		if (maxPreviousTracks <= 0) {
+			throw new TypeError('Manager option "maxPreviousTracks" must be a positive number.');
 		}
 	}
 }

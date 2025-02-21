@@ -84,7 +84,7 @@ export class Manager extends EventEmitter {
 			defaultSearchPlatform: SearchPlatform.YouTube,
 			autoPlaySearchPlatform: SearchPlatform.YouTube,
 			useNode: UseNodeOptions.LeastPlayers,
-			maxTrackHistory: options.maxTrackHistory ?? 20,
+			maxPreviousTracks: options.maxPreviousTracks ?? 20,
 			...options,
 		};
 
@@ -991,7 +991,7 @@ export interface ManagerOptions {
 	 * If you already have one, get it from here: https://www.last.fm/api/accounts. */
 	lastFmApiKey: string;
 	/** The maximum number of previous tracks to store. */
-	maxTrackHistory?: number;
+	maxPreviousTracks?: number;
 	/** The array of nodes to connect to. */
 	nodes?: NodeOptions[];
 	/** A array of plugins to use. */
