@@ -877,11 +877,15 @@ export class Player {
 		return this;
 	}
 
+	
 	/**
-	 * Goes back to the previous song in the queue.
+	 * Goes to the previous track in the queue.
 	 * @returns {this} - The player instance.
+	 * @throws {Error} If there are no previous tracks.
+	 * @emits {PlayerStateUpdate} - With {@link PlayerStateEventTypes.TrackChange} as the change type.
 	 */
 	public async previous(): Promise<this> {
+		// Check if there are previous tracks in the queue.
 		if (!this.queue.previous.length) {
 			throw new Error("No previous track available.");
 		}
@@ -890,10 +894,14 @@ export class Player {
 		const oldPlayer = { ...this };
 
 		// Get the last played track and remove it from the history
-		const lastTrack = this.queue.previous.shift();
+		const lastTrack = this.queue.previous.shift() as Track;
 
+		// Set the skip flag to true to prevent the onTrackEnd event from playing the next track.
 		this.set("skipFlag", true);
 		await this.play(lastTrack);
+
+		// Add the current track back to the start of the queue.
+		this.queue.unshift(this.queue.current);
 
 		// Emit a player state update event indicating the track change to previous.
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
@@ -904,6 +912,7 @@ export class Player {
 			},
 		});
 
+		// Reset the skip flag.
 		this.set("skipFlag", false);
 		return this;
 	}
