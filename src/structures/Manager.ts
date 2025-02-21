@@ -84,6 +84,7 @@ export class Manager extends EventEmitter {
 			defaultSearchPlatform: SearchPlatform.YouTube,
 			autoPlaySearchPlatform: SearchPlatform.YouTube,
 			useNode: UseNodeOptions.LeastPlayers,
+			maxTrackHistory: options.maxTrackHistory ?? 20,
 			...options,
 		};
 
@@ -613,7 +614,7 @@ export class Manager extends EventEmitter {
 						}
 
 						player.queue.previous = state.queue.previous || [];
-						
+
 						if (state.paused) {
 							player.pause(true);
 						} else {
@@ -971,36 +972,38 @@ export interface Payload {
 }
 
 export interface ManagerOptions {
-	/** Use priority mode over least amount of player or load? */
-	usePriority?: boolean;
-	/** Use the least amount of players or least load? */
-	useNode?: UseNodeOptions.LeastLoad | UseNodeOptions.LeastPlayers;
-	/** The array of nodes to connect to. */
-	nodes?: NodeOptions[];
+	/** Whether players should automatically play the next song. */
+	autoPlay?: boolean;
+	/** The search platform autoplay should use. Fallback to YouTube if not found.
+	 * Use enum `SearchPlatform`. */
+	autoPlaySearchPlatform?: SearchPlatform;
 	/** The client ID to use. */
 	clientId?: string;
 	/** Value to use for the `Client-Name` header. */
 	clientName?: string;
 	/** The array of shard IDs connected to this manager instance. */
 	clusterId?: number;
-	/** A array of plugins to use. */
-	plugins?: Plugin[];
-	/** Whether players should automatically play the next song. */
-	autoPlay?: boolean;
-	/** The search platform autoplay should use. Failback to Youtube if not found.
-	 * Use enum `SearchPlatform`. */
-	autoPlaySearchPlatform?: SearchPlatform;
-	/** An array of track properties to keep. `track` will always be present. */
-	trackPartial?: TrackPartial[];
 	/** The default search platform to use.
 	 * Use enum `SearchPlatform`. */
 	defaultSearchPlatform?: SearchPlatform;
-	/** Whether the YouTube video titles should be replaced if the Author does not exactly match. */
-	replaceYouTubeCredentials?: boolean;
 	/** The last.fm API key.
 	 * If you need to create one go here: https://www.last.fm/api/account/create.
 	 * If you already have one, get it from here: https://www.last.fm/api/accounts. */
 	lastFmApiKey: string;
+	/** The maximum number of previous tracks to store. */
+	maxTrackHistory?: number;
+	/** The array of nodes to connect to. */
+	nodes?: NodeOptions[];
+	/** A array of plugins to use. */
+	plugins?: Plugin[];
+	/** Whether the YouTube video titles should be replaced if the Author does not exactly match. */
+	replaceYouTubeCredentials?: boolean;
+	/** An array of track properties to keep. `track` will always be present. */
+	trackPartial?: TrackPartial[];
+	/** Use the least amount of players or least load? */
+	useNode?: UseNodeOptions.LeastLoad | UseNodeOptions.LeastPlayers;
+	/** Use priority mode over least amount of player or load? */
+	usePriority?: boolean;
 	/**
 	 * Function to send data to the websocket.
 	 * @param id The ID of the node to send the data to.

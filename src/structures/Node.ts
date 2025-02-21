@@ -587,17 +587,13 @@ export class Node {
 		});
 	}
 
+	
 	/**
-	 * Handles the event when a track ends.
-	 * Depending on the reason for the track ending, it may handle failed tracks, replaced tracks,
-	 * repeated tracks, play the next track in the queue, or end the queue if there are no more tracks.
-	 * Emits a `trackEnd` event and a `playerStateUpdate` event.
-	 *
-	 * @param {Player} player - The player associated with the track.
-	 * @param {Track} track - The track that has ended.
-	 * @param {TrackEndEvent} payload - The event payload containing additional data about the track end event.
-	 * @returns {Promise<void>} A promise that resolves when the track end processing is complete.
-	 * @protected
+	 * Emitted when a track ends playing.
+	 * @param {Player} player - The player that the track ended on.
+	 * @param {Track} track - The track that ended.
+	 * @param {TrackEndEvent} payload - The payload of the event emitted by the node.
+	 * @private
 	 */
 	protected async trackEnd(player: Player, track: Track, payload: TrackEndEvent): Promise<void> {
 		const { reason } = payload;
@@ -607,27 +603,43 @@ export class Node {
 		// If the track failed to load or was cleaned up
 		const skipFlag = player.get<boolean>("skipFlag");
 		if (!skipFlag && (!player.queue.previous.length || player.queue.previous.at(-1) !== player.queue.current)) {
+			// Store the current track in the previous tracks queue
 			player.queue.previous.unshift(player.queue.current);
+
+			// Limit the previous tracks queue to maxTrackHistory
+			if (player.queue.previous.length > this.manager.options.maxTrackHistory) {
+				player.queue.previous.pop();
+			}
 		}
 
-		if (["loadFailed", "cleanup"].includes(reason)) {
-			this.handleFailedTrack(player, track, payload);
-		}
-		// If the track was forcibly replaced
-		else if (reason === TrackEndReasonTypes.Replaced) {
-			this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
-		}
-		// If the track ended and it's set to repeat (track or queue)
-		else if (track && (player.trackRepeat || player.queueRepeat)) {
-			this.handleRepeatedTrack(player, track, payload);
-		}
-		// If there's another track in the queue
-		else if (player.queue.length) {
-			this.playNextTrack(player, track, payload);
-		}
-		// If there are no more tracks in the queue
-		else {
-			await this.queueEnd(player, track, payload);
+		// Handle track end events
+		switch (reason) {
+			case "loadFailed":
+			case "cleanup":
+				// Handle the case when a track failed to load or was cleaned up
+				this.handleFailedTrack(player, track, payload);
+				break;
+			case "replaced":
+				// If the track was forcibly replaced
+				this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
+				break;
+			case "finished":
+				// If the track ended and it's set to repeat (track or queue)
+				if (track && (player.trackRepeat || player.queueRepeat)) {
+					this.handleRepeatedTrack(player, track, payload);
+					break;
+				}
+				// If there's another track in the queue
+				if (player.queue.length) {
+					this.playNextTrack(player, track, payload);
+					break;
+				}
+				// If there are no more tracks in the queue
+				await this.queueEnd(player, track, payload);
+				break;
+			default:
+				this.manager.emit(ManagerEventTypes.NodeError, this, new Error(`Unexpected track end reason "${reason}"`));
+				break;
 		}
 
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, player, {
