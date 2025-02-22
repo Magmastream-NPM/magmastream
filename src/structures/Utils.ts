@@ -2,22 +2,11 @@
 import { ClientUser, User } from "discord.js";
 import { Manager, TrackPartial } from "./Manager";
 import { Node, NodeStats } from "./Node";
-import { Player, Track, UnresolvedTrack } from "./Player";
+import { Player, Track } from "./Player";
 import { Queue } from "./Queue";
 
 /** @hidden */
-const TRACK_SYMBOL = Symbol("track"),
-	/** @hidden */
-	UNRESOLVED_TRACK_SYMBOL = Symbol("unresolved"),
-	SIZES = ["0", "1", "2", "3", "default", "mqdefault", "hqdefault", "maxresdefault"];
-
-/**
- * Escapes a string by replacing special regex characters with their escaped counterparts.
- * @param str The string to escape.
- * @returns The escaped string.
- * @hidden
- */
-const escapeRegExp = (str: string): string => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const SIZES = ["0", "1", "2", "3", "default", "mqdefault", "hqdefault", "maxresdefault"];
 
 export abstract class TrackUtils {
 	static trackPartial: TrackPartial[] | null = null;
@@ -67,50 +56,35 @@ export abstract class TrackUtils {
 	}
 
 	/**
-	 * Checks if the provided argument is a valid Track or UnresolvedTrack.
+	 * Checks if the provided argument is a valid Track.
 	 * If provided an array then every element will be checked.
-	 * @param trackOrTracks The Track, UnresolvedTrack or array of Track/UnresolvedTrack to check.
-	 * @returns {boolean} Whether the provided argument is a valid Track or UnresolvedTrack.
+	 * @param trackOrTracks The Track or array of Tracks to check.
+	 * @returns {boolean} Whether the provided argument is a valid Track.
 	 */
 	static validate(trackOrTracks: unknown): boolean {
-		/* istanbul ignore next */
-		if (typeof trackOrTracks === "undefined") throw new RangeError("Provided argument must be present.");
-
-		/* If the provided argument is an array */
-		if (Array.isArray(trackOrTracks) && trackOrTracks.length) {
-			/* Iterate through the array */
-			for (const track of trackOrTracks) {
-				/* If any element is not a valid Track or UnresolvedTrack, return false */
-				if (!(track[TRACK_SYMBOL] || track[UNRESOLVED_TRACK_SYMBOL])) return false;
-			}
-			/* If all elements are valid Track or UnresolvedTrack, return true */
-			return true;
+		if (typeof trackOrTracks !== "object" || trackOrTracks === null) {
+			return false;
 		}
 
-		/* If the provided argument is not an array */
-		return (trackOrTracks[TRACK_SYMBOL] || trackOrTracks[UNRESOLVED_TRACK_SYMBOL]) === true;
-	}
+		const isValidTrack = (track: unknown): track is Track => {
+			if (typeof track !== "object" || track === null) {
+				return false;
+			}
+			const t = track as Record<string, unknown>;
+			return (
+				typeof t.track === "string" &&
+				typeof t.title === "string" &&
+				typeof t.identifier === "string" &&
+				typeof t.isrc === "string" &&
+				typeof t.uri === "string"
+			);
+		};
 
-	/**
-	 * Checks if the provided argument is a valid UnresolvedTrack.
-	 * A valid UnresolvedTrack is an object that has the symbol UNRESOLVED_TRACK_SYMBOL set to true.
-	 * @param track The object to check.
-	 * @returns {boolean} Whether the provided object is a valid UnresolvedTrack.
-	 */
-	static isUnresolvedTrack(track: unknown): boolean {
-		if (typeof track === "undefined") throw new RangeError("Provided argument must be present.");
-		return track[UNRESOLVED_TRACK_SYMBOL] === true;
-	}
+		if (Array.isArray(trackOrTracks)) {
+			return trackOrTracks.every(isValidTrack);
+		}
 
-	/**
-	 * Checks if the provided argument is a valid Track.
-	 * A valid Track is an object that has the symbol TRACK_SYMBOL set to true.
-	 * @param track The object to check.
-	 * @returns {boolean} Whether the provided object is a valid Track.
-	 */
-	static isTrack(track: unknown): boolean {
-		if (typeof track === "undefined") throw new RangeError("Provided argument must be present.");
-		return track[TRACK_SYMBOL] === true;
+		return isValidTrack(trackOrTracks);
 	}
 
 	/**
@@ -166,94 +140,10 @@ export abstract class TrackUtils {
 				}
 			}
 
-			Object.defineProperty(track, TRACK_SYMBOL, {
-				configurable: true,
-				value: true,
-			});
-
 			return track;
 		} catch (error) {
 			throw new RangeError(`Argument "data" is not a valid track: ${error.message}`);
 		}
-	}
-
-	/**
-	 * Builds a UnresolvedTrack to be resolved before being played  .
-	 * @param query The query to resolve the track from, can be a string or an UnresolvedQuery object.
-	 * @param requester The user who requested the track, if any.
-	 * @returns The built UnresolvedTrack.
-	 *
-	 * @deprecated use the {@link manager.search()} method instead
-	 */
-	static buildUnresolved<T = User | ClientUser>(query: string | UnresolvedQuery, requester?: T): UnresolvedTrack {
-		if (typeof query === "undefined") throw new RangeError('Argument "query" must be present.');
-
-		let unresolvedTrack: Partial<UnresolvedTrack> = {
-			requester: requester as User | ClientUser,
-			async resolve(): Promise<void> {
-				const resolved = await TrackUtils.getClosestTrack(this);
-				Object.getOwnPropertyNames(this).forEach((prop) => delete this[prop]);
-				Object.assign(this, resolved);
-			},
-		};
-
-		if (typeof query === "string") unresolvedTrack.title = query;
-		else unresolvedTrack = { ...unresolvedTrack, ...query };
-
-		Object.defineProperty(unresolvedTrack, UNRESOLVED_TRACK_SYMBOL, {
-			configurable: true,
-			value: true,
-		});
-
-		return unresolvedTrack as UnresolvedTrack;
-	}
-
-	/**
-	 * Resolves the closest matching Track for a given UnresolvedTrack.
-	 *
-	 * @param unresolvedTrack The UnresolvedTrack object to resolve.
-	 *
-	 * @returns A Promise that resolves to a Track object.
-	 *
-	 * @throws {RangeError} If the manager has not been initialized or the provided track is not an UnresolvedTrack.
-	 *
-	 * @deprecated use the {@link manager.search()} method instead
-	 *
-	 * The method performs a search using the track's URI or a combination of its author and title.
-	 * It attempts to find an exact match for the author and title, or a track with a similar duration.
-	 * If no exact or similar match is found, it returns the first track from the search results.
-	 * The customData from the UnresolvedTrack is retained in the final resolved Track.
-	 */
-	static async getClosestTrack(unresolvedTrack: UnresolvedTrack): Promise<Track> {
-		if (!TrackUtils.manager) throw new RangeError("Manager has not been initiated.");
-
-		if (!TrackUtils.isUnresolvedTrack(unresolvedTrack)) throw new RangeError("Provided track is not a UnresolvedTrack.");
-
-		const query = unresolvedTrack.uri ? unresolvedTrack.uri : [unresolvedTrack.author, unresolvedTrack.title].filter(Boolean).join(" - ");
-		const res = await TrackUtils.manager.search(query, unresolvedTrack.requester);
-
-		if (unresolvedTrack.author) {
-			const channelNames = [unresolvedTrack.author, `${unresolvedTrack.author} - Topic`];
-
-			const originalAudio = res.tracks.find((track) => {
-				return (
-					channelNames.some((name) => new RegExp(`^${escapeRegExp(name)}$`, "i").test(track.author)) ||
-					new RegExp(`^${escapeRegExp(unresolvedTrack.title)}$`, "i").test(track.title)
-				);
-			});
-
-			if (originalAudio) return originalAudio;
-		}
-
-		if (unresolvedTrack.duration) {
-			const sameDuration = res.tracks.find((track) => track.duration >= unresolvedTrack.duration - 1500 && track.duration <= unresolvedTrack.duration + 1500);
-
-			if (sameDuration) return sameDuration;
-		}
-
-		const finalTrack = res.tracks[0];
-		finalTrack.customData = unresolvedTrack.customData;
-		return finalTrack;
 	}
 }
 
@@ -287,15 +177,6 @@ const structures = {
 	Queue: require("./Queue").Queue,
 	Node: require("./Node").Node,
 };
-
-export interface UnresolvedQuery {
-	/** The title of the unresolved track. */
-	title: string;
-	/** The author of the unresolved track. If provided it will have a more precise search. */
-	author?: string;
-	/** The duration of the unresolved track. If provided it will have a more precise search. */
-	duration?: number;
-}
 
 export type Sizes = "0" | "1" | "2" | "3" | "default" | "mqdefault" | "hqdefault" | "maxresdefault";
 

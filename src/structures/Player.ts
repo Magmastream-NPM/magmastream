@@ -1213,18 +1213,6 @@ export interface TrackPluginInfo {
 	previewUrl?: string;
 }
 
-/** Unresolved tracks can't be played normally, they will resolve before playing into a Track. */
-export interface UnresolvedTrack extends Partial<Track> {
-	/** The title to search against. */
-	title: string;
-	/** The author to search against. */
-	author?: string;
-	/** The duration to search within 1500 milliseconds of the results from YouTube. */
-	duration?: number;
-	/** Resolves into a Track. */
-	resolve(): Promise<void>;
-}
-
 export interface PlayOptions {
 	/** The position to start the track. */
 	readonly startTime?: number;
