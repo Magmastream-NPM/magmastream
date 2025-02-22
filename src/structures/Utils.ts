@@ -22,6 +22,7 @@ const escapeRegExp = (str: string): string => str.replace(/[.*+?^${}()|[\]\\]/g,
 export abstract class TrackUtils {
 	static trackPartial: TrackPartial[] | null = null;
 	private static manager: Manager;
+	static TRACK_SYMBOL = TRACK_SYMBOL;
 
 	/**
 	 * Initializes the TrackUtils class with the given manager.

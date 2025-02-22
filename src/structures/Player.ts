@@ -898,6 +898,7 @@ export class Player {
 		// Capture the current state of the player before making changes.
 		const oldPlayer = { ...this };
 
+		const currentTrackBeforeChanges = this.queue.current as Track;
 		// Get the last played track and remove it from the history
 		const lastTrack = this.queue.previous.shift() as Track;
 
@@ -905,8 +906,7 @@ export class Player {
 		this.set("skipFlag", true);
 		await this.play(lastTrack);
 
-		// Add the current track back to the start of the queue.
-		this.queue.unshift(this.queue.current);
+		this.queue.unshift(currentTrackBeforeChanges);
 
 		// Emit a player state update event indicating the track change to previous.
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
