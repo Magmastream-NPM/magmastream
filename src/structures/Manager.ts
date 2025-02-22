@@ -610,7 +610,7 @@ export class Manager extends EventEmitter {
 						}
 
 						if (state.paused) {
-							player.pause(true);
+							await player.pause(true);
 						} else {
 							player.paused = false;
 							player.playing = true;
