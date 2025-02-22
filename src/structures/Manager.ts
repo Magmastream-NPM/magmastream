@@ -102,7 +102,6 @@ export class Manager extends EventEmitter {
 
 				// Prevent forced exit by Windows
 				setTimeout(() => {
-					console.log("Exiting now...");
 					process.exit(0);
 				}, 2000);
 			} catch (error) {
@@ -490,24 +489,17 @@ export class Manager extends EventEmitter {
 	 * @param {string} guildId - The guild ID of the player to save
 	 */
 	public async savePlayerState(guildId: string): Promise<void> {
-		console.log(`Attempting to save player state for guild: ${guildId}`);
-
 		try {
 			const playerStateFilePath = await this.getPlayerFilePath(guildId);
-			console.log(`Resolved file path: ${playerStateFilePath}`);
-
 			const player = this.players.get(guildId);
 			if (!player || player.state === StateTypes.Disconnected || !player.voiceChannelId) {
 				console.warn(`Skipping save for inactive player: ${guildId}`);
 				return;
 			}
 
-			console.log(`Serializing player state for: ${guildId}`);
 			const serializedPlayer = this.serializePlayer(player);
 
-			console.log(`Writing player state to file: ${playerStateFilePath}`);
 			await fs.writeFile(playerStateFilePath, JSON.stringify(serializedPlayer, null, 2), "utf-8");
-			console.log(`Successfully saved player state for: ${guildId}`);
 
 			this.emit(ManagerEventTypes.Debug, `[MANAGER] Player state saved: ${guildId}`);
 		} catch (error) {
@@ -692,10 +684,22 @@ export class Manager extends EventEmitter {
 
 		return JSON.parse(
 			JSON.stringify(player, (key, value) => {
-				if (key === "filters" || key === "manager") {
+				if (key === "manager") {
 					return null;
 				}
 
+				if (key === "filters") {
+					return {
+						distortion: value.distortion,
+						equalizer: value.equalizer,
+						karaoke: value.karaoke,
+						rotation: value.rotation,
+						timescale: value.timescale,
+						vibrato: value.vibrato,
+						volume: value.volume,
+						filterStatus: value.filterStatus,
+					}
+				}
 				if (key === "queue") {
 					return {
 						current: value.current || null,
@@ -838,7 +842,6 @@ export class Manager extends EventEmitter {
 
 		try {
 			const savePromises = Array.from(this.players.keys()).map(async (guildId) => {
-				console.log(`Saving state for guild: ${guildId}`); // Debugging
 				try {
 					await this.savePlayerState(guildId);
 				} catch (error) {
@@ -846,18 +849,12 @@ export class Manager extends EventEmitter {
 				}
 			});
 
-			console.log("Waiting for all player states to save...");
 			await Promise.allSettled(savePromises);
-			console.log("All player states saved.");
 
-			console.log("Cleaning up inactive players...");
 			await this.cleanupInactivePlayers();
-			console.log("Cleanup complete.");
-
-			console.warn("\x1b[32m%s\x1b[0m", "MAGMASTREAM INFO: Shutting down complete, exiting...");
 
 			setTimeout(() => {
-				console.log("Exiting process...");
+				console.warn("\x1b[32m%s\x1b[0m", "MAGMASTREAM INFO: Shutting down complete, exiting...");
 				process.exit(0);
 			}, 500);
 		} catch (error) {

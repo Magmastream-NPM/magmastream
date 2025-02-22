@@ -26,7 +26,7 @@ export class Player {
 	/** Whether the player is paused. */
 	public paused = false;
 	/** The volume for the player */
-	public volume: number;
+	public volume = 100;
 	/** The Node for the Player. */
 	public node: Node;
 	/** The guild ID for the player. */
@@ -898,6 +898,9 @@ export class Player {
 		// Capture the current state of the player before making changes.
 		const oldPlayer = { ...this };
 
+		// Store the current track before changing it.
+		const currentTrackBeforeChange = this.queue.current as Track;
+
 		// Get the last played track and remove it from the history
 		const lastTrack = this.queue.previous.shift() as Track;
 
@@ -906,7 +909,7 @@ export class Player {
 		await this.play(lastTrack);
 
 		// Add the current track back to the start of the queue.
-		this.queue.unshift(this.queue.current);
+		this.queue.unshift(currentTrackBeforeChange);
 
 		// Emit a player state update event indicating the track change to previous.
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
@@ -1006,13 +1009,11 @@ export class Player {
 	 * @returns {Promise<Player>} - The player instance after being moved.
 	 */
 	public async moveNode(identifier: string): Promise<Player> {
-		console.log(`Fetching node: ${identifier}`);
 		const node = this.manager.nodes.get(identifier);
 
 		if (!node) throw new Error(`Node with identifier ${identifier} not found`);
 
 		if (node.options.identifier === this.node.options.identifier) {
-			console.log("Already on the specified node, no need to move.");
 			return this;
 		}
 
@@ -1023,7 +1024,7 @@ export class Player {
 				event: { token, endpoint },
 			} = this.voiceState;
 			const currentTrack = this.queue.current ? this.queue.current : null;
-			
+
 			await this.node.rest.destroyPlayer(this.guildId).catch(() => {});
 
 			this.manager.players.delete(this.guildId);
@@ -1032,19 +1033,13 @@ export class Player {
 
 			await this.node.rest.updatePlayer({
 				guildId: this.guildId,
-				data: { position: playerPosition, encodedTrack: currentTrack?.track, voice: { token, endpoint, sessionId } },
+				data: { paused: this.paused, volume: this.volume, position: playerPosition, encodedTrack: currentTrack?.track, voice: { token, endpoint, sessionId } },
 			});
-
-			// await this.node.rest.updatePlayer({
-			// 	guildId: this.guildId,
-			// 	data: {
-			// 		position: playerPosition,
-			// 		encodedTrack: this.queue.current?.track,
-			// 	},
-			// });
-			// if (this.playing) await this.play();
+			
+			await this.filters.updateFilters();
 		} catch (error) {
 			console.log(error);
+			throw error;
 		}
 	}
 
@@ -1063,11 +1058,6 @@ export class Player {
 		if (newPlayer && !force) {
 			return newPlayer;
 		}
-
-		// Helper function to build tracks
-		// const buildTrack = (trackData: Track) => {
-		// 	return TrackUtils.buildUnresolved(trackData, trackData.requester);
-		// };
 
 		// Create a new player if it doesn't exist or force is true
 		if (!newPlayer || force) {
