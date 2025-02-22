@@ -361,8 +361,6 @@ export class Player {
 	public async play(options: PlayOptions): Promise<Player>;
 	public async play(track: Track, options: PlayOptions): Promise<Player>;
 	public async play(optionsOrTrack?: PlayOptions | Track, playOptions?: PlayOptions): Promise<Player> {
-		console.log(this.queue.previous)
-		console.log(TrackUtils.validate(optionsOrTrack));
 		if (typeof optionsOrTrack !== "undefined" && TrackUtils.validate(optionsOrTrack)) {
 			this.queue.current = optionsOrTrack as Track;
 		}
