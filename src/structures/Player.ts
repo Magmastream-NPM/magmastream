@@ -361,6 +361,8 @@ export class Player {
 	public async play(options: PlayOptions): Promise<Player>;
 	public async play(track: Track, options: PlayOptions): Promise<Player>;
 	public async play(optionsOrTrack?: PlayOptions | Track, playOptions?: PlayOptions): Promise<Player> {
+		console.log(this.queue.previous)
+		console.log(TrackUtils.validate(optionsOrTrack));
 		if (typeof optionsOrTrack !== "undefined" && TrackUtils.validate(optionsOrTrack)) {
 			this.queue.current = optionsOrTrack as Track;
 		}
@@ -1211,18 +1213,6 @@ export interface TrackPluginInfo {
 	artistUrl?: string;
 	isPreview?: string;
 	previewUrl?: string;
-}
-
-/** Unresolved tracks can't be played normally, they will resolve before playing into a Track. */
-export interface UnresolvedTrack extends Partial<Track> {
-	/** The title to search against. */
-	title: string;
-	/** The author to search against. */
-	author?: string;
-	/** The duration to search within 1500 milliseconds of the results from YouTube. */
-	duration?: number;
-	/** Resolves into a Track. */
-	resolve(): Promise<void>;
 }
 
 export interface PlayOptions {

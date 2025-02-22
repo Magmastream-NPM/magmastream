@@ -604,14 +604,7 @@ export class Manager extends EventEmitter {
 						}
 
 						if (state.queue.previous.length > 0) {
-							player.queue.previous = state.queue.previous.map((track: Track) => {
-								// we need to set the symbol to the track object because when do play() we checking that before play
-								// i don't know how to use here TrackUtils.build - i don't want to change that function;
-								return Object.defineProperty(track, TrackUtils.TRACK_SYMBOL, {
-									configurable: true,
-									value: true,
-								});
-							})
+							player.queue.previous = state.queue.previous;
 						} else {
 							player.queue.previous = [];
 						}
