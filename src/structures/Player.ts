@@ -825,6 +825,12 @@ export class Player {
 			},
 		});
 
+		if (this.queue.length) {
+			this.queue.current = this.queue.shift();
+			// If autoplay is enabled, play the next track
+			if (this.manager.options.autoPlay) await this.play();
+		}
+
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.QueueChange,
 			details: {
@@ -877,7 +883,6 @@ export class Player {
 		return this;
 	}
 
-	
 	/**
 	 * Goes to the previous track in the queue.
 	 * @returns {this} - The player instance.
@@ -1018,7 +1023,7 @@ export class Player {
 				event: { token, endpoint },
 			} = this.voiceState;
 			const currentTrack = this.queue.current ? this.queue.current : null;
-
+			
 			await this.node.rest.destroyPlayer(this.guildId).catch(() => {});
 
 			this.manager.players.delete(this.guildId);

@@ -610,19 +610,23 @@ export class Node {
 				player.queue.previous.pop();
 			}
 		}
-
 		// Handle track end events
 		switch (reason) {
-			case "loadFailed":
-			case "cleanup":
+			case TrackEndReasonTypes.LoadFailed:
+			case TrackEndReasonTypes.Cleanup:
 				// Handle the case when a track failed to load or was cleaned up
 				this.handleFailedTrack(player, track, payload);
 				break;
-			case "replaced":
+			case TrackEndReasonTypes.Replaced:
+			case TrackEndReasonTypes.Stopped:
 				// If the track was forcibly replaced
-				this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
+				if (player.queue.length) {
+					this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
+				} else {
+					await this.queueEnd(player, track, payload);
+				}
 				break;
-			case "finished":
+			case TrackEndReasonTypes.Finished:
 				// If the track ended and it's set to repeat (track or queue)
 				if (track && (player.trackRepeat || player.queueRepeat)) {
 					this.handleRepeatedTrack(player, track, payload);
@@ -632,6 +636,8 @@ export class Node {
 				if (player.queue.length) {
 					this.playNextTrack(player, track, payload);
 					break;
+				} else {
+					await this.queueEnd(player, track, payload);
 				}
 				// If there are no more tracks in the queue
 				await this.queueEnd(player, track, payload);
