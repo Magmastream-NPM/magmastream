@@ -587,7 +587,7 @@ export class Manager extends EventEmitter {
 									player.queue.current = TrackUtils.build(lavaPlayer.track as TrackData, currentTrack.requester);
 								}
 							} else {
-								if (currentTrack === null) {
+								if (!currentTrack) {
 									const payload = {
 										reason: TrackEndReasonTypes.Finished,
 									};
@@ -597,7 +597,7 @@ export class Manager extends EventEmitter {
 								}
 							}
 						} else {
-							if (currentTrack === null) {
+							if (!currentTrack) {
 								const payload = {
 									reason: TrackEndReasonTypes.Finished,
 								};
