@@ -8,6 +8,7 @@ import {
 	Structure,
 	TrackData,
 	TrackEndEvent,
+	TrackEndReasonTypes,
 	TrackExceptionEvent,
 	TrackStartEvent,
 	TrackStuckEvent,
@@ -554,7 +555,6 @@ export class Manager extends EventEmitter {
 						const lavaPlayer = info.find((player) => player.guildId === state.guildId);
 						if (!lavaPlayer) {
 							this.destroy(state.guildId);
-							continue;
 						}
 
 						const playerOptions: PlayerOptions = {
@@ -568,52 +568,54 @@ export class Manager extends EventEmitter {
 						this.emit(ManagerEventTypes.Debug, `[MANAGER] Recreating player: ${state.guildId} from saved file: ${JSON.stringify(state.options)}`);
 						const player = this.create(playerOptions);
 
+						await player.node.rest.updatePlayer({
+							guildId: state.options.guildId,
+							data: { voice: { token: state.voiceState.event.token, endpoint: state.voiceState.event.endpoint, sessionId: state.voiceState.sessionId } },
+						});
+
 						player.connect();
 
 						const tracks = [];
 
-						if (!lavaPlayer.track) {
-							if (state.queue.current !== null) {
-								for (const key in state.queue) {
-									if (!isNaN(Number(key)) && key !== "current" && key !== "previous" && key !== "manager") {
-										const song = state.queue[key];
-										tracks.push(song, song.requester);
-									}
-								}
+						const currentTrack = state.queue.current;
+						const queueTracks = state.queue.tracks;
 
-								if (tracks.length > 0) {
-									player.queue.add(tracks);
-									if (!state.paused && lavaPlayer.state.connected) player.play();
-								} else {
-									const payload = {
-										reason: "finished",
-									};
-									await node.queueEnd(player, state.queue.current, payload as TrackEndEvent);
+						if (lavaPlayer) {
+							if (lavaPlayer.track) {
+								tracks.push(...queueTracks);
+								if (currentTrack && currentTrack.uri === lavaPlayer.track.info.uri) {
+									player.queue.current = TrackUtils.build(lavaPlayer.track as TrackData, currentTrack.requester);
 								}
 							} else {
-								if (state.queue.previous !== null) {
+								if (currentTrack === null) {
 									const payload = {
-										reason: "finished",
+										reason: TrackEndReasonTypes.Finished,
 									};
-									await node.queueEnd(player, state.queue.previous, payload as TrackEndEvent);
+									await node.queueEnd(player, currentTrack, payload as TrackEndEvent);
 								} else {
-									this.destroy(state.guildId);
-									continue;
+									tracks.push(currentTrack, ...queueTracks);
 								}
 							}
 						} else {
-							tracks.push(state.queue.current as Track);
-
-							for (const key in state.queue) {
-								if (!isNaN(Number(key)) && key !== "current" && key !== "previous" && key !== "manager") {
-									const song = state.queue[key];
-									tracks.push(song as Track);
-								}
+							if (currentTrack === null) {
+								const payload = {
+									reason: TrackEndReasonTypes.Finished,
+								};
+								await node.queueEnd(player, currentTrack, payload as TrackEndEvent);
+							} else {
+								tracks.push(currentTrack, ...queueTracks);
 							}
+						}
+
+						if (tracks.length > 0) {
 							player.queue.add(tracks as Track[]);
 						}
 
-						player.queue.previous = state.queue.previous || [];
+						if (state.queue.previous.length > 0) {
+							player.queue.previous = state.queue.previous;
+						} else {
+							player.queue.previous = [];
+						}
 
 						if (state.paused) {
 							player.pause(true);
@@ -696,8 +698,9 @@ export class Manager extends EventEmitter {
 
 				if (key === "queue") {
 					return {
-						...value,
 						current: value.current || null,
+						tracks: [...value],
+						previous: [...value.previous],
 					};
 				}
 
@@ -1150,7 +1153,7 @@ export interface LavalinkResponse {
 
 interface LavaPlayer {
 	guildId: string;
-	track: TrackData | Track;
+	track: TrackData;
 	volume: number;
 	paused: boolean;
 	state: {
