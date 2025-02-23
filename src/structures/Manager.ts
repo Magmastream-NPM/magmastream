@@ -171,87 +171,64 @@ export class Manager extends EventEmitter {
 	 * @param requester
 	 * @returns The search result.
 	 */
-	public async search<T = User | ClientUser>(query: string | SearchQuery, requester?: T): Promise<SearchResult> {
+	public async search<T extends User | ClientUser = User | ClientUser>(query: string | SearchQuery, requester?: T): Promise<SearchResult> {
 		const node = this.useableNode;
-
-		if (!node) {
-			throw new Error("No available nodes.");
-		}
+		if (!node) throw new Error("No available nodes.");
 
 		const _query: SearchQuery = typeof query === "string" ? { query } : query;
 		const _source = _query.source ?? this.options.defaultSearchPlatform;
-
-		let search = _query.query;
-
-		if (!/^https?:\/\//.test(search)) {
-			search = `${_source}:${search}`;
-		}
+		let search = /^https?:\/\//.test(_query.query) ? _query.query : `${_source}:${_query.query}`;
 
 		this.emit(ManagerEventTypes.Debug, `[MANAGER] Performing ${_source} search for: ${_query.query}`);
 
 		try {
 			const res = (await node.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(search)}`)) as LavalinkResponse;
+			if (!res) throw new Error("Query not found.");
 
-			if (!res) {
-				throw new Error("Query not found.");
-			}
-
-			let searchData = [];
-			let playlistData: PlaylistRawData | undefined;
+			let tracks: Track[] = [];
+			let playlist: SearchResult["playlist"] = null;
 
 			switch (res.loadType) {
 				case LoadTypes.Search:
-					searchData = res.data as TrackData[];
+					tracks = (res.data as TrackData[]).map((track) => TrackUtils.build(track, requester));
 					break;
 
 				case LoadTypes.Track:
-					searchData = [res.data as TrackData[]];
+					tracks = [TrackUtils.build(res.data as unknown as TrackData, requester)];
 					break;
 
-				case LoadTypes.Playlist:
-					playlistData = res.data as PlaylistRawData;
+				case LoadTypes.Playlist: {
+					const playlistData = res.data as PlaylistRawData;
+					tracks = playlistData.tracks.map((track) => TrackUtils.build(track, requester));
+
+					playlist = {
+						name: playlistData.info.name,
+						playlistInfo: playlistData.pluginInfo as PlaylistInfoData[],
+						requester,
+						tracks,
+						duration: tracks.reduce((acc, cur) => acc + ((cur as unknown as TrackData).info.length || 0), 0),
+					};
 					break;
-			}
-
-			const tracks = searchData.map((track) => TrackUtils.build(track, requester));
-			let playlist = null;
-
-			if (res.loadType === LoadTypes.Playlist) {
-				playlist = {
-					name: playlistData!.info.name,
-					playlistInfo: playlistData.pluginInfo,
-					requester: requester,
-					tracks: playlistData!.tracks.map((track) => TrackUtils.build(track, requester)),
-					duration: playlistData!.tracks.reduce((acc, cur) => acc + (cur.info.length || 0), 0),
-				};
-			}
-
-			const result: SearchResult = {
-				loadType: res.loadType,
-				tracks,
-				playlist,
-			};
-
-			if (this.options.replaceYouTubeCredentials) {
-				const replaceCreditsURLs = ["youtube.com", "youtu.be"];
-
-				const processTrack = (track: Track) => {
-					if (!replaceCreditsURLs.some((url) => track.uri.includes(url))) return track;
-
-					const { cleanTitle, cleanAuthor } = this.parseYouTubeTitle(track.title, track.author);
-					track.title = cleanTitle;
-					track.author = cleanAuthor;
-					return track;
-				};
-
-				if (result.loadType === LoadTypes.Playlist) {
-					result.playlist.tracks = result.playlist.tracks.map(processTrack);
-				} else {
-					result.tracks = result.tracks.map(processTrack);
 				}
 			}
 
+			if (this.options.replaceYouTubeCredentials) {
+				const processTrack = (track: Track): Track => {
+					if (!/(youtube\.com|youtu\.be)/.test(track.uri)) return track;
+					const { cleanTitle, cleanAuthor } = this.parseYouTubeTitle(track.title, track.author);
+					return { ...track, title: cleanTitle, author: cleanAuthor };
+				};
+
+				if (playlist) {
+					playlist.tracks = playlist.tracks.map(processTrack);
+				} else {
+					tracks = tracks.map(processTrack);
+				}
+			}
+
+			const result: SearchResult = { loadType: res.loadType, tracks, playlist };
 			this.emit(ManagerEventTypes.Debug, `[MANAGER] Result ${_source} search for: ${_query.query}: ${JSON.stringify(result)}`);
+
 			return result;
 		} catch (err) {
 			throw new Error(`An error occurred while searching: ${err}`);

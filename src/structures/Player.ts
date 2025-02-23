@@ -144,7 +144,7 @@ export class Player {
 	 * @param query
 	 * @param requester
 	 */
-	public async search<T = User | ClientUser>(query: string | SearchQuery, requester?: T): Promise<SearchResult> {
+	public async search<T extends User | ClientUser = User | ClientUser>(query: string | SearchQuery, requester?: T): Promise<SearchResult> {
 		return await this.manager.search(query, requester);
 	}
 

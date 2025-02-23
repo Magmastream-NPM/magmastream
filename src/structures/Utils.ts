@@ -173,9 +173,9 @@ const structures = {
 	Queue: require("./Queue").Queue,
 	Node: require("./Node").Node,
 	Filters: require("./Filters").Filters,
-	Manager: require("./Managers").Manager,
-	Plugin: require("./Plugins").Plugin,
-	Rest: require("./Rests").Rest,
+	Manager: require("./Manager").Manager,
+	Plugin: require("./Plugin").Plugin,
+	Rest: require("./Rest").Rest,
 	Utils: require("./Utils"),
 };
 
