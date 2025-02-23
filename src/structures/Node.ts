@@ -258,18 +258,16 @@ export class Node {
 	}
 
 	/**
-	 * Destroys the Node and all players connected with it.
+	 * Destroys the node and cleans up associated resources.
 	 *
-	 * @remarks
-	 * This method will:
-	 * - Destroy all players connected to the node
-	 * - Close the WebSocket connection
-	 * - Remove all event listeners on the WebSocket
-	 * - Clear the reconnect timeout
-	 * - Emit a "nodeDestroy" event with the node as the argument
-	 * - Destroy the node from the manager
+	 * This method emits a debug event indicating that the node is being destroyed and attempts
+	 * to automatically move all players connected to the node to a usable one. It then closes
+	 * the WebSocket connection, removes all event listeners, and clears the reconnect timeout.
+	 * Finally, it emits a "nodeDestroy" event and removes the node from the manager.
+	 *
+	 * @returns {Promise<void>} A promise that resolves when the node and its resources have been destroyed.
 	 */
-	public destroy(): void {
+	public async destroy(): Promise<void> {
 		if (!this.connected) return;
 
 		// Emit a debug event indicating that the node is being destroyed
@@ -305,17 +303,26 @@ export class Node {
 		this.manager.emit(ManagerEventTypes.NodeDestroy, this);
 
 		// Destroy the node from the manager
-		this.manager.destroyNode(this.options.identifier);
+		await this.manager.destroyNode(this.options.identifier);
 	}
 
 	/**
-	 * Attempts to reconnect the node if the connection is lost.
+	 * Attempts to reconnect to the node if the connection is lost.
 	 *
-	 * This method will emit a debug event with the current state of the node and
-	 * schedule a reconnection attempt. If the maximum number of retry attempts is reached,
-	 * an error event is emitted and the node is destroyed.
+	 * This method is called when the WebSocket connection is closed
+	 * unexpectedly. It will attempt to reconnect to the node after a
+	 * specified delay, and will continue to do so until the maximum
+	 * number of retry attempts is reached or the node is manually destroyed.
+	 * If the maximum number of retry attempts is reached, an error event
+	 * will be emitted and the node will be destroyed.
+	 *
+	 * @returns {Promise<void>} - Resolves when the reconnection attempt is scheduled.
+	 * @emits {debug} - Emits a debug event indicating the node is attempting to reconnect.
+	 * @emits {nodeReconnect} - Emits a nodeReconnect event when the node is attempting to reconnect.
+	 * @emits {nodeError} - Emits an error event if the maximum number of retry attempts is reached.
+	 * @emits {nodeDestroy} - Emits a nodeDestroy event if the maximum number of retry attempts is reached.
 	 */
-	private reconnect(): void {
+	private async reconnect(): Promise<void> {
 		// Collect debug information regarding the current state of the node
 		const debugInfo = {
 			identifier: this.options.identifier,
@@ -329,13 +336,13 @@ export class Node {
 		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Reconnecting node: ${JSON.stringify(debugInfo)}`);
 
 		// Schedule the reconnection attempt after the specified retry delay
-		this.reconnectTimeout = setTimeout(() => {
+		this.reconnectTimeout = setTimeout(async () => {
 			// Check if the maximum number of retry attempts has been reached
 			if (this.reconnectAttempts >= this.options.retryAmount) {
 				// Emit an error event and destroy the node if retries are exhausted
 				const error = new Error(`Unable to connect after ${this.options.retryAmount} attempts.`);
 				this.manager.emit(ManagerEventTypes.NodeError, this, error);
-				return this.destroy();
+				return await this.destroy();
 			}
 
 			// Remove all listeners from the current WebSocket and reset it
@@ -380,13 +387,14 @@ export class Node {
 	 * Handles the "close" event emitted by the WebSocket connection.
 	 *
 	 * This method is called when the WebSocket connection is closed.
-	 * It emits a "nodeDisconnect" event with the node and the close event
-	 * as arguments and a debug event indicating the node is disconnected.
-	 * If the close event was not initiated by the user (i.e. the code is
-	 * not 1000 or the reason is not "destroy"), it will attempt to reconnect
-	 * to the node.
-	 * @param {number} code The close code.
-	 * @param {string} reason The close reason.
+	 * It emits a "nodeDisconnect" event with the node and the close event as arguments,
+	 * and a debug event indicating the node is disconnected.
+	 * It then attempts to move all players connected to that node to a useable one.
+	 * If the close event was not initiated by the user, it will also attempt to reconnect.
+	 *
+	 * @param {number} code The close code of the WebSocket connection.
+	 * @param {string} reason The reason for the close event.
+	 * @returns {Promise<void>} A promise that resolves when the disconnection is handled.
 	 */
 	protected async close(code: number, reason: string): Promise<void> {
 		const debugInfo = {
@@ -407,7 +415,7 @@ export class Node {
 			}
 		}
 		// If the close event was not initiated by the user, attempt to reconnect
-		if (code !== 1000 || reason !== "destroy") this.reconnect();
+		if (code !== 1000 || reason !== "destroy") await this.reconnect();
 	}
 
 	/**
@@ -432,8 +440,13 @@ export class Node {
 	}
 
 	/**
-	 * Handles an incoming message from the Lavalink node.
-	 * @param {Buffer | string} d The incoming message.
+	 * Handles incoming messages from the Lavalink WebSocket connection.
+	 * @param {Buffer | string} d The message received from the WebSocket connection.
+	 * @returns {Promise<void>} A promise that resolves when the message is handled.
+	 * @emits {debug} - Emits a debug event with the message received from the WebSocket connection.
+	 * @emits {nodeError} - Emits a nodeError event if an unexpected op is received.
+	 * @emits {nodeRaw} - Emits a nodeRaw event with the raw message received from the WebSocket connection.
+	 * @private
 	 */
 	protected async message(d: Buffer | string): Promise<void> {
 		if (Array.isArray(d)) d = Buffer.concat(d);
@@ -516,15 +529,15 @@ export class Node {
 					await player?.nowPlayingMessage?.delete().catch(() => {});
 				}
 
-				this.trackEnd(player, track as Track, payload);
+				await this.trackEnd(player, track as Track, payload);
 				break;
 
 			case "TrackStuckEvent":
-				this.trackStuck(player, track as Track, payload);
+				await this.trackStuck(player, track as Track, payload);
 				break;
 
 			case "TrackExceptionEvent":
-				this.trackError(player, track, payload);
+				await this.trackError(player, track, payload);
 				break;
 
 			case "WebSocketClosedEvent":
@@ -615,7 +628,7 @@ export class Node {
 			case TrackEndReasonTypes.LoadFailed:
 			case TrackEndReasonTypes.Cleanup:
 				// Handle the case when a track failed to load or was cleaned up
-				this.handleFailedTrack(player, track, payload);
+				await this.handleFailedTrack(player, track, payload);
 				break;
 			case TrackEndReasonTypes.Replaced:
 			case TrackEndReasonTypes.Stopped:
@@ -629,12 +642,12 @@ export class Node {
 			case TrackEndReasonTypes.Finished:
 				// If the track ended and it's set to repeat (track or queue)
 				if (track && (player.trackRepeat || player.queueRepeat)) {
-					this.handleRepeatedTrack(player, track, payload);
+					await this.handleRepeatedTrack(player, track, payload);
 					break;
 				}
 				// If there's another track in the queue
 				if (player.queue.length) {
-					this.playNextTrack(player, track, payload);
+					await this.playNextTrack(player, track, payload);
 					break;
 				} else {
 					await this.queueEnd(player, track, payload);
@@ -684,7 +697,7 @@ export class Node {
 		if (shouldUseYouTube) {
 			// Use YouTube-based autoplay
 			// return this.handleYouTubeAutoplay(player, player.queue.previous);
-			return this.handleYouTubeAutoplay(player, player.queue.previous?.at(-1) ?? null);
+			return await this.handleYouTubeAutoplay(player, player.queue.previous?.at(-1) ?? null);
 		}
 
 		// Handle Last.fm-based autoplay (or other platforms)
@@ -693,7 +706,7 @@ export class Node {
 		if (selectedSource) {
 			// Use the selected source to handle autoplay
 			// return this.handlePlatformAutoplay(player, player.queue.previous, selectedSource, apiKey);
-			return this.handlePlatformAutoplay(player, player.queue.previous?.at(-1) ?? null, selectedSource, apiKey);
+			return await this.handlePlatformAutoplay(player, player.queue.previous?.at(-1) ?? null, selectedSource, apiKey);
 		}
 
 		// If no source is available, return false
@@ -779,7 +792,7 @@ export class Node {
 				if (!foundTrack) return false;
 
 				player.queue.add(foundTrack);
-				player.play();
+				await player.play();
 				return true;
 			}
 			if (!artist) {
@@ -819,7 +832,7 @@ export class Node {
 			if (!foundTrack) return false;
 
 			player.queue.add(foundTrack);
-			player.play();
+			await player.play();
 			return true;
 		}
 
@@ -834,7 +847,7 @@ export class Node {
 		if (!foundTrack) return false;
 
 		player.queue.add(foundTrack);
-		player.play();
+		await player.play();
 		return true;
 	}
 
@@ -883,32 +896,48 @@ export class Node {
 
 		// Add the found track to the queue and play it
 		player.queue.add(foundTrack);
-		player.play();
+		await player.play();
 		return true;
 	}
-	// Handle the case when a track failed to load or was cleaned up
-	private handleFailedTrack(player: Player, track: Track, payload: TrackEndEvent): void {
+
+	/**
+	 * Handles the scenario when a track fails to play or load.
+	 * Shifts the queue to the next track and emits a track end event.
+	 * If there is no next track, handles the queue end scenario.
+	 * If autoplay is enabled, plays the next track.
+	 *
+	 * @param {Player} player - The player instance associated with the track.
+	 * @param {Track} track - The track that failed.
+	 * @param {TrackEndEvent} payload - The event payload containing details about the track end.
+	 * @returns {Promise<void>} A promise that resolves when the track failure has been processed.
+	 * @private
+	 */
+	private async handleFailedTrack(player: Player, track: Track, payload: TrackEndEvent): Promise<void> {
 		// player.queue.previous = player.queue.current;
 		player.queue.current = player.queue.shift();
 
 		if (!player.queue.current) {
-			this.queueEnd(player, track, payload);
+			await this.queueEnd(player, track, payload);
 			return;
 		}
 
 		this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
-		if (this.manager.options.autoPlay) player.play();
+		if (this.manager.options.autoPlay) await player.play();
 	}
 
 	/**
-	 * Handles the case when a track ended and it's set to repeat (track or queue)
-	 * @param {Player} player - The player that ended the track
-	 * @param {Track} track - The track that ended
-	 * @param {TrackEndEvent} payload - The track end event payload
-	 * @returns {void}
+	 * Handles the scenario when a track is repeated.
+	 * Shifts the queue to the next track and emits a track end event.
+	 * If there is no next track, handles the queue end scenario.
+	 * If autoplay is enabled, plays the next track.
+	 *
+	 * @param {Player} player - The player instance associated with the track.
+	 * @param {Track} track - The track that is repeated.
+	 * @param {TrackEndEvent} payload - The event payload containing details about the track end.
+	 * @returns {Promise<void>} A promise that resolves when the repeated track has been processed.
 	 * @private
 	 */
-	private handleRepeatedTrack(player: Player, track: Track, payload: TrackEndEvent): void {
+	private async handleRepeatedTrack(player: Player, track: Track, payload: TrackEndEvent): Promise<void> {
 		const { queue, trackRepeat, queueRepeat } = player;
 		const { autoPlay } = this.manager.options;
 
@@ -932,12 +961,12 @@ export class Node {
 
 		// If the track was stopped manually and no more tracks exist, end the queue
 		if (payload.reason === TrackEndReasonTypes.Stopped && !(queue.current = queue.shift())) {
-			this.queueEnd(player, track, payload);
+			await this.queueEnd(player, track, payload);
 			return;
 		}
 
 		// If autoplay is enabled, play the next track
-		if (autoPlay) player.play();
+		if (autoPlay) await player.play();
 	}
 
 	/**
@@ -951,7 +980,7 @@ export class Node {
 	 * @returns {void}
 	 * @private
 	 */
-	private playNextTrack(player: Player, track: Track, payload: TrackEndEvent): void {
+	private async playNextTrack(player: Player, track: Track, payload: TrackEndEvent): Promise<void> {
 		// Shift the queue to set the next track as current
 		player.queue.current = player.queue.shift();
 
@@ -959,7 +988,7 @@ export class Node {
 		this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
 
 		// If autoplay is enabled, play the next track
-		if (this.manager.options.autoPlay) player.play();
+		if (this.manager.options.autoPlay) await player.play();
 	}
 
 	/**
@@ -1022,32 +1051,32 @@ export class Node {
 	}
 
 	/**
-	 * Handles the event when a track gets stuck during playback.
+	 * Handles the event when a track becomes stuck during playback.
 	 * Stops the current track and emits a `trackStuck` event.
 	 *
-	 * @param {Player} player - The player associated with the stuck track.
-	 * @param {Track} track - The track that has encountered a stuck event.
+	 * @param {Player} player - The player associated with the track that became stuck.
+	 * @param {Track} track - The track that became stuck.
 	 * @param {TrackStuckEvent} payload - The event payload containing additional data about the track stuck event.
 	 * @returns {void}
 	 * @protected
 	 */
-	protected trackStuck(player: Player, track: Track, payload: TrackStuckEvent): void {
-		player.stop();
+	protected async trackStuck(player: Player, track: Track, payload: TrackStuckEvent): Promise<void> {
+		await player.stop();
 		this.manager.emit(ManagerEventTypes.TrackStuck, player, track, payload);
 	}
 
 	/**
-	 * Handles the event when a track encounters an error during playback.
+	 * Handles the event when a track has an error during playback.
 	 * Stops the current track and emits a `trackError` event.
 	 *
-	 * @param {Player} player - The player associated with the track that encountered an error.
-	 * @param {Track} track - The track that encountered an error.
+	 * @param {Player} player - The player associated with the track that had an error.
+	 * @param {Track} track - The track that had an error.
 	 * @param {TrackExceptionEvent} payload - The event payload containing additional data about the track error event.
 	 * @returns {void}
 	 * @protected
 	 */
-	protected trackError(player: Player, track: Track, payload: TrackExceptionEvent): void {
-		player.stop();
+	protected async trackError(player: Player, track: Track, payload: TrackExceptionEvent): Promise<void> {
+		await player.stop();
 		this.manager.emit(ManagerEventTypes.TrackError, player, track, payload);
 	}
 

@@ -98,14 +98,14 @@ export class Player {
 		// Add the player to the manager's player collection.
 		this.manager.players.set(options.guildId, this);
 
-		// Emit the playerCreate event.
-		this.manager.emit(ManagerEventTypes.PlayerCreate, this);
-
 		// Set the initial volume.
 		this.setVolume(options.volume ?? 100);
 
 		// Initialize the filters.
 		this.filters = new Filters(this);
+
+		// Emit the playerCreate event.
+		this.manager.emit(ManagerEventTypes.PlayerCreate, this);
 	}
 
 	/**
@@ -144,8 +144,8 @@ export class Player {
 	 * @param query
 	 * @param requester
 	 */
-	public search<T = User | ClientUser>(query: string | SearchQuery, requester?: T): Promise<SearchResult> {
-		return this.manager.search(query, requester);
+	public async search<T = User | ClientUser>(query: string | SearchQuery, requester?: T): Promise<SearchResult> {
+		return await this.manager.search(query, requester);
 	}
 
 	/**
@@ -196,11 +196,6 @@ export class Player {
 	 * @returns {this} - The current instance of the Player class for method chaining.
 	 */
 	public async disconnect(): Promise<this> {
-		// Check if the player is connected.
-		// if (this.state !== StateTypes.Connected) {
-		// 	throw new TypeError("The player is not connected.");
-		// }
-
 		// Set the player state to disconnecting.
 		this.state = StateTypes.Disconnecting;
 
@@ -241,12 +236,11 @@ export class Player {
 	}
 
 	/**
-	 * Destroys the player.
-	 * @param {boolean} [disconnect=true] - If `true`, disconnects the player from the voice channel before destroying it.
-	 * @returns {void}
-	 * @throws {TypeError} If the `disconnect` parameter is not a boolean.
-	 * @emits {playerDestroy} - The player that was destroyed.
-	 * @emits {playerStateUpdate} - The old and new player states after the destruction.
+	 * Destroys the player and clears the queue.
+	 * @param {boolean} disconnect - Whether to disconnect the player from the voice channel.
+	 * @returns {Promise<boolean>} - Whether the player was successfully destroyed.
+	 * @emits {PlayerDestroy} - Emitted when the player is destroyed.
+	 * @emits {PlayerStateUpdate} - Emitted when the player state is updated.
 	 */
 	public async destroy(disconnect: boolean = true): Promise<boolean> {
 		const oldPlayer = this ? { ...this } : null;
@@ -467,13 +461,19 @@ export class Player {
 
 		if (selectedSource) {
 			// Use the selected source to handle autoplay
-			return this.handlePlatformAutoplay(track, selectedSource, apiKey);
+			return await this.handlePlatformAutoplay(track, selectedSource, apiKey);
 		}
 
 		// If no source is available, return false
 		return [];
 	}
 
+	/**
+	 * Handles YouTube-based recommendations.
+	 * @param {Node} node - The node instance.
+	 * @param {Track} track - The track to find recommendations for.
+	 * @returns {Promise<Track[]>} - Array of recommended tracks.
+	 */
 	private async handleYouTubeRecommendations(node: Node, track: Track): Promise<Track[]> {
 		// Check if the previous track has a YouTube URL
 		const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) => track.uri.includes(url));
@@ -508,6 +508,13 @@ export class Player {
 		return res.tracks.filter((t) => t.uri !== track.uri);
 	}
 
+	/**
+	 * Handles Last.fm-based autoplay (or other platforms).
+	 * @param {Track} track - The track to find recommendations for.
+	 * @param {SearchPlatform} source - The selected search platform.
+	 * @param {string} apiKey - The Last.fm API key.
+	 * @returns {Promise<Track[]>} - Array of recommended tracks.
+	 */
 	private async handlePlatformAutoplay(track: Track, source: SearchPlatform, apiKey: string): Promise<Track[]> {
 		let { author: artist } = track;
 		const { title } = track;
@@ -768,8 +775,9 @@ export class Player {
 	}
 
 	/**
-	 * Restarts the current track to the start.
-	 * If there's no current track and there are tracks in the queue, it plays the next track.
+	 * Restarts the currently playing track from the beginning.
+	 * If there is no track playing, it will play the next track in the queue.
+	 * @returns {Promise<Player>} The current instance of the Player class for method chaining.
 	 */
 	public async restart(): Promise<Player> {
 		// Check if there is a current track in the queue
@@ -843,11 +851,10 @@ export class Player {
 	}
 
 	/**
-	 * Pauses or unpauses the player.
-	 * @param {boolean} pause - Whether to pause or unpause the player.
+	 * Skips the current track.
 	 * @returns {this} - The player instance.
-	 * @throws {RangeError} If the pause parameter is not a boolean.
-	 * @emits {PlayerStateUpdate} - With {@link PlayerStateEventTypes.PauseChange} as the change type.
+	 * @throws {Error} If there are no tracks in the queue.
+	 * @emits {PlayerStateUpdate} - With {@link PlayerStateEventTypes.TrackChange} as the change type.
 	 */
 	public async pause(pause: boolean): Promise<this> {
 		// Validate the pause parameter to ensure it's a boolean.
@@ -884,9 +891,9 @@ export class Player {
 	}
 
 	/**
-	 * Goes to the previous track in the queue.
+	 * Skips to the previous track in the queue.
 	 * @returns {this} - The player instance.
-	 * @throws {Error} If there are no previous tracks.
+	 * @throws {Error} If there are no previous tracks in the queue.
 	 * @emits {PlayerStateUpdate} - With {@link PlayerStateEventTypes.TrackChange} as the change type.
 	 */
 	public async previous(): Promise<this> {
@@ -926,10 +933,11 @@ export class Player {
 	}
 
 	/**
-	 * Seeks to a position in the current track.
-	 * @param position The position in milliseconds to seek to.
-	 * @returns The player instance.
-	 * @throws {RangeError} If the position is not a number.
+	 * Seeks to a given position in the currently playing track.
+	 * @param position - The position in milliseconds to seek to.
+	 * @returns {this} - The player instance.
+	 * @throws {Error} If the position is invalid.
+	 * @emits {PlayerStateUpdate} - With {@link PlayerStateEventTypes.TrackChange} as the change type.
 	 */
 	public async seek(position: number): Promise<this> {
 		if (!this.queue.current) return undefined;
@@ -1035,11 +1043,10 @@ export class Player {
 				guildId: this.guildId,
 				data: { paused: this.paused, volume: this.volume, position: playerPosition, encodedTrack: currentTrack?.track, voice: { token, endpoint, sessionId } },
 			});
-			
+
 			await this.filters.updateFilters();
 		} catch (error) {
-			console.log(error);
-			throw error;
+			throw new Error(`Failed to move player to node ${identifier}: ${error}`);
 		}
 	}
 
@@ -1051,73 +1058,58 @@ export class Player {
 	 * @param {boolean} force - Whether to force the creation of a new player.
 	 * @returns {Promise<Player>} - The new player instance.
 	 */
-	public async switchGuild(newOptions: PlayerOptions, force: boolean = false): Promise<Player> {
+	public async switchGuild(newOptions: PlayerOptions): Promise<Player> {
 		let newPlayer = this.manager.players.get(newOptions.guildId);
 
 		// If the player already exists and force is false, return the existing player
-		if (newPlayer && !force) {
+		if (newPlayer) {
 			return newPlayer;
 		}
 
-		// Create a new player if it doesn't exist or force is true
-		if (!newPlayer || force) {
-			newPlayer = this.manager.create({
-				guildId: newOptions.guildId,
-				textChannelId: newOptions.textChannelId,
-				voiceChannelId: newOptions.voiceChannelId,
-				volume: newOptions.volume ?? this.volume,
-				node: newOptions.node ?? this.node.options.identifier,
-				selfMute: newOptions.selfMute ?? this.options.selfMute,
-				selfDeafen: newOptions.selfDeafen ?? this.options.selfDeafen,
-			});
+		const playerPosition = this.position;
+		const currentTrack = this.queue.current ? this.queue.current : null;
 
-			// Connect the new player
-			newPlayer.connect();
+		await this.node.rest.destroyPlayer(this.guildId).catch(() => {});
 
-			// Build tracks from the current player's queue
-			const tracks = [this.queue.current, ...this.queue];
+		this.manager.players.delete(this.guildId);
+		this.options.guildId = newOptions.guildId;
+		this.options.node = newOptions.node ?? this.options.node;
+		this.options.volume = newOptions.volume ?? this.options.volume;
+		this.options.selfMute = newOptions.selfMute ?? this.options.selfMute;
+		this.options.selfDeafen = newOptions.selfDeafen ?? this.options.selfDeafen;
+		this.options.textChannelId = newOptions.textChannelId;
+		this.options.voiceChannelId = newOptions.voiceChannelId;
+		this.voiceChannelId = newOptions.voiceChannelId;
+		this.textChannelId = newOptions.textChannelId;
+		this.guildId = newOptions.guildId;
 
-			// Add tracks to the new player
-			newPlayer.queue.add(tracks as Track[]);
+		this.manager.players.set(this.guildId, this);
 
-			// Play the first track if the old player was playing
-			if (this.playing) {
-				await newPlayer.play();
-				newPlayer.seek(this.position);
-			}
+		this.connect();
 
-			// Pause the new player if the old player was paused
-			if (this.paused) newPlayer.pause(true);
+		await this.node.rest.updatePlayer({
+			guildId: this.guildId,
+			data: { paused: this.paused, volume: this.volume, position: playerPosition, encodedTrack: currentTrack?.track},
+		});
 
-			// Set repeat settings
-			if (this.queueRepeat) newPlayer.setQueueRepeat(true);
-			if (this.trackRepeat) newPlayer.setTrackRepeat(true);
-			if (this.dynamicRepeat && this.dynamicRepeatIntervalMs) {
-				newPlayer.setDynamicRepeat(true, this.dynamicRepeatIntervalMs);
-			}
+		await this.filters.updateFilters();
 
-			// Destroy the current player
-			await this.destroy();
+		const debugInfo = {
+			success: true,
+			message: `Transferred ${this.queue.length} tracks successfully to <#${newOptions.voiceChannelId}> bound to <#${newOptions.textChannelId}>.`,
+			player: {
+				guildId: this.guildId,
+				voiceChannelId: this.voiceChannelId,
+				textChannelId: this.textChannelId,
+				volume: this.volume,
+				playing: this.playing,
+				queueSize: this.queue.size,
+			},
+		};
 
-			// Emit a debug event with the transfer information
-			const debugInfo = {
-				success: true,
-				message: `Transferred ${tracks.length} tracks successfully to <#${newOptions.voiceChannelId}> bound to <#${newOptions.textChannelId}>.`,
-				player: {
-					guildId: newPlayer.guildId,
-					voiceChannelId: newPlayer.voiceChannelId,
-					textChannelId: newPlayer.textChannelId,
-					volume: newPlayer.volume,
-					playing: newPlayer.playing,
-					queueSize: newPlayer.queue.size,
-				},
-			};
-
-			this.manager.emit(ManagerEventTypes.Debug, `[PLAYER] Transferred player to a new server: ${JSON.stringify(debugInfo)}.`);
-		}
-
+		this.manager.emit(ManagerEventTypes.Debug, `[PLAYER] Transferred player to a new server: ${JSON.stringify(debugInfo)}.`);
 		// Return the new player
-		return newPlayer;
+		return this;
 	}
 
 	/**

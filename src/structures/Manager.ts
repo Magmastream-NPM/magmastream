@@ -254,7 +254,7 @@ export class Manager extends EventEmitter {
 			this.emit(ManagerEventTypes.Debug, `[MANAGER] Result ${_source} search for: ${_query.query}: ${JSON.stringify(result)}`);
 			return result;
 		} catch (err) {
-			throw new Error(err);
+			throw new Error(`An error occurred while searching: ${err}`);
 		}
 	}
 
@@ -282,13 +282,13 @@ export class Manager extends EventEmitter {
 		return this.players.get(guildId);
 	}
 
+	
 	/**
-	 * Destroys a player if it exists and cleans up inactive players.
-	 * @param guildId - The guild ID of the player to destroy.
-	 * @returns {void}
-	 * @emits {debug} - Emits a debug message indicating the player is being destroyed.
+	 * Destroys a player.
+	 * @param guildId The guild ID of the player to destroy.
+	 * @returns A promise that resolves when the player has been destroyed.
 	 */
-	public destroy(guildId: string): void {
+	public async destroy(guildId: string): Promise<void> {
 		// Emit debug message for player destruction
 		this.emit(ManagerEventTypes.Debug, `[MANAGER] Destroying player: ${guildId}`);
 
@@ -296,7 +296,7 @@ export class Manager extends EventEmitter {
 		this.players.delete(guildId);
 
 		// Clean up any inactive players
-		this.cleanupInactivePlayers();
+		await this.cleanupInactivePlayers();
 	}
 
 	/**
@@ -324,11 +324,11 @@ export class Manager extends EventEmitter {
 	 * @returns {void}
 	 * @emits {debug} - Emits a debug message indicating the node is being destroyed.
 	 */
-	public destroyNode(identifier: string): void {
+	public async destroyNode(identifier: string): Promise<void> {
 		const node = this.nodes.get(identifier);
 		if (!node) return;
 		this.emit(ManagerEventTypes.Debug, `[MANAGER] Destroying node: ${identifier}`);
-		node.destroy();
+		await node.destroy();
 		this.nodes.delete(identifier);
 	}
 
@@ -364,72 +364,7 @@ export class Manager extends EventEmitter {
 		}
 
 		if (update.user_id !== this.options.clientId) return;
-		return this.handleVoiceStateUpdate(player, update);
-	}
-
-	/**
-	 * Checks if the given data is a voice update.
-	 * @param data The data to check.
-	 * @returns Whether the data is a voice update.
-	 */
-	private isVoiceUpdate(data: VoicePacket | VoiceServer | VoiceState): boolean {
-		return "t" in data && ["VOICE_STATE_UPDATE", "VOICE_SERVER_UPDATE"].includes(data.t);
-	}
-
-	/**
-	 * Determines if the provided update is a valid voice update.
-	 * A valid update must contain either a token or a session_id.
-	 *
-	 * @param update - The voice update data to validate, which can be a VoicePacket, VoiceServer, or VoiceState.
-	 * @returns {boolean} - True if the update is valid, otherwise false.
-	 */
-	private isValidUpdate(update: VoicePacket | VoiceServer | VoiceState): boolean {
-		return update && ("token" in update || "session_id" in update);
-	}
-
-	/**
-	 * Handles a voice server update by updating the player's voice state and sending the voice state to the Lavalink node.
-	 * @param player The player for which the voice state is being updated.
-	 * @param update The voice server data received from Discord.
-	 * @returns A promise that resolves when the voice state update is handled.
-	 * @emits {debug} - Emits a debug message indicating the voice state is being updated.
-	 */
-	private async handleVoiceServerUpdate(player: Player, update: VoiceServer): Promise<void> {
-		player.voiceState.event = update;
-
-		const {
-			sessionId,
-			event: { token, endpoint },
-		} = player.voiceState;
-
-		await player.node.rest.updatePlayer({
-			guildId: player.guildId,
-			data: { voice: { token, endpoint, sessionId } },
-		});
-	}
-
-	/**
-	 * Handles a voice state update by updating the player's voice channel and session ID if provided, or by disconnecting and destroying the player if the channel ID is null.
-	 * @param player The player for which the voice state is being updated.
-	 * @param update The voice state data received from Discord.
-	 * @emits {playerMove} - Emits a player move event if the channel ID is provided and the player is currently connected to a different voice channel.
-	 * @emits {playerDisconnect} - Emits a player disconnect event if the channel ID is null.
-	 */
-	private handleVoiceStateUpdate(player: Player, update: VoiceState): void {
-		if (update.channel_id) {
-			if (player.voiceChannelId !== update.channel_id) {
-				this.emit(ManagerEventTypes.PlayerMove, player, player.voiceChannelId, update.channel_id);
-			}
-
-			player.voiceState.sessionId = update.session_id;
-			player.voiceChannelId = update.channel_id;
-			return;
-		}
-
-		this.emit(ManagerEventTypes.PlayerDisconnect, player, player.voiceChannelId);
-		player.voiceChannelId = null;
-		player.voiceState = Object.assign({});
-		player.destroy();
+		return await this.handleVoiceStateUpdate(player, update);
 	}
 
 	/**
@@ -465,23 +400,6 @@ export class Manager extends EventEmitter {
 		const res = await this.decodeTracks([track]);
 		// Since we're only decoding one track, we can just return the first element of the array
 		return res[0];
-	}
-
-	/**
-	 * Gets each player's JSON file
-	 * @param {string} guildId - The guild ID
-	 * @returns {string} The path to the player's JSON file
-	 */
-	private async getPlayerFilePath(guildId: string): Promise<string> {
-		const configDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
-
-		try {
-			await fs.mkdir(configDir, { recursive: true });
-			return path.join(configDir, `${guildId}.json`);
-		} catch (err) {
-			console.error("Error ensuring player data directory exists:", err);
-			throw new Error(`Failed to resolve player file path for guild ${guildId}`);
-		}
 	}
 
 	/**
@@ -546,7 +464,7 @@ export class Manager extends EventEmitter {
 					if (state && typeof state === "object" && state.guildId && state.node.options.identifier === nodeId) {
 						const lavaPlayer = info.find((player) => player.guildId === state.guildId);
 						if (!lavaPlayer) {
-							this.destroy(state.guildId);
+							await this.destroy(state.guildId);
 						}
 
 						const playerOptions: PlayerOptions = {
@@ -658,161 +576,6 @@ export class Manager extends EventEmitter {
 		}
 
 		this.emit(ManagerEventTypes.Debug, "[MANAGER] Finished loading saved players.");
-	}
-
-	/**
-	 * Serializes a Player instance to avoid circular references.
-	 * @param player The Player instance to serialize
-	 * @returns The serialized Player instance
-	 */
-	private serializePlayer(player: Player): Record<string, unknown> {
-		const seen = new WeakSet();
-
-		/**
-		 * Recursively serializes an object, avoiding circular references.
-		 * @param obj The object to serialize
-		 * @returns The serialized object
-		 */
-		const serialize = (obj: unknown): unknown => {
-			if (obj && typeof obj === "object") {
-				if (seen.has(obj)) return;
-
-				seen.add(obj);
-			}
-			return obj;
-		};
-
-		return JSON.parse(
-			JSON.stringify(player, (key, value) => {
-				if (key === "manager") {
-					return null;
-				}
-
-				if (key === "filters") {
-					return {
-						distortion: value.distortion,
-						equalizer: value.equalizer,
-						karaoke: value.karaoke,
-						rotation: value.rotation,
-						timescale: value.timescale,
-						vibrato: value.vibrato,
-						volume: value.volume,
-						filterStatus: value.filterStatus,
-					}
-				}
-				if (key === "queue") {
-					return {
-						current: value.current || null,
-						tracks: [...value],
-						previous: [...value.previous],
-					};
-				}
-
-				return serialize(value);
-			})
-		);
-	}
-	/**
-	 * Checks for players that are no longer active and deletes their saved state files.
-	 * This is done to prevent stale state files from accumulating on the file system.
-	 */
-	private async cleanupInactivePlayers(): Promise<void> {
-		const playerStatesDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
-
-		try {
-			// Check if the directory exists, and create it if it doesn't
-			await fs.access(playerStatesDir).catch(async () => {
-				await fs.mkdir(playerStatesDir, { recursive: true });
-				this.emit(ManagerEventTypes.Debug, `[MANAGER] Created directory: ${playerStatesDir}`);
-			});
-
-			// Get the list of player state files
-			const playerFiles = await fs.readdir(playerStatesDir);
-
-			// Get the set of active guild IDs from the manager's player collection
-			const activeGuildIds = new Set(this.players.keys());
-
-			// Iterate over the player state files
-			for (const file of playerFiles) {
-				// Get the guild ID from the file name
-				const guildId = path.basename(file, ".json");
-
-				// If the guild ID is not in the set of active guild IDs, delete the file
-				if (!activeGuildIds.has(guildId)) {
-					const filePath = path.join(playerStatesDir, file);
-					await fs.unlink(filePath); // Delete the file asynchronously
-					this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleting inactive player: ${guildId}`);
-				}
-			}
-		} catch (error) {
-			this.emit(ManagerEventTypes.Debug, `[MANAGER] Error cleaning up inactive players: ${error}`);
-		}
-	}
-
-	/**
-	 * Returns the nodes that has the least load.
-	 * The load is calculated by dividing the lavalink load by the number of cores.
-	 * The result is multiplied by 100 to get a percentage.
-	 * @returns {Collection<string, Node>}
-	 */
-	private get leastLoadNode(): Collection<string, Node> {
-		return this.nodes
-			.filter((node) => node.connected)
-			.sort((a, b) => {
-				const aload = a.stats.cpu ? (a.stats.cpu.lavalinkLoad / a.stats.cpu.cores) * 100 : 0;
-				const bload = b.stats.cpu ? (b.stats.cpu.lavalinkLoad / b.stats.cpu.cores) * 100 : 0;
-				// Sort the nodes by their load in ascending order
-				return aload - bload;
-			});
-	}
-
-	/**
-	 * Returns the nodes that have the least amount of players.
-	 * Filters out disconnected nodes and sorts the remaining nodes
-	 * by the number of players in ascending order.
-	 * @returns {Collection<string, Node>} A collection of nodes sorted by player count.
-	 */
-	private get leastPlayersNode(): Collection<string, Node> {
-		return this.nodes
-			.filter((node) => node.connected) // Filter out nodes that are not connected
-			.sort((a, b) => a.stats.players - b.stats.players); // Sort by the number of players
-	}
-
-	/**
-	 * Returns a node based on priority.
-	 * The nodes are sorted by priority in descending order, and then a random number
-	 * between 0 and 1 is generated. The node that has a cumulative weight greater than or equal to the
-	 * random number is returned.
-	 * If no node has a cumulative weight greater than or equal to the random number, the node with the
-	 * lowest load is returned.
-	 * @returns {Node} The node to use.
-	 */
-	private get priorityNode(): Node {
-		// Filter out nodes that are not connected or have a priority of 0
-		const filteredNodes = this.nodes.filter((node) => node.connected && node.options.priority > 0);
-		// Calculate the total weight
-		const totalWeight = filteredNodes.reduce((total, node) => total + node.options.priority, 0);
-		// Map the nodes to their weights
-		const weightedNodes = filteredNodes.map((node) => ({
-			node,
-			weight: node.options.priority / totalWeight,
-		}));
-		// Generate a random number between 0 and 1
-		const randomNumber = Math.random();
-
-		// Initialize the cumulative weight to 0
-		let cumulativeWeight = 0;
-
-		// Loop through the weighted nodes and find the first node that has a cumulative weight greater than or equal to the random number
-		for (const { node, weight } of weightedNodes) {
-			cumulativeWeight += weight;
-			if (randomNumber <= cumulativeWeight) {
-				return node;
-			}
-		}
-
-		// If no node has a cumulative weight greater than or equal to the random number, return the node with the lowest load
-		return this.options.useNode === UseNodeOptions.LeastLoad ? this.leastLoadNode.first() : this.leastPlayersNode.first();
 	}
 
 	/**
@@ -957,6 +720,244 @@ export class Manager extends EventEmitter {
 	private escapeRegExp(string: string): string {
 		// Replace special regex characters with their escaped counterparts
 		return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	}
+
+	/**
+	 * Checks if the given data is a voice update.
+	 * @param data The data to check.
+	 * @returns Whether the data is a voice update.
+	 */
+	private isVoiceUpdate(data: VoicePacket | VoiceServer | VoiceState): boolean {
+		return "t" in data && ["VOICE_STATE_UPDATE", "VOICE_SERVER_UPDATE"].includes(data.t);
+	}
+
+	/**
+	 * Determines if the provided update is a valid voice update.
+	 * A valid update must contain either a token or a session_id.
+	 *
+	 * @param update - The voice update data to validate, which can be a VoicePacket, VoiceServer, or VoiceState.
+	 * @returns {boolean} - True if the update is valid, otherwise false.
+	 */
+	private isValidUpdate(update: VoicePacket | VoiceServer | VoiceState): boolean {
+		return update && ("token" in update || "session_id" in update);
+	}
+
+	/**
+	 * Handles a voice server update by updating the player's voice state and sending the voice state to the Lavalink node.
+	 * @param player The player for which the voice state is being updated.
+	 * @param update The voice server data received from Discord.
+	 * @returns A promise that resolves when the voice state update is handled.
+	 * @emits {debug} - Emits a debug message indicating the voice state is being updated.
+	 */
+	private async handleVoiceServerUpdate(player: Player, update: VoiceServer): Promise<void> {
+		player.voiceState.event = update;
+
+		const {
+			sessionId,
+			event: { token, endpoint },
+		} = player.voiceState;
+
+		await player.node.rest.updatePlayer({
+			guildId: player.guildId,
+			data: { voice: { token, endpoint, sessionId } },
+		});
+	}
+
+	/**
+	 * Handles a voice state update by updating the player's voice channel and session ID if provided, or by disconnecting and destroying the player if the channel ID is null.
+	 * @param player The player for which the voice state is being updated.
+	 * @param update The voice state data received from Discord.
+	 * @emits {playerMove} - Emits a player move event if the channel ID is provided and the player is currently connected to a different voice channel.
+	 * @emits {playerDisconnect} - Emits a player disconnect event if the channel ID is null.
+	 */
+	private async handleVoiceStateUpdate(player: Player, update: VoiceState): Promise<void> {
+		if (update.channel_id) {
+			if (player.voiceChannelId !== update.channel_id) {
+				this.emit(ManagerEventTypes.PlayerMove, player, player.voiceChannelId, update.channel_id);
+			}
+
+			player.voiceState.sessionId = update.session_id;
+			player.voiceChannelId = update.channel_id;
+			return;
+		}
+
+		this.emit(ManagerEventTypes.PlayerDisconnect, player, player.voiceChannelId);
+		player.voiceChannelId = null;
+		player.voiceState = Object.assign({});
+		await player.destroy();
+	}
+
+	/**
+	 * Gets each player's JSON file
+	 * @param {string} guildId - The guild ID
+	 * @returns {string} The path to the player's JSON file
+	 */
+	private async getPlayerFilePath(guildId: string): Promise<string> {
+		const configDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
+
+		try {
+			await fs.mkdir(configDir, { recursive: true });
+			return path.join(configDir, `${guildId}.json`);
+		} catch (err) {
+			console.error("Error ensuring player data directory exists:", err);
+			throw new Error(`Failed to resolve player file path for guild ${guildId}`);
+		}
+	}
+
+	/**
+	 * Serializes a Player instance to avoid circular references.
+	 * @param player The Player instance to serialize
+	 * @returns The serialized Player instance
+	 */
+	private serializePlayer(player: Player): Record<string, unknown> {
+		const seen = new WeakSet();
+
+		/**
+		 * Recursively serializes an object, avoiding circular references.
+		 * @param obj The object to serialize
+		 * @returns The serialized object
+		 */
+		const serialize = (obj: unknown): unknown => {
+			if (obj && typeof obj === "object") {
+				if (seen.has(obj)) return;
+
+				seen.add(obj);
+			}
+			return obj;
+		};
+
+		return JSON.parse(
+			JSON.stringify(player, (key, value) => {
+				if (key === "manager") {
+					return null;
+				}
+
+				if (key === "filters") {
+					return {
+						distortion: value.distortion,
+						equalizer: value.equalizer,
+						karaoke: value.karaoke,
+						rotation: value.rotation,
+						timescale: value.timescale,
+						vibrato: value.vibrato,
+						volume: value.volume,
+						filterStatus: value.filterStatus,
+					};
+				}
+				if (key === "queue") {
+					return {
+						current: value.current || null,
+						tracks: [...value],
+						previous: [...value.previous],
+					};
+				}
+
+				return serialize(value);
+			})
+		);
+	}
+
+	/**
+	 * Checks for players that are no longer active and deletes their saved state files.
+	 * This is done to prevent stale state files from accumulating on the file system.
+	 */
+	private async cleanupInactivePlayers(): Promise<void> {
+		const playerStatesDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
+
+		try {
+			// Check if the directory exists, and create it if it doesn't
+			await fs.access(playerStatesDir).catch(async () => {
+				await fs.mkdir(playerStatesDir, { recursive: true });
+				this.emit(ManagerEventTypes.Debug, `[MANAGER] Created directory: ${playerStatesDir}`);
+			});
+
+			// Get the list of player state files
+			const playerFiles = await fs.readdir(playerStatesDir);
+
+			// Get the set of active guild IDs from the manager's player collection
+			const activeGuildIds = new Set(this.players.keys());
+
+			// Iterate over the player state files
+			for (const file of playerFiles) {
+				// Get the guild ID from the file name
+				const guildId = path.basename(file, ".json");
+
+				// If the guild ID is not in the set of active guild IDs, delete the file
+				if (!activeGuildIds.has(guildId)) {
+					const filePath = path.join(playerStatesDir, file);
+					await fs.unlink(filePath); // Delete the file asynchronously
+					this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleting inactive player: ${guildId}`);
+				}
+			}
+		} catch (error) {
+			this.emit(ManagerEventTypes.Debug, `[MANAGER] Error cleaning up inactive players: ${error}`);
+		}
+	}
+
+	/**
+	 * Returns the nodes that has the least load.
+	 * The load is calculated by dividing the lavalink load by the number of cores.
+	 * The result is multiplied by 100 to get a percentage.
+	 * @returns {Collection<string, Node>}
+	 */
+	private get leastLoadNode(): Collection<string, Node> {
+		return this.nodes
+			.filter((node) => node.connected)
+			.sort((a, b) => {
+				const aload = a.stats.cpu ? (a.stats.cpu.lavalinkLoad / a.stats.cpu.cores) * 100 : 0;
+				const bload = b.stats.cpu ? (b.stats.cpu.lavalinkLoad / b.stats.cpu.cores) * 100 : 0;
+				// Sort the nodes by their load in ascending order
+				return aload - bload;
+			});
+	}
+
+	/**
+	 * Returns the nodes that have the least amount of players.
+	 * Filters out disconnected nodes and sorts the remaining nodes
+	 * by the number of players in ascending order.
+	 * @returns {Collection<string, Node>} A collection of nodes sorted by player count.
+	 */
+	private get leastPlayersNode(): Collection<string, Node> {
+		return this.nodes
+			.filter((node) => node.connected) // Filter out nodes that are not connected
+			.sort((a, b) => a.stats.players - b.stats.players); // Sort by the number of players
+	}
+
+	/**
+	 * Returns a node based on priority.
+	 * The nodes are sorted by priority in descending order, and then a random number
+	 * between 0 and 1 is generated. The node that has a cumulative weight greater than or equal to the
+	 * random number is returned.
+	 * If no node has a cumulative weight greater than or equal to the random number, the node with the
+	 * lowest load is returned.
+	 * @returns {Node} The node to use.
+	 */
+	private get priorityNode(): Node {
+		// Filter out nodes that are not connected or have a priority of 0
+		const filteredNodes = this.nodes.filter((node) => node.connected && node.options.priority > 0);
+		// Calculate the total weight
+		const totalWeight = filteredNodes.reduce((total, node) => total + node.options.priority, 0);
+		// Map the nodes to their weights
+		const weightedNodes = filteredNodes.map((node) => ({
+			node,
+			weight: node.options.priority / totalWeight,
+		}));
+		// Generate a random number between 0 and 1
+		const randomNumber = Math.random();
+
+		// Initialize the cumulative weight to 0
+		let cumulativeWeight = 0;
+
+		// Loop through the weighted nodes and find the first node that has a cumulative weight greater than or equal to the random number
+		for (const { node, weight } of weightedNodes) {
+			cumulativeWeight += weight;
+			if (randomNumber <= cumulativeWeight) {
+				return node;
+			}
+		}
+
+		// If no node has a cumulative weight greater than or equal to the random number, return the node with the lowest load
+		return this.options.useNode === UseNodeOptions.LeastLoad ? this.leastLoadNode.first() : this.leastPlayersNode.first();
 	}
 }
 

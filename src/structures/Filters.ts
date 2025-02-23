@@ -38,6 +38,18 @@ export class Filters {
 		}, {} as Record<AvailableFilters, boolean>);
 	}
 
+	/**
+	 * Updates the player's audio filters.
+	 *
+	 * This method sends a request to the player's node to update the filter settings
+	 * based on the current properties of the `Filters` instance. The filters include
+	 * distortion, equalizer, karaoke, rotation, timescale, vibrato, and volume. Once
+	 * the request is sent, it ensures that the player's audio output reflects the
+	 * changes in filter settings.
+	 *
+	 * @returns {Promise<this>} - Returns a promise that resolves to the current instance
+	 * of the Filters class for method chaining.
+	 */
 	public async updateFilters(): Promise<this> {
 		const { distortion, equalizer, karaoke, rotation, timescale, vibrato, volume } = this;
 
@@ -62,20 +74,18 @@ export class Filters {
 	/**
 	 * Applies a specific filter to the player.
 	 *
-	 * This method sets a filter property to the specified value and updates the player's
-	 * filters if the `updateFilters` flag is true.
+	 * This method allows you to set the value of a specific filter property.
+	 * The filter property must be a valid key of the Filters object.
 	 *
-	 * @param {Object} filter - The filter property and value to apply.
-	 * @param {string} filter.property - The property of the filter to modify.
-	 * @param {any} filter.value - The value to set for the filter property.
-	 * @param {boolean} [updateFilters=true] - Whether to update the filters on the player.
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * @param {{ property: T; value: Filters[T] }} filter - An object containing the filter property and value.
+	 * @param {boolean} [updateFilters=true] - Whether to update the filters after applying the filter.
+	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
-	private applyFilter<T extends keyof Filters>(filter: { property: T; value: Filters[T] }, updateFilters: boolean = true): this {
+	private async applyFilter<T extends keyof Filters>(filter: { property: T; value: Filters[T] }, updateFilters: boolean = true): Promise<this> {
 		this[filter.property] = filter.value as this[T];
 
 		if (updateFilters) {
-			this.updateFilters();
+			await this.updateFilters();
 		}
 
 		return this;
@@ -135,240 +145,290 @@ export class Filters {
 	}
 
 	/**
-	 * Sets the equalizer bands for the player.
+	 * Sets the equalizer on the audio.
 	 *
-	 * This method updates the player's equalizer settings by applying the provided
-	 * bands configuration. The equalizer is an array of Band objects, each containing
-	 * a band number and a gain value. The method ensures that the filters are updated
-	 * after setting the equalizer, to reflect the changes in audio output.
+	 * This method adjusts the equalization curve of the player's audio output,
+	 * allowing you to control the frequency response.
 	 *
-	 * @param {Band[]} [bands] - The equalizer bands to apply. Each band includes a
-	 * band number and a gain value. If no bands are provided, the equalizer is reset.
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * @param {Band[]} [bands] - The equalizer bands to apply (band, gain).
+	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public setEqualizer(bands?: Band[]): this {
-		return this.applyFilter({ property: "equalizer", value: bands });
+	public async setEqualizer(bands?: Band[]): Promise<this> {
+		return await this.applyFilter({ property: "equalizer", value: bands });
 	}
 
 	/**
-	 * Sets the karaoke effect on the audio.
+	 * Applies the karaoke filter to the audio.
 	 *
-	 * This method adjusts the player's audio output to apply a karaoke effect, which
-	 * may include filtering out vocals or adjusting levels for optimal karaoke performance.
+	 * This method adjusts the audio so that it sounds like a karaoke song, with the
+	 * original vocals removed. Note that not all songs can be successfully made into
+	 * karaoke tracks, and some tracks may not sound as good.
 	 *
-	 * @param {karaokeOptions} [karaoke] - The karaoke settings to apply (level, mono level, filter band, etc.).
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * @param {karaokeOptions} [karaoke] - The karaoke settings to apply (level, monoLevel, filterBand, filterWidth).
+	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public setKaraoke(karaoke?: karaokeOptions): this {
+	public async setKaraoke(karaoke?: karaokeOptions): Promise<this> {
+		const result = await this.applyFilter({ property: "karaoke", value: karaoke ?? null });
 		return karaoke
-			? this.applyFilter({ property: "karaoke", value: karaoke }).setFilterStatus(AvailableFilters.SetKaraoke, true)
-			: this.applyFilter({ property: "karaoke", value: null }).setFilterStatus(AvailableFilters.SetKaraoke, false);
+			? result.setFilterStatus(AvailableFilters.SetKaraoke, true)
+			: (await this.applyFilter({ property: "karaoke", value: null })).setFilterStatus(AvailableFilters.SetKaraoke, false);
 	}
 
 	/**
-	 * Sets the timescale (speed, pitch, rate) for the audio.
+	 * Sets the timescale of the audio.
 	 *
-	 * This method adjusts the speed, pitch, and rate of the audio, allowing for effects
-	 * such as faster or slower playback, pitch shifts, and time dilation.
+	 * This method adjusts the speed and pitch of the audio, allowing you to control the playback speed.
 	 *
-	 * @param {timescaleOptions} [timescale] - The timescale settings to apply (speed, pitch, rate).
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * @param {timescaleOptions} [timescale] - The timescale settings to apply (speed and pitch).
+	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public setTimescale(timescale?: timescaleOptions): this {
+	public async setTimescale(timescale?: timescaleOptions): Promise<this> {
+		const result = await this.applyFilter({ property: "timescale", value: timescale ?? null });
 		return timescale
-			? this.applyFilter({ property: "timescale", value: timescale }).setFilterStatus(AvailableFilters.SetTimescale, true)
-			: this.applyFilter({ property: "timescale", value: null }).setFilterStatus(AvailableFilters.SetTimescale, false);
+			? result.setFilterStatus(AvailableFilters.SetTimescale, true)
+			: (await this.applyFilter({ property: "timescale", value: null })).setFilterStatus(AvailableFilters.SetTimescale, false);
 	}
 
 	/**
 	 * Sets the vibrato effect on the audio.
 	 *
-	 * This method applies a vibrato effect to the audio, which creates a wobble in the
-	 * pitch by modulating it at a specified frequency and depth.
+	 * This method applies a vibrato effect to the audio, which adds a wavering,
+	 * pulsing quality to the sound. The effect is created by rapidly varying the
+	 * pitch of the audio.
 	 *
-	 * @param {vibratoOptions} [vibrato] - The vibrato settings to apply (frequency and depth).
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * @param {vibratoOptions} [vibrato] - The vibrato settings to apply (frequency, depth).
+	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public setVibrato(vibrato?: vibratoOptions): this {
+	public async setVibrato(vibrato?: vibratoOptions): Promise<this> {
+		const result = await this.applyFilter({ property: "vibrato", value: vibrato ?? null });
 		return vibrato
-			? this.applyFilter({ property: "vibrato", value: vibrato }).setFilterStatus(AvailableFilters.Vibrato, true)
-			: this.applyFilter({ property: "vibrato", value: null }).setFilterStatus(AvailableFilters.Vibrato, false);
+			? result.setFilterStatus(AvailableFilters.Vibrato, true)
+			: (await this.applyFilter({ property: "vibrato", value: null })).setFilterStatus(AvailableFilters.Vibrato, false);
 	}
 
 	/**
 	 * Sets the rotation effect on the audio.
 	 *
-	 * This method applies a rotation effect to the audio, creating the illusion of sound
-	 * moving around the listener's head.
+	 * This method applies a rotation effect to the audio, which simulates the sound
+	 * moving around the listener's head. This effect can create a dynamic and immersive
+	 * audio experience by altering the directionality of the sound.
 	 *
-	 * @param {rotationOptions} [rotation] - The rotation settings (rotationHz).
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * @param {rotationOptions} [rotation] - The rotation settings to apply (rotationHz).
+	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public setRotation(rotation?: rotationOptions): this {
+	public async setRotation(rotation?: rotationOptions): Promise<this> {
+		const result = await this.applyFilter({ property: "rotation", value: rotation ?? null });
+
 		return rotation
-			? this.applyFilter({ property: "rotation", value: rotation }).setFilterStatus(AvailableFilters.SetRotation, true)
-			: this.applyFilter({ property: "rotation", value: null }).setFilterStatus(AvailableFilters.SetRotation, false);
+			? result.setFilterStatus(AvailableFilters.SetRotation, true)
+			: (await this.applyFilter({ property: "rotation", value: null })).setFilterStatus(AvailableFilters.SetRotation, false);
 	}
 
 	/**
 	 * Sets the distortion effect on the audio.
 	 *
-	 * This method applies a distortion effect to the audio, which adds an aggressive,
-	 * rough texture to the sound.
+	 * This method applies a distortion effect to the audio, which adds a rougher,
+	 * more intense quality to the sound. The effect is created by altering the
+	 * audio signal to create a more jagged, irregular waveform.
 	 *
-	 * @param {distortionOptions} [distortion] - The distortion settings to apply.
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * @param {distortionOptions} [distortion] - The distortion settings to apply (sinOffset, sinScale, cosOffset, cosScale, tanOffset, tanScale, offset, scale).
+	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public setDistortion(distortion?: distortionOptions): this {
+	public async setDistortion(distortion?: distortionOptions): Promise<this> {
+		const result = await this.applyFilter({ property: "distortion", value: distortion ?? null });
+
 		return distortion
-			? this.applyFilter({ property: "distortion", value: distortion }).setFilterStatus(AvailableFilters.SetDistortion, true)
-			: this.applyFilter({ property: "distortion", value: null }).setFilterStatus(AvailableFilters.SetDistortion, false);
+			? result.setFilterStatus(AvailableFilters.SetDistortion, true)
+			: (await this.applyFilter({ property: "distortion", value: null })).setFilterStatus(AvailableFilters.SetDistortion, false);
 	}
 
 	/**
-	 * Applies the bass boost effect by setting an equalizer with boosted bass frequencies.
+	 * Toggles the bass boost effect on the audio.
 	 *
-	 * This method enhances the lower frequencies of the audio, giving the audio a deep
-	 * and powerful bass response.
-	 *	@param {boolean} status - Whether to enable or disable the bass boost effect.
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * This method applies or removes a bass boost effect by adjusting the equalizer settings.
+	 * When enabled, it enhances the low frequencies of the audio, providing a richer and deeper sound.
+	 *
+	 * @param {boolean} status - Whether to enable or disable the bass boost effect.
+	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public bassBoost(status: boolean): this {
+	public async bassBoost(status: boolean): Promise<this> {
+		const result = await this.applyFilter({ property: "equalizer", value: status ? bassBoostEqualizer : [] });
+
 		return status
-			? this.setEqualizer(bassBoostEqualizer).setFilterStatus(AvailableFilters.BassBoost, true)
-			: this.setEqualizer().setFilterStatus(AvailableFilters.BassBoost, false);
+			? result.setFilterStatus(AvailableFilters.BassBoost, true)
+			: (await this.applyFilter({ property: "equalizer", value: [] })).setFilterStatus(AvailableFilters.BassBoost, false);
 	}
 
 	/**
-	 * Applies a chipmunk effect to the audio.
+	 * Toggles the chipmunk effect on the audio.
 	 *
-	 * This method applies a chipmunk effect to audio.
+	 * This method applies or removes a chipmunk effect by adjusting the timescale settings.
+	 * When enabled, it increases the speed, pitch, and rate of the audio, resulting in a high-pitched, fast playback
+	 * similar to the sound of a chipmunk.
+	 *
 	 * @param {boolean} status - Whether to enable or disable the chipmunk effect.
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public chipmunk(status: boolean): this {
+	public async chipmunk(status: boolean): Promise<this> {
+		const result = await this.applyFilter({ property: "timescale", value: status ? { speed: 1.5, pitch: 1.5, rate: 1.5 } : null });
+
 		return status
-			? this.setTimescale({ speed: 1.5, pitch: 1.5, rate: 1.5 }).setFilterStatus(AvailableFilters.Chipmunk, true)
-			: this.setTimescale().setFilterStatus(AvailableFilters.Chipmunk, false);
+			? result.setFilterStatus(AvailableFilters.Chipmunk, true)
+			: (await this.applyFilter({ property: "timescale", value: null })).setFilterStatus(AvailableFilters.Chipmunk, false);
 	}
 
 	/**
-	 * Applies a china effect to the audio.
+	 * Toggles the "China" effect on the audio.
 	 *
-	 * This method applies a china effect to audio.
-	 * @param {boolean} status - Whether to enable or disable the china effect.
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * This method applies or removes a filter that reduces the pitch of the audio by half,
+	 * without changing the speed or rate. This creates a "hollow" or "echoey" sound.
+	 *
+	 * @param {boolean} status - Whether to enable or disable the "China" effect.
+	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public china(status: boolean): this {
+	public async china(status: boolean): Promise<this> {
+		const result = await this.applyFilter({ property: "timescale", value: status ? { speed: 1.0, pitch: 0.5, rate: 1.0 } : null });
+
 		return status
-			? this.setTimescale({ speed: 1.0, pitch: 0.5, rate: 1.0 }).setFilterStatus(AvailableFilters.China, true)
-			: this.setTimescale().setFilterStatus(AvailableFilters.China, false);
+			? result.setFilterStatus(AvailableFilters.China, true)
+			: (await this.applyFilter({ property: "timescale", value: null })).setFilterStatus(AvailableFilters.China, false);
 	}
 
 	/**
-	 * Applies the "8D audio" effect by setting a rotation filter.
+	 * Toggles the 8D audio effect on the audio.
 	 *
-	 * This method creates the "8D audio" effect, which gives the illusion of sound
-	 * moving around the listener's head. It applies a subtle rotation effect to the audio.
-	 *	@param {boolean} status - Whether to enable or disable the 8D audio effect.
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * This method applies or removes an 8D audio effect by adjusting the rotation settings.
+	 * When enabled, it creates a sensation of the audio moving around the listener's head,
+	 * providing an immersive audio experience.
+	 *
+	 * @param {boolean} status - Whether to enable or disable the 8D effect.
+	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public eightD(status: boolean): this {
+	public async eightD(status: boolean): Promise<this> {
+		const result = await this.applyFilter({ property: "rotation", value: status ? { rotationHz: 0.2 } : null });
+
 		return status
-			? this.setRotation({ rotationHz: 0.2 }).setFilterStatus(AvailableFilters.EightD, true)
-			: this.setRotation().setFilterStatus(AvailableFilters.EightD, false);
+			? result.setFilterStatus(AvailableFilters.EightD, true)
+			: (await this.applyFilter({ property: "rotation", value: null })).setFilterStatus(AvailableFilters.EightD, false);
 	}
 
 	/**
-	 * Applies the nightcore effect by adjusting the speed and pitch of the audio.
+	 * Toggles the nightcore effect on the audio.
 	 *
-	 * This method increases the tempo and pitch of the audio, giving it a faster and
-	 * higher-pitched sound, characteristic of the nightcore genre.
+	 * This method applies or removes a nightcore effect by adjusting the timescale settings.
+	 * When enabled, it increases the speed and pitch of the audio, giving it a more
+	 * upbeat and energetic feel.
+	 *
 	 * @param {boolean} status - Whether to enable or disable the nightcore effect.
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public nightcore(status: boolean): this {
+	public async nightcore(status: boolean): Promise<this> {
+		const result = await this.applyFilter({ property: "timescale", value: status ? { speed: 1.1, pitch: 1.125, rate: 1.05 } : null });
+
 		return status
-			? this.setTimescale({ speed: 1.1, pitch: 1.125, rate: 1.05 }).setFilterStatus(AvailableFilters.Nightcore, true)
-			: this.setTimescale().setFilterStatus(AvailableFilters.Nightcore, false);
+			? result.setFilterStatus(AvailableFilters.Nightcore, true)
+			: (await this.applyFilter({ property: "timescale", value: null })).setFilterStatus(AvailableFilters.Nightcore, false);
 	}
 
 	/**
-	 * Applies the slow-motion effect by reducing the speed and pitch of the audio.
+	 * Toggles the slowmo effect on the audio.
 	 *
-	 * This method slows down the audio, giving it a slower and more relaxed feel.
+	 * This method applies or removes a slowmo effect by adjusting the timescale settings.
+	 * When enabled, it slows down the audio while keeping the pitch the same, giving it
+	 * a more relaxed and calming feel.
 	 *
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * @param {boolean} status - Whether to enable or disable the slowmo effect.
+	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public slowmo(status: boolean): this {
+	public async slowmo(status: boolean): Promise<this> {
+		const result = await this.applyFilter({ property: "timescale", value: status ? { speed: 0.7, pitch: 1.0, rate: 0.8 } : null });
+
 		return status
-			? this.setTimescale({ speed: 0.7, pitch: 1.0, rate: 0.8 }).setFilterStatus(AvailableFilters.Slowmo, true)
-			: this.setTimescale().setFilterStatus(AvailableFilters.Slowmo, false);
+			? result.setFilterStatus(AvailableFilters.Slowmo, true)
+			: (await this.applyFilter({ property: "timescale", value: null })).setFilterStatus(AvailableFilters.Slowmo, false);
 	}
 
 	/**
-	 * Applies a soft equalizer to give the audio a smoother sound.
+	 * Applies a soft equalizer effect to the audio.
 	 *
-	 * This method adjusts the equalizer settings to soften the frequencies and give
-	 * the audio a more mellow tone.
-	 * @param {boolean} status - Whether to enable or disable the soft effect.
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * This method applies or removes a soft equalizer effect by adjusting the equalizer settings.
+	 * When enabled, it reduces the bass and treble frequencies, giving the audio a softer and more
+	 * mellow sound.
+	 *
+	 * @param {boolean} status - Whether to enable or disable the soft equalizer effect.
+	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public soft(status: boolean): this {
+	public async soft(status: boolean): Promise<this> {
+		const result = await this.applyFilter({ property: "equalizer", value: status ? softEqualizer : [] });
+
 		return status
-			? this.setEqualizer(softEqualizer).setFilterStatus(AvailableFilters.Soft, true)
-			: this.setEqualizer().setFilterStatus(AvailableFilters.Soft, false);
+			? result.setFilterStatus(AvailableFilters.Soft, true)
+			: (await this.applyFilter({ property: "equalizer", value: [] })).setFilterStatus(AvailableFilters.Soft, false);
 	}
 
 	/**
-	 * Applies a TV-like equalizer effect to the audio.
+	 * Toggles the TV equalizer effect on the audio.
 	 *
-	 * This method adjusts the equalizer to give the audio a "TV" effect, which may
-	 * simulate the audio quality heard from television speakers.
-	 * @param {boolean} status - Whether to enable or disable the TV effect.
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * This method applies or removes a TV equalizer effect by adjusting the equalizer settings.
+	 * When enabled, it enhances specific frequency bands to mimic the audio characteristics
+	 * typically found in television audio outputs.
+	 *
+	 * @param {boolean} status - Whether to enable or disable the TV equalizer effect.
+	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public tv(status: boolean): this {
-		return status ? this.setEqualizer(tvEqualizer).setFilterStatus(AvailableFilters.TV, true) : this.setEqualizer().setFilterStatus(AvailableFilters.TV, false);
-	}
+	public async tv(status: boolean): Promise<this> {
+		const result = await this.applyFilter({ property: "equalizer", value: status ? tvEqualizer : [] });
 
-	/**
-	 * Applies the "treble and bass boost" effect to the audio.
-	 *
-	 * This method adjusts the equalizer to boost both the treble (high frequencies)
-	 * and bass (low frequencies), giving the audio a more balanced and enhanced sound.
-	 * @param {boolean} status - Whether to enable or disable the treble and bass boost effect.
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
-	 */
-	public trebleBass(status: boolean): this {
 		return status
-			? this.setEqualizer(trebleBassEqualizer).setFilterStatus(AvailableFilters.TrebleBass, true)
-			: this.setEqualizer().setFilterStatus(AvailableFilters.TrebleBass, false);
+			? result.setFilterStatus(AvailableFilters.TV, true)
+			: (await this.applyFilter({ property: "equalizer", value: [] })).setFilterStatus(AvailableFilters.TV, false);
 	}
 
 	/**
-	 * Applies the vaporwave effect by adjusting the equalizer and pitch.
+	 * Applies the treble/bass equalizer effect to the audio.
 	 *
-	 * This method applies a vaporwave-style equalizer, with softer tones, and adjusts
-	 * the pitch to give the audio a dreamy, nostalgic feel.
+	 * This method applies or removes a treble/bass equalizer effect by adjusting the equalizer settings.
+	 * When enabled, it enhances the treble and bass frequencies, giving the audio a more balanced sound.
+	 *
+	 * @param {boolean} status - Whether to enable or disable the treble/bass equalizer effect.
+	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
+	 */
+	public async trebleBass(status: boolean): Promise<this> {
+		const result = await this.applyFilter({ property: "equalizer", value: status ? trebleBassEqualizer : [] });
+
+		return status
+			? result.setFilterStatus(AvailableFilters.TrebleBass, true)
+			: (await this.applyFilter({ property: "equalizer", value: [] })).setFilterStatus(AvailableFilters.TrebleBass, false);
+	}
+
+	/**
+	 * Toggles the vaporwave effect on the audio.
+	 *
+	 * This method applies or removes a vaporwave effect by adjusting the equalizer settings.
+	 * When enabled, it gives the audio a dreamy and nostalgic feel, characteristic of the vaporwave genre.
+	 *
 	 * @param {boolean} status - Whether to enable or disable the vaporwave effect.
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public vaporwave(status: boolean): this {
+	public async vaporwave(status: boolean): Promise<this> {
+		const result = await this.applyFilter({ property: "equalizer", value: status ? vaporwaveEqualizer : [] });
+
 		return status
-			? this.setEqualizer(vaporwaveEqualizer).setTimescale({ pitch: 0.55 }).setFilterStatus(AvailableFilters.Vaporwave, true)
-			: this.setEqualizer().setTimescale().setFilterStatus(AvailableFilters.Vaporwave, false);
+			? result.setFilterStatus(AvailableFilters.Vaporwave, true)
+			: (await this.applyFilter({ property: "equalizer", value: [] })).setFilterStatus(AvailableFilters.Vaporwave, false);
 	}
 
 	/**
-	 * Applies a distortion effect to the audio.
+	 * Toggles the distortion effect on the audio.
 	 *
-	 * This method applies a distortion effect by adjusting various distortion parameters.
-	 * It can make the audio sound rougher and more intense.
-	 * @param {boolean} status - Whether to enable or disable the distort effect.
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * This method applies or removes a distortion effect by adjusting the distortion settings.
+	 * When enabled, it adds a rougher, more intense quality to the sound by altering the
+	 * audio signal to create a more jagged, irregular waveform.
+	 *
+	 * @param {boolean} status - Whether to enable or disable the distortion effect.
+	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public distort(status: boolean): this {
+	public async distort(status: boolean): Promise<this> {
 		return status
 			? this.setDistortion({
 					sinOffset: 0,
@@ -379,21 +439,25 @@ export class Filters {
 					tanScale: 0.2,
 					offset: 0,
 					scale: 1.2,
-			  }).setFilterStatus(AvailableFilters.Distort, true)
-			: this.setDistortion().setFilterStatus(AvailableFilters.Distort, false);
+			  }).then((result) => result.setFilterStatus(AvailableFilters.Distort, true))
+			: this.setDistortion().then((result) => result.setFilterStatus(AvailableFilters.Distort, false));
 	}
 
 	/**
-	 * Applies a pop effect to the audio.
+	 * Toggles the party effect on the audio.
 	 *
-	 * This method applies a pop effect to audio.
-	 * @param {boolean} status - Whether to enable or disable the pop effect.
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * This method applies or removes a party effect by adjusting the equalizer settings.
+	 * When enabled, it enhances the bass and treble frequencies, providing a more energetic and lively sound.
+	 *
+	 * @param {boolean} status - Whether to enable or disable the party effect.
+	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public pop(status: boolean): this {
+	public async pop(status: boolean): Promise<this> {
+		const result = await this.applyFilter({ property: "equalizer", value: status ? popEqualizer : [] });
+
 		return status
-			? this.setEqualizer(popEqualizer).setFilterStatus(AvailableFilters.Pop, true)
-			: this.setEqualizer().setFilterStatus(AvailableFilters.Pop, false);
+			? result.setFilterStatus(AvailableFilters.Pop, true)
+			: (await this.applyFilter({ property: "equalizer", value: [] })).setFilterStatus(AvailableFilters.Pop, false);
 	}
 
 	/**
@@ -401,12 +465,14 @@ export class Filters {
 	 *
 	 * This method applies a party effect to audio.
 	 * @param {boolean} status - Whether to enable or disable the party effect.
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public party(status: boolean): this {
+	public async party(status: boolean): Promise<this> {
+		const result = await this.applyFilter({ property: "equalizer", value: status ? popEqualizer : [] });
+
 		return status
-			? this.setTimescale({ speed: 1.25, pitch: 1.0, rate: 1.0 }).setFilterStatus(AvailableFilters.Party, true)
-			: this.setTimescale().setFilterStatus(AvailableFilters.Party, false);
+			? result.setFilterStatus(AvailableFilters.Party, true)
+			: (await this.applyFilter({ property: "equalizer", value: [] })).setFilterStatus(AvailableFilters.Party, false);
 	}
 
 	/**
@@ -414,14 +480,14 @@ export class Filters {
 	 *
 	 * This method applies earrape effect to audio.
 	 * @param {boolean} status - Whether to enable or disable the earrape effect.
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public earrape(status: boolean): this {
+	public async earrape(status: boolean): Promise<this> {
 		if (status) {
-			this.player.setVolume(200);
+			await this.player.setVolume(200);
 			return this.setFilterStatus(AvailableFilters.Earrape, true);
 		} else {
-			this.player.setVolume(100);
+			await this.player.setVolume(100);
 			return this.setFilterStatus(AvailableFilters.Earrape, false);
 		}
 	}
@@ -431,25 +497,29 @@ export class Filters {
 	 *
 	 * This method applies electronic effect to audio.
 	 * @param {boolean} status - Whether to enable or disable the electronic effect.
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public electronic(status: boolean): this {
+	public async electronic(status: boolean): Promise<this> {
+		const result = await this.applyFilter({ property: "equalizer", value: status ? electronicEqualizer : [] });
+
 		return status
-			? this.setEqualizer(electronicEqualizer).setFilterStatus(AvailableFilters.Electronic, true)
-			: this.setEqualizer().setFilterStatus(AvailableFilters.Electronic, false);
+			? result.setFilterStatus(AvailableFilters.Electronic, true)
+			: (await this.applyFilter({ property: "equalizer", value: [] })).setFilterStatus(AvailableFilters.Electronic, false);
 	}
 
 	/**
-	 * Applies a radio effect to the audio.
+	 * Applies radio effect to the audio.
 	 *
-	 * This method applies a radio effect to audio.
+	 * This method applies radio effect to audio.
 	 * @param {boolean} status - Whether to enable or disable the radio effect.
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public radio(status: boolean): this {
+	public async radio(status: boolean): Promise<this> {
+		const result = await this.applyFilter({ property: "equalizer", value: status ? radioEqualizer : [] });
+
 		return status
-			? this.setEqualizer(radioEqualizer).setFilterStatus(AvailableFilters.Radio, true)
-			: this.setEqualizer().setFilterStatus(AvailableFilters.Radio, false);
+			? result.setFilterStatus(AvailableFilters.Radio, true)
+			: (await this.applyFilter({ property: "equalizer", value: [] })).setFilterStatus(AvailableFilters.Radio, false);
 	}
 
 	/**
@@ -459,10 +529,12 @@ export class Filters {
 	 * @param {boolean} status - Whether to enable or disable the tremolo effect.
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public tremolo(status: boolean): this {
+	public async tremolo(status: boolean): Promise<this> {
+		const result = await this.applyFilter({ property: "vibrato", value: status ? { frequency: 5, depth: 0.5 } : null });
+
 		return status
-			? this.setVibrato({ frequency: 5, depth: 0.5 }).setFilterStatus(AvailableFilters.Tremolo, true)
-			: this.setVibrato().setFilterStatus(AvailableFilters.Tremolo, false);
+			? result.setFilterStatus(AvailableFilters.Tremolo, true)
+			: (await this.applyFilter({ property: "vibrato", value: null })).setFilterStatus(AvailableFilters.Tremolo, false);
 	}
 
 	/**
@@ -472,23 +544,27 @@ export class Filters {
 	 * @param {boolean} status - Whether to enable or disable the darthvader effect.
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public darthvader(status: boolean): this {
+	public async darthvader(status: boolean): Promise<this> {
+		const result = await this.applyFilter({ property: "timescale", value: status ? { speed: 1.0, pitch: 0.5, rate: 1.0 } : null });
+
 		return status
-			? this.setTimescale({ speed: 1.0, pitch: 0.5, rate: 1.0 }).setFilterStatus(AvailableFilters.Darthvader, true)
-			: this.setTimescale().setFilterStatus(AvailableFilters.Darthvader, false);
+			? result.setFilterStatus(AvailableFilters.Darthvader, true)
+			: (await this.applyFilter({ property: "timescale", value: null })).setFilterStatus(AvailableFilters.Darthvader, false);
 	}
 
 	/**
-	 * Applies a party daycore to the audio.
+	 * Applies a daycore effect to the audio.
 	 *
 	 * This method applies a daycore effect to audio.
 	 * @param {boolean} status - Whether to enable or disable the daycore effect.
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public daycore(status: boolean): this {
+	public async daycore(status: boolean): Promise<this> {
+		const result = await this.applyFilter({ property: "timescale", value: status ? { speed: 0.7, pitch: 0.8, rate: 0.8 } : null });
+
 		return status
-			? this.setTimescale({ speed: 0.7, pitch: 0.8, rate: 0.8 }).setFilterStatus(AvailableFilters.Daycore, true)
-			: this.setTimescale().setFilterStatus(AvailableFilters.Daycore, false);
+			? result.setFilterStatus(AvailableFilters.Daycore, true)
+			: (await this.applyFilter({ property: "timescale", value: null })).setFilterStatus(AvailableFilters.Daycore, false);
 	}
 
 	/**
@@ -496,12 +572,14 @@ export class Filters {
 	 *
 	 * This method applies a doubletime effect to audio.
 	 * @param {boolean} status - Whether to enable or disable the doubletime effect.
-	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
+	 * @returns {this} - Returns the current instance of the Filters class for method chaining
 	 */
-	public doubletime(status: boolean): this {
+	public async doubletime(status: boolean): Promise<this> {
+		const result = await this.applyFilter({ property: "timescale", value: status ? { speed: 2.0, pitch: 1.0, rate: 2.0 } : null });
+
 		return status
-			? this.setTimescale({ speed: 2.0, pitch: 1.0, rate: 2.0 }).setFilterStatus(AvailableFilters.Doubletime, true)
-			: this.setTimescale().setFilterStatus(AvailableFilters.Doubletime, false);
+			? result.setFilterStatus(AvailableFilters.Doubletime, true)
+			: (await this.applyFilter({ property: "timescale", value: null })).setFilterStatus(AvailableFilters.Doubletime, false);
 	}
 }
 
