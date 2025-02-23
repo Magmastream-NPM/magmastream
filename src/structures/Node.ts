@@ -652,8 +652,6 @@ export class Node {
 				} else {
 					await this.queueEnd(player, track, payload);
 				}
-				// If there are no more tracks in the queue
-				await this.queueEnd(player, track, payload);
 				break;
 			default:
 				this.manager.emit(ManagerEventTypes.NodeError, this, new Error(`Unexpected track end reason "${reason}"`));

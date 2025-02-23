@@ -1036,6 +1036,7 @@ export class Player {
 			await this.node.rest.destroyPlayer(this.guildId).catch(() => {});
 
 			this.manager.players.delete(this.guildId);
+
 			this.node = node;
 			this.manager.players.set(this.guildId, this);
 
@@ -1058,7 +1059,7 @@ export class Player {
 	 * @param {boolean} force - Whether to force the creation of a new player.
 	 * @returns {Promise<Player>} - The new player instance.
 	 */
-	public async switchGuild(newOptions: PlayerOptions): Promise<Player> {
+	public async switchGuild(newOptions: PlayerOptions, force: boolean = false): Promise<Player> {
 		let newPlayer = this.manager.players.get(newOptions.guildId);
 
 		// If the player already exists and force is false, return the existing player
@@ -1069,9 +1070,12 @@ export class Player {
 		const playerPosition = this.position;
 		const currentTrack = this.queue.current ? this.queue.current : null;
 
-		await this.node.rest.destroyPlayer(this.guildId).catch(() => {});
-
-		this.manager.players.delete(this.guildId);
+		if (force) {
+			await this.node.rest.destroyPlayer(this.guildId).catch(() => {});
+			this.manager.players.delete(this.guildId);
+			// Emit the PlayerCreate event
+			this.manager.emit(ManagerEventTypes.PlayerDestroy, this);
+		}
 		this.options.guildId = newOptions.guildId;
 		this.options.node = newOptions.node ?? this.options.node;
 		this.options.volume = newOptions.volume ?? this.options.volume;
@@ -1084,6 +1088,9 @@ export class Player {
 		this.guildId = newOptions.guildId;
 
 		this.manager.players.set(this.guildId, this);
+
+		// Emit the PlayerCreate event
+		this.manager.emit(ManagerEventTypes.PlayerCreate, this);
 
 		this.connect();
 
