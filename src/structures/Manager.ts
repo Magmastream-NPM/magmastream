@@ -282,7 +282,6 @@ export class Manager extends EventEmitter {
 		return this.players.get(guildId);
 	}
 
-	
 	/**
 	 * Destroys a player.
 	 * @param guildId The guild ID of the player to destroy.

@@ -1089,7 +1089,7 @@ export class Player {
 
 		await this.node.rest.updatePlayer({
 			guildId: this.guildId,
-			data: { paused: this.paused, volume: this.volume, position: playerPosition, encodedTrack: currentTrack?.track},
+			data: { paused: this.paused, volume: this.volume, position: playerPosition, encodedTrack: currentTrack?.track },
 		});
 
 		await this.filters.updateFilters();

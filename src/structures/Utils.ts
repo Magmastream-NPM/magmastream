@@ -72,11 +72,7 @@ export abstract class TrackUtils {
 			}
 			const t = track as Record<string, unknown>;
 			return (
-				typeof t.track === "string" &&
-				typeof t.title === "string" &&
-				typeof t.identifier === "string" &&
-				typeof t.isrc === "string" &&
-				typeof t.uri === "string"
+				typeof t.track === "string" && typeof t.title === "string" && typeof t.identifier === "string" && typeof t.isrc === "string" && typeof t.uri === "string"
 			);
 		};
 
