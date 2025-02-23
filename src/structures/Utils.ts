@@ -172,6 +172,11 @@ const structures = {
 	Player: require("./Player").Player,
 	Queue: require("./Queue").Queue,
 	Node: require("./Node").Node,
+	Filters: require("./Filters").Filters,
+	Manager: require("./Managers").Manager,
+	Plugin: require("./Plugins").Plugin,
+	Rest: require("./Rests").Rest,
+	Utils: require("./Utils"),
 };
 
 export type Sizes = "0" | "1" | "2" | "3" | "default" | "mqdefault" | "hqdefault" | "maxresdefault";
