@@ -116,7 +116,7 @@ export class Rest {
 			if (error?.response.data.message === "Guild not found") {
 				return [];
 			} else if (error?.response?.status === 404) {
-				this.node.destroy();
+				await this.node.destroy();
 				this.node.manager.createNode(this.node.options).connect();
 			}
 
