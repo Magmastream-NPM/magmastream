@@ -168,34 +168,6 @@ export abstract class Structure {
 	}
 }
 
-/** Miscellaneous functions */
-export abstract class Misc {
-	public static deepClone(obj, cache = new Map()) {
-		if (obj === null || typeof obj !== "object") {
-			return obj;
-		}
-		if (cache.has(obj)) {
-			return cache.get(obj);
-		}
-		if (Array.isArray(obj)) {
-			const clonedArray = [];
-			cache.set(obj, clonedArray);
-			for (const item of obj) {
-				clonedArray.push(Misc.deepClone(item, cache));
-			}
-			return clonedArray;
-		}
-		const clonedObj = Object.create(Object.getPrototypeOf(obj));
-		cache.set(obj, clonedObj);
-		for (const key in obj) {
-			if (obj.hasOwnProperty(key)) {
-				clonedObj[key] = Misc.deepClone(obj[key], cache);
-			}
-		}
-		return clonedObj;
-	}
-}
-
 const structures = {
 	Player: require("./Player").Player,
 	Queue: require("./Queue").Queue,

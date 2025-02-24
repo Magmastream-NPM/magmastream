@@ -333,7 +333,7 @@ export class Manager extends EventEmitter {
 		const player = this.players.get(update.guild_id);
 		if (!player) return;
 
-		this.emit(ManagerEventTypes.Debug, `[MANAGER] Updating voice state: ${update.guild_id}`);
+		this.emit(ManagerEventTypes.Debug, `[MANAGER] Updating voice state: ${JSON.stringify(update)}`);
 
 		if ("token" in update) {
 			return await this.handleVoiceServerUpdate(player, update);
@@ -509,8 +509,10 @@ export class Manager extends EventEmitter {
 							player.paused = false;
 							player.playing = true;
 						}
-						player.setTrackRepeat(state.trackRepeat);
-						player.setQueueRepeat(state.queueRepeat);
+
+						if (state.trackRepeat) player.setTrackRepeat(true);
+						if (state.queueRepeat) player.setQueueRepeat(true);
+
 						if (state.dynamicRepeat) {
 							player.setDynamicRepeat(state.dynamicRepeat, state.dynamicLoopInterval._idleTimeout);
 						}
@@ -737,6 +739,7 @@ export class Manager extends EventEmitter {
 			guildId: player.guildId,
 			data: { voice: { token, endpoint, sessionId } },
 		});
+		return;
 	}
 
 	/**
@@ -758,9 +761,11 @@ export class Manager extends EventEmitter {
 		}
 
 		this.emit(ManagerEventTypes.PlayerDisconnect, player, player.voiceChannelId);
+		
 		player.voiceChannelId = null;
 		player.voiceState = Object.assign({});
 		await player.destroy();
+		return;
 	}
 
 	/**

@@ -2,7 +2,7 @@ import { Filters } from "./Filters";
 import { Manager, ManagerEventTypes, PlayerStateEventTypes, SearchPlatform, SearchQuery, SearchResult } from "./Manager";
 import { Lyrics, Node, SponsorBlockSegment } from "./Node";
 import { Queue } from "./Queue";
-import { LoadTypes, Sizes, StateTypes, Structure, TrackSourceName, TrackUtils, VoiceState, Misc } from "./Utils";
+import { LoadTypes, Sizes, StateTypes, Structure, TrackSourceName, TrackUtils, VoiceState } from "./Utils";
 import * as _ from "lodash";
 import playerCheck from "../utils/playerCheck";
 import { ClientUser, Message, User } from "discord.js";
@@ -1059,43 +1059,49 @@ export class Player {
 	 * @returns {Promise<Player>} - The new player instance.
 	 */
 	public async switchGuild(newOptions: PlayerOptions, force: boolean = false): Promise<Player> {
+		if (!newOptions.guildId) throw new Error("guildId is required");
+		if (!newOptions.voiceChannelId) throw new Error("Voice channel ID is required");
+		if (!newOptions.textChannelId) throw new Error("Text channel ID is required");
+
 		// Check if a player already exists for the new guild
 		let newPlayer = this.manager.players.get(newOptions.guildId);
 
 		// If the player already exists and force is false, return the existing player
-		if (newPlayer && !force) {
-			return newPlayer;
-		}
+		if (newPlayer && !force) return newPlayer;
+
+		const oldPlayerProperties = {
+			paused: this.paused,
+			selfMute: this.options.selfMute,
+			selfDeafen: this.options.selfDeafen,
+			volume: this.volume,
+			position: this.position,
+			queue: {
+				current: this.queue.current,
+				tracks: [...this.queue],
+				previous: [...this.queue.previous],
+			},
+			trackRepeat: this.trackRepeat,
+			queueRepeat: this.queueRepeat,
+			dynamicRepeat: this.dynamicRepeat,
+			dynamicRepeatIntervalMs: this.dynamicRepeatIntervalMs,
+			ClientUser: this.get("Internal_BotUser"),
+			filters: this.filters,
+			nowPlayingMessage: this.nowPlayingMessage,
+			isAutoplay: this.isAutoplay,
+		};
 
 		// If force is true, destroy the existing player for the new guild
 		if (force && newPlayer) {
-			await newPlayer.node.rest.destroyPlayer(newOptions.guildId).catch(() => {});
-			this.manager.players.delete(newOptions.guildId);
-			this.manager.emit(ManagerEventTypes.PlayerDestroy, newPlayer);
+			await newPlayer.destroy();
 		}
 
+		newOptions.node = newOptions.node ?? this.options.node;
+		newOptions.selfDeafen = newOptions.selfDeafen ?? oldPlayerProperties.selfDeafen;
+		newOptions.selfMute = newOptions.selfMute ?? oldPlayerProperties.selfMute;
+		newOptions.volume = newOptions.volume ?? oldPlayerProperties.volume;
+
 		// Deep clone the current player
-		const clonedPlayer = Misc.deepClone(this, new Map());
-
-		// Update the cloned player's properties
-		clonedPlayer.guildId = newOptions.guildId;
-		clonedPlayer.textChannelId = newOptions.textChannelId;
-		clonedPlayer.voiceChannelId = newOptions.voiceChannelId;
-
-		// Update the cloned player's options
-		clonedPlayer.options.guildId = newOptions.guildId;
-		clonedPlayer.options.node = newOptions.node ?? this.options.node;
-		clonedPlayer.options.volume = newOptions.volume ?? this.options.volume;
-		clonedPlayer.options.selfMute = newOptions.selfMute ?? this.options.selfMute;
-		clonedPlayer.options.selfDeafen = newOptions.selfDeafen ?? this.options.selfDeafen;
-		clonedPlayer.options.textChannelId = newOptions.textChannelId;
-		clonedPlayer.options.voiceChannelId = newOptions.voiceChannelId;
-
-		// Add the cloned player to the manager's players map
-		this.manager.players.set(clonedPlayer.guildId, clonedPlayer);
-
-		// Emit the PlayerCreate event for the cloned player
-		this.manager.emit(ManagerEventTypes.PlayerCreate, clonedPlayer);
+		const clonedPlayer = this.manager.create(newOptions);
 
 		// Connect the cloned player to the new voice channel
 		clonedPlayer.connect();
@@ -1104,12 +1110,25 @@ export class Player {
 		await clonedPlayer.node.rest.updatePlayer({
 			guildId: clonedPlayer.guildId,
 			data: {
-				paused: clonedPlayer.paused,
-				volume: clonedPlayer.volume,
-				position: this.position, // Use the original player's position
-				encodedTrack: this.queue.current?.track, // Use the original player's current track
+				paused: oldPlayerProperties.paused,
+				volume: oldPlayerProperties.volume,
+				position: oldPlayerProperties.position,
+				encodedTrack: oldPlayerProperties.queue.current?.track,
 			},
 		});
+
+		clonedPlayer.queue.current = oldPlayerProperties.queue.current;
+		clonedPlayer.queue.previous = oldPlayerProperties.queue.previous;
+		clonedPlayer.queue.add(oldPlayerProperties.queue.tracks as Track[]);
+		clonedPlayer.filters = oldPlayerProperties.filters;
+		clonedPlayer.isAutoplay = oldPlayerProperties.isAutoplay;
+		clonedPlayer.nowPlayingMessage = oldPlayerProperties.nowPlayingMessage;
+		clonedPlayer.trackRepeat = oldPlayerProperties.trackRepeat;
+		clonedPlayer.queueRepeat = oldPlayerProperties.queueRepeat;
+		clonedPlayer.dynamicRepeat = oldPlayerProperties.dynamicRepeat;
+		clonedPlayer.dynamicRepeatIntervalMs = oldPlayerProperties.dynamicRepeatIntervalMs;
+		clonedPlayer.set("Internal_BotUser", oldPlayerProperties.ClientUser);
+		clonedPlayer.paused = oldPlayerProperties.paused;
 
 		// Update filters for the cloned player
 		await clonedPlayer.filters.updateFilters();
