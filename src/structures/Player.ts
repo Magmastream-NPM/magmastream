@@ -2,7 +2,7 @@ import { Filters } from "./Filters";
 import { Manager, ManagerEventTypes, PlayerStateEventTypes, SearchPlatform, SearchQuery, SearchResult } from "./Manager";
 import { Lyrics, Node, SponsorBlockSegment } from "./Node";
 import { Queue } from "./Queue";
-import { LoadTypes, Sizes, StateTypes, Structure, TrackSourceName, TrackUtils, VoiceState } from "./Utils";
+import { LoadTypes, Sizes, StateTypes, Structure, TrackSourceName, TrackUtils, VoiceState, Misc } from "./Utils";
 import * as _ from "lodash";
 import playerCheck from "../utils/playerCheck";
 import { ClientUser, Message, User } from "discord.js";
@@ -1060,63 +1060,79 @@ export class Player {
 	 * @returns {Promise<Player>} - The new player instance.
 	 */
 	public async switchGuild(newOptions: PlayerOptions, force: boolean = false): Promise<Player> {
+		// Check if a player already exists for the new guild
 		let newPlayer = this.manager.players.get(newOptions.guildId);
 
 		// If the player already exists and force is false, return the existing player
-		if (newPlayer) {
+		if (newPlayer && !force) {
 			return newPlayer;
 		}
 
-		const playerPosition = this.position;
-		const currentTrack = this.queue.current ? this.queue.current : null;
-
-		if (force) {
-			await this.node.rest.destroyPlayer(this.guildId).catch(() => {});
-			this.manager.players.delete(this.guildId);
-			// Emit the PlayerCreate event
-			this.manager.emit(ManagerEventTypes.PlayerDestroy, this);
+		// If force is true, destroy the existing player for the new guild
+		if (force && newPlayer) {
+			await newPlayer.node.rest.destroyPlayer(newOptions.guildId).catch(() => {});
+			this.manager.players.delete(newOptions.guildId);
+			this.manager.emit(ManagerEventTypes.PlayerDestroy, newPlayer);
 		}
-		this.options.guildId = newOptions.guildId;
-		this.options.node = newOptions.node ?? this.options.node;
-		this.options.volume = newOptions.volume ?? this.options.volume;
-		this.options.selfMute = newOptions.selfMute ?? this.options.selfMute;
-		this.options.selfDeafen = newOptions.selfDeafen ?? this.options.selfDeafen;
-		this.options.textChannelId = newOptions.textChannelId;
-		this.options.voiceChannelId = newOptions.voiceChannelId;
-		this.voiceChannelId = newOptions.voiceChannelId;
-		this.textChannelId = newOptions.textChannelId;
-		this.guildId = newOptions.guildId;
 
-		this.manager.players.set(this.guildId, this);
+		// Deep clone the current player
+		const clonedPlayer = Misc.deepClone(this, new Map());
 
-		// Emit the PlayerCreate event
-		this.manager.emit(ManagerEventTypes.PlayerCreate, this);
+		// Update the cloned player's properties
+		clonedPlayer.guildId = newOptions.guildId;
+		clonedPlayer.textChannelId = newOptions.textChannelId;
+		clonedPlayer.voiceChannelId = newOptions.voiceChannelId;
 
-		this.connect();
+		// Update the cloned player's options
+		clonedPlayer.options.guildId = newOptions.guildId;
+		clonedPlayer.options.node = newOptions.node ?? this.options.node;
+		clonedPlayer.options.volume = newOptions.volume ?? this.options.volume;
+		clonedPlayer.options.selfMute = newOptions.selfMute ?? this.options.selfMute;
+		clonedPlayer.options.selfDeafen = newOptions.selfDeafen ?? this.options.selfDeafen;
+		clonedPlayer.options.textChannelId = newOptions.textChannelId;
+		clonedPlayer.options.voiceChannelId = newOptions.voiceChannelId;
 
-		await this.node.rest.updatePlayer({
-			guildId: this.guildId,
-			data: { paused: this.paused, volume: this.volume, position: playerPosition, encodedTrack: currentTrack?.track },
+		// Add the cloned player to the manager's players map
+		this.manager.players.set(clonedPlayer.guildId, clonedPlayer);
+
+		// Emit the PlayerCreate event for the cloned player
+		this.manager.emit(ManagerEventTypes.PlayerCreate, clonedPlayer);
+
+		// Connect the cloned player to the new voice channel
+		clonedPlayer.connect();
+
+		// Update the player's state on the Lavalink node
+		await clonedPlayer.node.rest.updatePlayer({
+			guildId: clonedPlayer.guildId,
+			data: {
+				paused: clonedPlayer.paused,
+				volume: clonedPlayer.volume,
+				position: this.position, // Use the original player's position
+				encodedTrack: this.queue.current?.track, // Use the original player's current track
+			},
 		});
 
-		await this.filters.updateFilters();
+		// Update filters for the cloned player
+		await clonedPlayer.filters.updateFilters();
 
+		// Debug information
 		const debugInfo = {
 			success: true,
-			message: `Transferred ${this.queue.length} tracks successfully to <#${newOptions.voiceChannelId}> bound to <#${newOptions.textChannelId}>.`,
+			message: `Transferred ${clonedPlayer.queue.length} tracks successfully to <#${newOptions.voiceChannelId}> bound to <#${newOptions.textChannelId}>.`,
 			player: {
-				guildId: this.guildId,
-				voiceChannelId: this.voiceChannelId,
-				textChannelId: this.textChannelId,
-				volume: this.volume,
-				playing: this.playing,
-				queueSize: this.queue.size,
+				guildId: clonedPlayer.guildId,
+				voiceChannelId: clonedPlayer.voiceChannelId,
+				textChannelId: clonedPlayer.textChannelId,
+				volume: clonedPlayer.volume,
+				playing: clonedPlayer.playing,
+				queueSize: clonedPlayer.queue.size,
 			},
 		};
 
 		this.manager.emit(ManagerEventTypes.Debug, `[PLAYER] Transferred player to a new server: ${JSON.stringify(debugInfo)}.`);
-		// Return the new player
-		return this;
+
+		// Return the cloned player
+		return clonedPlayer;
 	}
 
 	/**
