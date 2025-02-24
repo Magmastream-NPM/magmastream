@@ -476,7 +476,7 @@ export class Node {
 					return;
 				}
 				this.manager.emit(ManagerEventTypes.Debug, `[NODE] Node message: ${JSON.stringify(payload)}`);
-				this.handleEvent(payload);
+				await this.handleEvent(payload);
 				break;
 			case "ready":
 				this.manager.emit(ManagerEventTypes.Debug, `[NODE] Node message: ${JSON.stringify(payload)}`);
@@ -491,7 +491,7 @@ export class Node {
 				}
 
 				if (this.options.resumeStatus) {
-					this.rest.patch(`/v4/sessions/${this.sessionId}`, {
+					await this.rest.patch(`/v4/sessions/${this.sessionId}`, {
 						resuming: this.options.resumeStatus,
 						timeout: this.options.resumeTimeout,
 					});

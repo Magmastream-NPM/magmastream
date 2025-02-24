@@ -452,7 +452,7 @@ export class Player {
 		// Determine if YouTube should be used
 		if (!apiKey && enabledSources.includes("youtube")) {
 			// Use YouTube-based autoplay
-			return await this.handleYouTubeRecommendations(node, track);
+			return await this.handleYouTubeRecommendations(track);
 		}
 
 		if (!apiKey) return [];
@@ -470,11 +470,10 @@ export class Player {
 
 	/**
 	 * Handles YouTube-based recommendations.
-	 * @param {Node} node - The node instance.
 	 * @param {Track} track - The track to find recommendations for.
 	 * @returns {Promise<Track[]>} - Array of recommended tracks.
 	 */
-	private async handleYouTubeRecommendations(node: Node, track: Track): Promise<Track[]> {
+	private async handleYouTubeRecommendations(track: Track): Promise<Track[]> {
 		// Check if the previous track has a YouTube URL
 		const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) => track.uri.includes(url));
 		// Get the video ID from the previous track's URL

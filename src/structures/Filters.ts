@@ -133,19 +133,19 @@ export class Filters {
 		}, {} as Record<AvailableFilters, boolean>);
 
 		this.player.filters = new Filters(this.player);
-		this.setEqualizer([]);
-		this.setDistortion(null);
-		this.setKaraoke(null);
-		this.setRotation(null);
-		this.setTimescale(null);
-		this.setVibrato(null);
+		await this.setEqualizer([]);
+		await this.setDistortion(null);
+		await this.setKaraoke(null);
+		await this.setRotation(null);
+		await this.setTimescale(null);
+		await this.setVibrato(null);
 
 		await this.updateFilters();
 		return this;
 	}
 
 	/**
-	 * Sets the equalizer on the audio.
+	 * Sets the own equalizer bands on the audio.
 	 *
 	 * This method adjusts the equalization curve of the player's audio output,
 	 * allowing you to control the frequency response.
@@ -158,7 +158,7 @@ export class Filters {
 	}
 
 	/**
-	 * Applies the karaoke filter to the audio.
+	 * Sets the own karaoke options to the audio.
 	 *
 	 * This method adjusts the audio so that it sounds like a karaoke song, with the
 	 * original vocals removed. Note that not all songs can be successfully made into
@@ -175,7 +175,7 @@ export class Filters {
 	}
 
 	/**
-	 * Sets the timescale of the audio.
+	 * Sets the own timescale options to the audio.
 	 *
 	 * This method adjusts the speed and pitch of the audio, allowing you to control the playback speed.
 	 *
@@ -190,7 +190,7 @@ export class Filters {
 	}
 
 	/**
-	 * Sets the vibrato effect on the audio.
+	 * Sets the own vibrato options to the audio.
 	 *
 	 * This method applies a vibrato effect to the audio, which adds a wavering,
 	 * pulsing quality to the sound. The effect is created by rapidly varying the
@@ -207,7 +207,7 @@ export class Filters {
 	}
 
 	/**
-	 * Sets the rotation effect on the audio.
+	 * Sets the own rotation options effect to the audio.
 	 *
 	 * This method applies a rotation effect to the audio, which simulates the sound
 	 * moving around the listener's head. This effect can create a dynamic and immersive
@@ -225,7 +225,7 @@ export class Filters {
 	}
 
 	/**
-	 * Sets the distortion effect on the audio.
+	 * Sets the own distortion options effect to the audio.
 	 *
 	 * This method applies a distortion effect to the audio, which adds a rougher,
 	 * more intense quality to the sound. The effect is created by altering the
@@ -349,7 +349,7 @@ export class Filters {
 	}
 
 	/**
-	 * Applies a soft equalizer effect to the audio.
+	 * Toggles a soft equalizer effect to the audio.
 	 *
 	 * This method applies or removes a soft equalizer effect by adjusting the equalizer settings.
 	 * When enabled, it reduces the bass and treble frequencies, giving the audio a softer and more
@@ -385,7 +385,7 @@ export class Filters {
 	}
 
 	/**
-	 * Applies the treble/bass equalizer effect to the audio.
+	 * Toggles the treble/bass equalizer effect on the audio.
 	 *
 	 * This method applies or removes a treble/bass equalizer effect by adjusting the equalizer settings.
 	 * When enabled, it enhances the treble and bass frequencies, giving the audio a more balanced sound.
@@ -461,7 +461,7 @@ export class Filters {
 	}
 
 	/**
-	 * Applies a party effect to the audio.
+	 * Toggles a party effect on the audio.
 	 *
 	 * This method applies a party effect to audio.
 	 * @param {boolean} status - Whether to enable or disable the party effect.
@@ -476,7 +476,7 @@ export class Filters {
 	}
 
 	/**
-	 * Applies earrape effect to the audio.
+	 * Toggles earrape effect on the audio.
 	 *
 	 * This method applies earrape effect to audio.
 	 * @param {boolean} status - Whether to enable or disable the earrape effect.
@@ -493,7 +493,7 @@ export class Filters {
 	}
 
 	/**
-	 * Applies electronic effect to the audio.
+	 * Toggles electronic effect on the audio.
 	 *
 	 * This method applies electronic effect to audio.
 	 * @param {boolean} status - Whether to enable or disable the electronic effect.
@@ -508,7 +508,7 @@ export class Filters {
 	}
 
 	/**
-	 * Applies radio effect to the audio.
+	 * Toggles radio effect on the audio.
 	 *
 	 * This method applies radio effect to audio.
 	 * @param {boolean} status - Whether to enable or disable the radio effect.
@@ -523,7 +523,7 @@ export class Filters {
 	}
 
 	/**
-	 * Applies a tremolo effect to the audio.
+	 * Toggles a tremolo effect on the audio.
 	 *
 	 * This method applies a tremolo effect to audio.
 	 * @param {boolean} status - Whether to enable or disable the tremolo effect.
@@ -538,7 +538,7 @@ export class Filters {
 	}
 
 	/**
-	 * Applies a darthvader effect to the audio.
+	 * Toggless a darthvader effect on the audio.
 	 *
 	 * This method applies a darthvader effect to audio.
 	 * @param {boolean} status - Whether to enable or disable the darthvader effect.
@@ -553,7 +553,7 @@ export class Filters {
 	}
 
 	/**
-	 * Applies a daycore effect to the audio.
+	 * Toggles a daycore effect on the audio.
 	 *
 	 * This method applies a daycore effect to audio.
 	 * @param {boolean} status - Whether to enable or disable the daycore effect.
@@ -568,7 +568,7 @@ export class Filters {
 	}
 
 	/**
-	 * Applies a doubletime effect to the audio.
+	 * Toggles a doubletime effect on the audio.
 	 *
 	 * This method applies a doubletime effect to audio.
 	 * @param {boolean} status - Whether to enable or disable the doubletime effect.
