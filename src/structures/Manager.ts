@@ -206,7 +206,7 @@ export class Manager extends EventEmitter {
 						playlistInfo: playlistData.pluginInfo as PlaylistInfoData[],
 						requester,
 						tracks,
-						duration: tracks.reduce((acc, cur) => acc + ((cur as unknown as TrackData).info.length || 0), 0),
+						duration: tracks.reduce((acc, cur) => acc + ((cur as unknown as Track).duration || 0), 0),
 					};
 					break;
 				}
