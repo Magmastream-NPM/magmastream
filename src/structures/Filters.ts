@@ -22,6 +22,7 @@ export class Filters {
 	public vibrato: vibratoOptions | null;
 	public reverb: reverbOptions | null;
 	public volume: number;
+	public bassBoostlevel: number;
 	public filtersStatus: Record<AvailableFilters, boolean>;
 
 	constructor(player: Player) {
@@ -33,6 +34,7 @@ export class Filters {
 		this.timescale = null;
 		this.vibrato = null;
 		this.volume = 1.0;
+		this.bassBoostlevel = 0;
 		// Initialize filter status
 		this.filtersStatus = Object.values(AvailableFilters).reduce((acc, filter) => {
 			acc[filter] = false;
@@ -245,20 +247,45 @@ export class Filters {
 	}
 
 	/**
-	 * Toggles the bass boost effect on the audio.
+	 * Sets the bass boost level on the audio.
 	 *
-	 * This method applies or removes a bass boost effect by adjusting the equalizer settings.
-	 * When enabled, it enhances the low frequencies of the audio, providing a richer and deeper sound.
+	 * This method scales the gain of a predefined equalizer curve to the specified level.
+	 * The curve is designed to emphasize or reduce low frequencies, creating a bass-heavy
+	 * or bass-reduced effect.
 	 *
-	 * @param {boolean} status - Whether to enable or disable the bass boost effect.
+	 * @param {number} level - The level of bass boost to apply. The value ranges from -3 to 3,
+	 *                         where negative values reduce bass, 0 disables the effect,
+	 *                         and positive values increase bass.
 	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
+	 *
+	 * @example
+	 * // Apply different levels of bass boost or reduction:
+	 * await player.bassBoost(3);  // Maximum Bass Boost
+	 * await player.bassBoost(2);  // Medium Bass Boost
+	 * await player.bassBoost(1);  // Mild Bass Boost
+	 * await player.bassBoost(0);  // No Effect (Disabled)
+	 * await player.bassBoost(-1); // Mild Bass Reduction
+	 * await player.bassBoost(-2); // Medium Bass Reduction
+	 * await player.bassBoost(-3); // Maximum Bass Removal
 	 */
-	public async bassBoost(status: boolean): Promise<this> {
-		const result = await this.applyFilter({ property: "equalizer", value: status ? bassBoostEqualizer : [] });
+	public async bassBoost(stage: number): Promise<this> {
+		// Ensure stage is between -3 and 3
+		stage = Math.max(-3, Math.min(3, stage));
 
-		return status
-			? result.setFilterStatus(AvailableFilters.BassBoost, true)
-			: (await this.applyFilter({ property: "equalizer", value: [] })).setFilterStatus(AvailableFilters.BassBoost, false);
+		// Map stage (-3 to 3) to range (-1.0 to 1.0)
+		const level = stage / 3; // Converts -3 to 3 → -1.0 to 1.0
+
+		// Generate a dynamic equalizer by scaling bassBoostEqualizer
+		const equalizer = bassBoostEqualizer.map((band) => ({
+			band: band.band,
+			gain: band.gain * level, // Scale the gain dynamically
+		}));
+
+		await this.applyFilter({ property: "equalizer", value: equalizer });
+		this.setFilterStatus(AvailableFilters.BassBoost, stage !== 0); // Active if stage is not 0
+		this.bassBoostlevel = stage;
+
+		return this;
 	}
 
 	/**

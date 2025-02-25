@@ -526,7 +526,7 @@ export class Manager extends EventEmitter {
 						}
 
 						const filterActions: Record<string, (enabled: boolean) => void> = {
-							bassboost: (enabled) => player.filters.bassBoost(enabled),
+							bassboost: () => player.filters.bassBoost(state.filters.bassBoostlevel),
 							distort: (enabled) => player.filters.distort(enabled),
 							setDistortion: () => player.filters.setDistortion(state.filters.distortion),
 							eightD: (enabled) => player.filters.eightD(enabled),
@@ -857,7 +857,9 @@ export class Manager extends EventEmitter {
 						rotation: value.rotation ?? null,
 						timescale: value.timescale ?? null,
 						vibrato: value.vibrato ?? null,
+						reverb: value.reverb ?? null,
 						volume: value.volume ?? 1.0,
+						bassBoostlevel: value.bassBoostlevel ?? null,
 						filterStatus: { ...value.filtersStatus },
 					};
 				}
