@@ -524,6 +524,41 @@ export class Manager extends EventEmitter {
 								player.set(name, value);
 							}
 						}
+
+						const filterActions: Record<string, (enabled: boolean) => void> = {
+							bassboost: (enabled) => player.filters.bassBoost(enabled),
+							distort: (enabled) => player.filters.distort(enabled),
+							setDistortion: () => player.filters.setDistortion(state.filters.distortion),
+							eightD: (enabled) => player.filters.eightD(enabled),
+							setKaraoke: () => player.filters.setKaraoke(state.filters.karaoke),
+							nightcore: (enabled) => player.filters.nightcore(enabled),
+							slowmo: (enabled) => player.filters.slowmo(enabled),
+							soft: (enabled) => player.filters.soft(enabled),
+							trebleBass: (enabled) => player.filters.trebleBass(enabled),
+							setTimescale: () => player.filters.setTimescale(state.filters.timescale),
+							tv: (enabled) => player.filters.tv(enabled),
+							vibrato: () => player.filters.setVibrato(state.filters.vibrato),
+							vaporwave: (enabled) => player.filters.vaporwave(enabled),
+							pop: (enabled) => player.filters.pop(enabled),
+							party: (enabled) => player.filters.party(enabled),
+							earrape: (enabled) => player.filters.earrape(enabled),
+							electronic: (enabled) => player.filters.electronic(enabled),
+							radio: (enabled) => player.filters.radio(enabled),
+							setRotation: () => player.filters.setRotation(state.filters.rotation),
+							tremolo: (enabled) => player.filters.tremolo(enabled),
+							china: (enabled) => player.filters.china(enabled),
+							chipmunk: (enabled) => player.filters.chipmunk(enabled),
+							darthvader: (enabled) => player.filters.darthvader(enabled),
+							daycore: (enabled) => player.filters.daycore(enabled),
+							doubletime: (enabled) => player.filters.doubletime(enabled),
+						};
+
+						// Iterate through filterStatus and apply the enabled filters
+						for (const [filter, isEnabled] of Object.entries(state.filters.filterStatus)) {
+							if (isEnabled && filterActions[filter]) {
+								filterActions[filter](true);
+							}
+						}
 					}
 				} catch (error) {
 					this.emit(ManagerEventTypes.Debug, `[MANAGER] Error processing file ${filePath}: ${error}`);
@@ -761,7 +796,7 @@ export class Manager extends EventEmitter {
 		}
 
 		this.emit(ManagerEventTypes.PlayerDisconnect, player, player.voiceChannelId);
-		
+
 		player.voiceChannelId = null;
 		player.voiceState = Object.assign({});
 		await player.destroy();
@@ -815,14 +850,14 @@ export class Manager extends EventEmitter {
 
 				if (key === "filters") {
 					return {
-						distortion: value.distortion,
-						equalizer: value.equalizer,
-						karaoke: value.karaoke,
-						rotation: value.rotation,
-						timescale: value.timescale,
-						vibrato: value.vibrato,
-						volume: value.volume,
-						filterStatus: value.filterStatus,
+						distortion: value.distortion ?? null,
+						equalizer: value.equalizer ?? [],
+						karaoke: value.karaoke ?? null,
+						rotation: value.rotation ?? null,
+						timescale: value.timescale ?? null,
+						vibrato: value.vibrato ?? null,
+						volume: value.volume ?? 1.0,
+						filterStatus: { ...value.filtersStatus },
 					};
 				}
 				if (key === "queue") {
