@@ -905,7 +905,10 @@ export class Player {
 		const oldPlayer = { ...this };
 
 		// Store the current track before changing it.
-		const currentTrackBeforeChange = this.queue.current as Track;
+		let currentTrackBeforeChange: Track;
+		if (this.queue.current) {
+			currentTrackBeforeChange = this.queue.current as Track;
+		}
 
 		// Get the last played track and remove it from the history
 		const lastTrack = this.queue.previous.shift() as Track;
@@ -915,7 +918,7 @@ export class Player {
 		await this.play(lastTrack);
 
 		// Add the current track back to the start of the queue.
-		this.queue.unshift(currentTrackBeforeChange);
+		if (currentTrackBeforeChange) this.queue.unshift(currentTrackBeforeChange);
 
 		// Emit a player state update event indicating the track change to previous.
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
