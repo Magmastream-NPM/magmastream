@@ -551,6 +551,7 @@ export class Manager extends EventEmitter {
 							darthvader: (enabled) => player.filters.darthvader(enabled),
 							daycore: (enabled) => player.filters.daycore(enabled),
 							doubletime: (enabled) => player.filters.doubletime(enabled),
+							demon: (enabled) => player.filters.demon(enabled),
 						};
 
 						// Iterate through filterStatus and apply the enabled filters

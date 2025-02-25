@@ -112,3 +112,9 @@ export const radioEqualizer: Band[] = [
 	{ band: 2, gain: 1.0 },
 	{ band: 3, gain: 0.5 },
 ];
+
+export const demonEqualizer: Band[] = [
+	{band: 1, gain: -0.6},
+	{band: 3, gain: -0.6},
+	{band: 5, gain: -0.6},
+]

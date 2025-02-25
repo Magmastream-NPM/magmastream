@@ -8,6 +8,7 @@ import {
 	trebleBassEqualizer,
 	tvEqualizer,
 	vaporwaveEqualizer,
+	demonEqualizer,
 } from "../utils/filtersEqualizers";
 import { Player } from "./Player";
 
@@ -19,6 +20,7 @@ export class Filters {
 	public rotation: rotationOptions | null;
 	public timescale: timescaleOptions | null;
 	public vibrato: vibratoOptions | null;
+	public reverb: reverbOptions | null;
 	public volume: number;
 	public filtersStatus: Record<AvailableFilters, boolean>;
 
@@ -581,6 +583,36 @@ export class Filters {
 			? result.setFilterStatus(AvailableFilters.Doubletime, true)
 			: (await this.applyFilter({ property: "timescale", value: null })).setFilterStatus(AvailableFilters.Doubletime, false);
 	}
+
+	/**
+	 * Toggles the demon effect on the audio.
+	 *
+	 * This method applies or removes a demon effect by adjusting the equalizer,
+	 * timescale, and reverb settings. When enabled, it creates a deeper and more
+	 * intense sound by lowering the pitch and adding reverb to the audio.
+	 *
+	 * @param {boolean} status - Whether to enable or disable the demon effect.
+	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
+	 */
+	public async demon(status: boolean): Promise<this> {
+		const filters = status
+			? {
+					equalizer: demonEqualizer,
+					timescale: { pitch: 0.8 },
+					reverb: { wet: 0.7, dry: 0.3, roomSize: 0.8, damping: 0.5 },
+			  }
+			: {
+					equalizer: [],
+					timescale: null,
+					reverb: null,
+			  };
+
+		await Promise.all(Object.entries(filters).map(([property, value]) => this.applyFilter({ property: property as keyof Filters, value })));
+
+		this.setFilterStatus(AvailableFilters.Demon, status);
+
+		return this;
+	}
 }
 
 /** Options for adjusting the timescale of audio. */
@@ -621,6 +653,14 @@ interface distortionOptions {
 	scale?: number;
 }
 
+/** Options for applying reverb effect to audio. */
+interface reverbOptions {
+	wet?: number;
+	dry?: number;
+	roomSize?: number;
+	damping?: number;
+}
+
 export enum AvailableFilters {
 	BassBoost = "bassboost",
 	Distort = "distort",
@@ -647,4 +687,5 @@ export enum AvailableFilters {
 	Darthvader = "darthvader",
 	Daycore = "daycore",
 	Doubletime = "doubletime",
+	Demon = "demon",
 }
