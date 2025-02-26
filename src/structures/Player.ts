@@ -403,7 +403,7 @@ export class Player {
 				throw new TypeError("botUser must be provided when enabling autoplay.");
 			}
 
-			if (!(botUser instanceof ClientUser) || !(botUser instanceof User)) {
+			if (!(botUser instanceof ClientUser) && !(botUser instanceof User)) {
 				throw new TypeError("botUser must be a user-object.");
 			}
 
