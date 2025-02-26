@@ -21,6 +21,7 @@ export default function managerCheck(options: ManagerOptions) {
 		useNode,
 		replaceYouTubeCredentials,
 		lastFmApiKey,
+		maxPreviousTracks,
 	} = options;
 
 	// Validate autoPlay option
@@ -64,7 +65,7 @@ export default function managerCheck(options: ManagerOptions) {
 		throw new TypeError('Manager option "send" must be present and a function.');
 	}
 
-// Validate trackPartial option
+	// Validate trackPartial option
 	if (typeof trackPartial !== "undefined") {
 		if (!Array.isArray(trackPartial)) {
 			throw new TypeError('Manager option "trackPartial" must be an array.');
@@ -107,5 +108,15 @@ export default function managerCheck(options: ManagerOptions) {
 	// Validate lastFmApiKey option
 	if (typeof lastFmApiKey !== "undefined" && (typeof lastFmApiKey !== "string" || lastFmApiKey.trim().length === 0)) {
 		throw new TypeError('Manager option "lastFmApiKey" must be a non-empty string.');
+	}
+
+	// Validate maxPreviousTracks option
+	if (typeof maxPreviousTracks !== "undefined") {
+		if (typeof maxPreviousTracks !== "number" || isNaN(maxPreviousTracks)) {
+			throw new TypeError('Manager option "maxPreviousTracks" must be a number.');
+		}
+		if (maxPreviousTracks <= 0) {
+			throw new TypeError('Manager option "maxPreviousTracks" must be a positive number.');
+		}
 	}
 }

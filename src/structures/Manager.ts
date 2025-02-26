@@ -8,6 +8,7 @@ import {
 	Structure,
 	TrackData,
 	TrackEndEvent,
+	TrackEndReasonTypes,
 	TrackExceptionEvent,
 	TrackStartEvent,
 	TrackStuckEvent,
@@ -40,20 +41,20 @@ export class Manager extends EventEmitter {
 	public initiated = false;
 
 	/**
-		* Initiates the Manager class.
-		* @param options
-		* @param options.plugins - An array of plugins to load.
-		* @param options.nodes - An array of node options to create nodes from.
-		* @param options.autoPlay - Whether to automatically play the first track in the queue when the player is created.
-		* @param options.autoPlaySearchPlatform - The search platform autoplay will use. Fallback to Youtube if not found.
-		* @param options.usePriority - Whether to use the priority when selecting a node to play on.
-		* @param options.clientName - The name of the client to send to Lavalink.
-		* @param options.defaultSearchPlatform - The default search platform to use when searching for tracks.
-		* @param options.useNode - The strategy to use when selecting a node to play on.
-		* @param options.trackPartial - The partial track search results to use when searching for tracks. This partials will always be presented on each track.
-		* @param options.eventBatchDuration - The duration to wait before processing the collected player state events.
-		* @param options.eventBatchInterval - The interval to wait before processing the collected player state events.
-		*/
+	 * Initiates the Manager class.
+	 * @param options
+	 * @param options.plugins - An array of plugins to load.
+	 * @param options.nodes - An array of node options to create nodes from.
+	 * @param options.autoPlay - Whether to automatically play the first track in the queue when the player is created.
+	 * @param options.autoPlaySearchPlatform - The search platform autoplay will use. Fallback to Youtube if not found.
+	 * @param options.usePriority - Whether to use the priority when selecting a node to play on.
+	 * @param options.clientName - The name of the client to send to Lavalink.
+	 * @param options.defaultSearchPlatform - The default search platform to use when searching for tracks.
+	 * @param options.useNode - The strategy to use when selecting a node to play on.
+	 * @param options.trackPartial - The partial track search results to use when searching for tracks. This partials will always be presented on each track.
+	 * @param options.eventBatchDuration - The duration to wait before processing the collected player state events.
+	 * @param options.eventBatchInterval - The interval to wait before processing the collected player state events.
+	 */
 	constructor(options: ManagerOptions) {
 		super();
 
@@ -84,6 +85,7 @@ export class Manager extends EventEmitter {
 			defaultSearchPlatform: SearchPlatform.YouTube,
 			autoPlaySearchPlatform: SearchPlatform.YouTube,
 			useNode: UseNodeOptions.LeastPlayers,
+			maxPreviousTracks: options.maxPreviousTracks ?? 20,
 			...options,
 		};
 
@@ -100,7 +102,6 @@ export class Manager extends EventEmitter {
 
 				// Prevent forced exit by Windows
 				setTimeout(() => {
-					console.log("Exiting now...");
 					process.exit(0);
 				}, 2000);
 			} catch (error) {
@@ -124,11 +125,11 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-		* Initiates the Manager.
-		* @param clientId - The Discord client ID (required).
-		* @param clusterId - The cluster ID which runs the current process (required).
-		* @returns The manager instance.
-		*/
+	 * Initiates the Manager.
+	 * @param clientId - The Discord client ID (required).
+	 * @param clusterId - The cluster ID which runs the current process (required).
+	 * @returns The manager instance.
+	 */
 	public init(clientId: string, clusterId: number = 0): this {
 		if (this.initiated) {
 			return this;
@@ -165,103 +166,80 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-		* Searches the enabled sources based off the URL or the `source` property.
-		* @param query
-		* @param requester
-		* @returns The search result.
-		*/
-	public async search<T = User | ClientUser>(query: string | SearchQuery, requester?: T): Promise<SearchResult> {
+	 * Searches the enabled sources based off the URL or the `source` property.
+	 * @param query
+	 * @param requester
+	 * @returns The search result.
+	 */
+	public async search<T extends User | ClientUser = User | ClientUser>(query: string | SearchQuery, requester?: T): Promise<SearchResult> {
 		const node = this.useableNode;
-
-		if (!node) {
-			throw new Error("No available nodes.");
-		}
+		if (!node) throw new Error("No available nodes.");
 
 		const _query: SearchQuery = typeof query === "string" ? { query } : query;
 		const _source = _query.source ?? this.options.defaultSearchPlatform;
-
-		let search = _query.query;
-
-		if (!/^https?:\/\//.test(search)) {
-			search = `${_source}:${search}`;
-		}
+		let search = /^https?:\/\//.test(_query.query) ? _query.query : `${_source}:${_query.query}`;
 
 		this.emit(ManagerEventTypes.Debug, `[MANAGER] Performing ${_source} search for: ${_query.query}`);
 
 		try {
 			const res = (await node.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(search)}`)) as LavalinkResponse;
+			if (!res) throw new Error("Query not found.");
 
-			if (!res) {
-				throw new Error("Query not found.");
-			}
-
-			let searchData = [];
-			let playlistData: PlaylistRawData | undefined;
+			let tracks: Track[] = [];
+			let playlist: SearchResult["playlist"] = null;
 
 			switch (res.loadType) {
 				case LoadTypes.Search:
-					searchData = res.data as TrackData[];
+					tracks = (res.data as TrackData[]).map((track) => TrackUtils.build(track, requester));
 					break;
 
 				case LoadTypes.Track:
-					searchData = [res.data as TrackData[]];
+					tracks = [TrackUtils.build(res.data as unknown as TrackData, requester)];
 					break;
 
-				case LoadTypes.Playlist:
-					playlistData = res.data as PlaylistRawData;
+				case LoadTypes.Playlist: {
+					const playlistData = res.data as PlaylistRawData;
+					tracks = playlistData.tracks.map((track) => TrackUtils.build(track, requester));
+
+					playlist = {
+						name: playlistData.info.name,
+						playlistInfo: playlistData.pluginInfo as PlaylistInfoData[],
+						requester,
+						tracks,
+						duration: tracks.reduce((acc, cur) => acc + ((cur as unknown as Track).duration || 0), 0),
+					};
 					break;
-			}
-
-			const tracks = searchData.map((track) => TrackUtils.build(track, requester));
-			let playlist = null;
-
-			if (res.loadType === LoadTypes.Playlist) {
-				playlist = {
-					name: playlistData!.info.name,
-					playlistInfo: playlistData.pluginInfo,
-					requester: requester,
-					tracks: playlistData!.tracks.map((track) => TrackUtils.build(track, requester)),
-					duration: playlistData!.tracks.reduce((acc, cur) => acc + (cur.info.length || 0), 0),
-				};
-			}
-
-			const result: SearchResult = {
-				loadType: res.loadType,
-				tracks,
-				playlist,
-			};
-
-			if (this.options.replaceYouTubeCredentials) {
-				const replaceCreditsURLs = ["youtube.com", "youtu.be"];
-
-				const processTrack = (track: Track) => {
-					if (!replaceCreditsURLs.some((url) => track.uri.includes(url))) return track;
-
-					const { cleanTitle, cleanAuthor } = this.parseYouTubeTitle(track.title, track.author);
-					track.title = cleanTitle;
-					track.author = cleanAuthor;
-					return track;
-				};
-
-				if (result.loadType === LoadTypes.Playlist) {
-					result.playlist.tracks = result.playlist.tracks.map(processTrack);
-				} else {
-					result.tracks = result.tracks.map(processTrack);
 				}
 			}
 
+			if (this.options.replaceYouTubeCredentials) {
+				const processTrack = (track: Track): Track => {
+					if (!/(youtube\.com|youtu\.be)/.test(track.uri)) return track;
+					const { cleanTitle, cleanAuthor } = this.parseYouTubeTitle(track.title, track.author);
+					return { ...track, title: cleanTitle, author: cleanAuthor };
+				};
+
+				if (playlist) {
+					playlist.tracks = playlist.tracks.map(processTrack);
+				} else {
+					tracks = tracks.map(processTrack);
+				}
+			}
+
+			const result: SearchResult = { loadType: res.loadType, tracks, playlist };
 			this.emit(ManagerEventTypes.Debug, `[MANAGER] Result ${_source} search for: ${_query.query}: ${JSON.stringify(result)}`);
+
 			return result;
 		} catch (err) {
-			throw new Error(err);
+			throw new Error(`An error occurred while searching: ${err}`);
 		}
 	}
 
 	/**
-		* Creates a player or returns one if it already exists.
-		* @param options The options to create the player with.
-		* @returns The created player.
-		*/
+	 * Creates a player or returns one if it already exists.
+	 * @param options The options to create the player with.
+	 * @returns The created player.
+	 */
 	public create(options: PlayerOptions): Player {
 		if (this.players.has(options.guildId)) {
 			return this.players.get(options.guildId);
@@ -273,21 +251,20 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-		* Returns a player or undefined if it does not exist.
-		* @param guildId The guild ID of the player to retrieve.
-		* @returns The player if it exists, undefined otherwise.
-		*/
+	 * Returns a player or undefined if it does not exist.
+	 * @param guildId The guild ID of the player to retrieve.
+	 * @returns The player if it exists, undefined otherwise.
+	 */
 	public get(guildId: string): Player | undefined {
 		return this.players.get(guildId);
 	}
 
 	/**
-		* Destroys a player if it exists and cleans up inactive players.
-		* @param guildId - The guild ID of the player to destroy.
-		* @returns {void}
-		* @emits {debug} - Emits a debug message indicating the player is being destroyed.
-		*/
-	public destroy(guildId: string): void {
+	 * Destroys a player.
+	 * @param guildId The guild ID of the player to destroy.
+	 * @returns A promise that resolves when the player has been destroyed.
+	 */
+	public async destroy(guildId: string): Promise<void> {
 		// Emit debug message for player destruction
 		this.emit(ManagerEventTypes.Debug, `[MANAGER] Destroying player: ${guildId}`);
 
@@ -295,14 +272,14 @@ export class Manager extends EventEmitter {
 		this.players.delete(guildId);
 
 		// Clean up any inactive players
-		this.cleanupInactivePlayers();
+		await this.cleanupInactivePlayers();
 	}
 
 	/**
-		* Creates a new node or returns an existing one if it already exists.
-		* @param options - The options to create the node with.
-		* @returns The created node.
-		*/
+	 * Creates a new node or returns an existing one if it already exists.
+	 * @param options - The options to create the node with.
+	 * @returns The created node.
+	 */
 	public createNode(options: NodeOptions): Node {
 		// Check if the node already exists in the manager's collection
 		if (this.nodes.has(options.identifier || options.host)) {
@@ -318,85 +295,61 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-		* Destroys a node if it exists. Emits a debug event if the node is found and destroyed.
-		* @param identifier - The identifier of the node to destroy.
-		* @returns {void}
-		* @emits {debug} - Emits a debug message indicating the node is being destroyed.
-		*/
-	public destroyNode(identifier: string): void {
+	 * Destroys a node if it exists. Emits a debug event if the node is found and destroyed.
+	 * @param identifier - The identifier of the node to destroy.
+	 * @returns {void}
+	 * @emits {debug} - Emits a debug message indicating the node is being destroyed.
+	 */
+	public async destroyNode(identifier: string): Promise<void> {
 		const node = this.nodes.get(identifier);
 		if (!node) return;
 		this.emit(ManagerEventTypes.Debug, `[MANAGER] Destroying node: ${identifier}`);
-		node.destroy();
+		await node.destroy();
 		this.nodes.delete(identifier);
 	}
 
 	/**
-		* Attaches an event listener to the manager.
-		* @param event The event to listen for.
-		* @param listener The function to call when the event is emitted.
-		* @returns The manager instance for chaining.
-		*/
+	 * Attaches an event listener to the manager.
+	 * @param event The event to listen for.
+	 * @param listener The function to call when the event is emitted.
+	 * @returns The manager instance for chaining.
+	 */
 	public on<T extends keyof ManagerEvents>(event: T, listener: (...args: ManagerEvents[T]) => void): this {
 		return super.on(event, listener);
 	}
 
 	/**
-		* Sends voice data to the Lavalink server.
-		* @param data
-		*/
+	 * Updates the voice state of a player based on the provided data.
+	 * @param data - The data containing voice state information, which can be a VoicePacket, VoiceServer, or VoiceState.
+	 * @returns A promise that resolves when the voice state update is handled.
+	 * @emits {debug} - Emits a debug message indicating the voice state is being updated.
+	 */
 	public async updateVoiceState(data: VoicePacket | VoiceServer | VoiceState): Promise<void> {
-		if ("t" in data && !["VOICE_STATE_UPDATE", "VOICE_SERVER_UPDATE"].includes(data.t)) return;
+		if (!this.isVoiceUpdate(data)) return;
 
 		const update = "d" in data ? data.d : data;
-
-		if (!update || (!("token" in update) && !("session_id" in update))) return;
+		if (!this.isValidUpdate(update)) return;
 
 		const player = this.players.get(update.guild_id);
-
 		if (!player) return;
+
 		this.emit(ManagerEventTypes.Debug, `[MANAGER] Updating voice state: ${JSON.stringify(update)}`);
+
 		if ("token" in update) {
-			player.voiceState.event = update;
-
-			const {
-				sessionId,
-				event: { token, endpoint },
-			} = player.voiceState;
-
-			await player.node.rest.updatePlayer({
-				guildId: player.guildId,
-				data: { voice: { token, endpoint, sessionId } },
-			});
-
-			return;
+			return await this.handleVoiceServerUpdate(player, update);
 		}
 
 		if (update.user_id !== this.options.clientId) return;
-		if (update.channel_id) {
-			if (player.voiceChannelId !== update.channel_id) {
-				this.emit(ManagerEventTypes.PlayerMove, player, player.voiceChannelId, update.channel_id);
-			}
-
-			player.voiceState.sessionId = update.session_id;
-			player.voiceChannelId = update.channel_id;
-			return;
-		}
-
-		this.emit(ManagerEventTypes.PlayerDisconnect, player, player.voiceChannelId);
-		player.voiceChannelId = null;
-		player.voiceState = Object.assign({});
-		player.destroy();
-		return;
+		return await this.handleVoiceStateUpdate(player, update);
 	}
 
 	/**
-		* Decodes an array of base64 encoded tracks and returns an array of TrackData.
-		* Emits a debug event with the tracks being decoded.
-		* @param tracks - An array of base64 encoded track strings.
-		* @returns A promise that resolves to an array of TrackData objects.
-		* @throws Will throw an error if no nodes are available or if the API request fails.
-		*/
+	 * Decodes an array of base64 encoded tracks and returns an array of TrackData.
+	 * Emits a debug event with the tracks being decoded.
+	 * @param tracks - An array of base64 encoded track strings.
+	 * @returns A promise that resolves to an array of TrackData objects.
+	 * @throws Will throw an error if no nodes are available or if the API request fails.
+	 */
 	public decodeTracks(tracks: string[]): Promise<TrackData[]> {
 		this.emit(ManagerEventTypes.Debug, `[MANAGER] Decoding tracks: ${JSON.stringify(tracks)}`);
 		return new Promise(async (resolve, reject) => {
@@ -414,11 +367,11 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-		* Decodes a base64 encoded track and returns a TrackData.
-		* @param track - The base64 encoded track string.
-		* @returns A promise that resolves to a TrackData object.
-		* @throws Will throw an error if no nodes are available or if the API request fails.
-		*/
+	 * Decodes a base64 encoded track and returns a TrackData.
+	 * @param track - The base64 encoded track string.
+	 * @returns A promise that resolves to a TrackData object.
+	 * @throws Will throw an error if no nodes are available or if the API request fails.
+	 */
 	public async decodeTrack(track: string): Promise<TrackData> {
 		const res = await this.decodeTracks([track]);
 		// Since we're only decoding one track, we can just return the first element of the array
@@ -426,45 +379,21 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-	 * Gets each player's JSON file
-	 * @param {string} guildId - The guild ID
-	 * @returns {string} The path to the player's JSON file
-	 */
-	private async getPlayerFilePath(guildId: string): Promise<string> {
-		const configDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
-
-		try {
-			await fs.mkdir(configDir, { recursive: true });
-			return path.join(configDir, `${guildId}.json`);
-		} catch (err) {
-			console.error("Error ensuring player data directory exists:", err);
-			throw new Error(`Failed to resolve player file path for guild ${guildId}`);
-		}
-	}
-
-	/**
 	 * Saves player states to the JSON file.
 	 * @param {string} guildId - The guild ID of the player to save
 	 */
 	public async savePlayerState(guildId: string): Promise<void> {
-		console.log(`Attempting to save player state for guild: ${guildId}`);
-
 		try {
 			const playerStateFilePath = await this.getPlayerFilePath(guildId);
-			console.log(`Resolved file path: ${playerStateFilePath}`);
-
 			const player = this.players.get(guildId);
 			if (!player || player.state === StateTypes.Disconnected || !player.voiceChannelId) {
 				console.warn(`Skipping save for inactive player: ${guildId}`);
 				return;
 			}
 
-			console.log(`Serializing player state for: ${guildId}`);
 			const serializedPlayer = this.serializePlayer(player);
 
-			console.log(`Writing player state to file: ${playerStateFilePath}`);
 			await fs.writeFile(playerStateFilePath, JSON.stringify(serializedPlayer, null, 2), "utf-8");
-			console.log(`Successfully saved player state for: ${guildId}`);
 
 			this.emit(ManagerEventTypes.Debug, `[MANAGER] Player state saved: ${guildId}`);
 		} catch (error) {
@@ -473,10 +402,10 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-		* Loads player states from the JSON file.
-		* @param nodeId The ID of the node to load player states from.
-		* @returns A promise that resolves when the player states have been loaded.
-		*/
+	 * Loads player states from the JSON file.
+	 * @param nodeId The ID of the node to load player states from.
+	 * @returns A promise that resolves when the player states have been loaded.
+	 */
 	public async loadPlayerStates(nodeId: string): Promise<void> {
 		this.emit(ManagerEventTypes.Debug, "[MANAGER] Loading saved players.");
 		const node = this.nodes.get(nodeId);
@@ -511,8 +440,7 @@ export class Manager extends EventEmitter {
 					if (state && typeof state === "object" && state.guildId && state.node.options.identifier === nodeId) {
 						const lavaPlayer = info.find((player) => player.guildId === state.guildId);
 						if (!lavaPlayer) {
-							this.destroy(state.guildId);
-							continue;
+							await this.destroy(state.guildId);
 						}
 
 						const playerOptions: PlayerOptions = {
@@ -526,68 +454,110 @@ export class Manager extends EventEmitter {
 						this.emit(ManagerEventTypes.Debug, `[MANAGER] Recreating player: ${state.guildId} from saved file: ${JSON.stringify(state.options)}`);
 						const player = this.create(playerOptions);
 
+						await player.node.rest.updatePlayer({
+							guildId: state.options.guildId,
+							data: { voice: { token: state.voiceState.event.token, endpoint: state.voiceState.event.endpoint, sessionId: state.voiceState.sessionId } },
+						});
+
 						player.connect();
 
 						const tracks = [];
 
-						if (!lavaPlayer.track) {
-							if (state.queue.current !== null) {
-								for (const key in state.queue) {
-									if (!isNaN(Number(key)) && key !== "current" && key !== "previous" && key !== "manager") {
-										const song = state.queue[key];
-										tracks.push(song, song.requester);
-									}
-								}
+						const currentTrack = state.queue.current;
+						const queueTracks = state.queue.tracks;
 
-								if (tracks.length > 0) {
-									player.queue.add(tracks);
-									if (!state.paused && lavaPlayer.state.connected) player.play();
-								} else {
-									const payload = {
-										reason: "finished",
-									};
-									await node.queueEnd(player, state.queue.current, payload as TrackEndEvent);
+						if (lavaPlayer) {
+							if (lavaPlayer.track) {
+								tracks.push(...queueTracks);
+								if (currentTrack && currentTrack.uri === lavaPlayer.track.info.uri) {
+									player.queue.current = TrackUtils.build(lavaPlayer.track as TrackData, currentTrack.requester);
 								}
 							} else {
-								if (state.queue.previous !== null) {
+								if (!currentTrack) {
 									const payload = {
-										reason: "finished",
+										reason: TrackEndReasonTypes.Finished,
 									};
-									await node.queueEnd(player, state.queue.previous, payload as TrackEndEvent);
+									await node.queueEnd(player, currentTrack, payload as TrackEndEvent);
 								} else {
-									this.destroy(state.guildId);
-									continue;
+									tracks.push(currentTrack, ...queueTracks);
 								}
 							}
 						} else {
-							tracks.push(state.queue.current as Track);
-
-							for (const key in state.queue) {
-								if (!isNaN(Number(key)) && key !== "current" && key !== "previous" && key !== "manager") {
-									const song = state.queue[key];
-									tracks.push(song as Track);
-								}
+							if (!currentTrack) {
+								const payload = {
+									reason: TrackEndReasonTypes.Finished,
+								};
+								await node.queueEnd(player, currentTrack, payload as TrackEndEvent);
+							} else {
+								tracks.push(currentTrack, ...queueTracks);
 							}
+						}
+
+						if (tracks.length > 0) {
 							player.queue.add(tracks as Track[]);
 						}
 
+						if (state.queue.previous.length > 0) {
+							player.queue.previous = state.queue.previous;
+						} else {
+							player.queue.previous = [];
+						}
+
 						if (state.paused) {
-							player.pause(true);
+							await player.pause(true);
 						} else {
 							player.paused = false;
 							player.playing = true;
 						}
-						player.setTrackRepeat(state.trackRepeat);
-						player.setQueueRepeat(state.queueRepeat);
+
+						if (state.trackRepeat) player.setTrackRepeat(true);
+						if (state.queueRepeat) player.setQueueRepeat(true);
+
 						if (state.dynamicRepeat) {
 							player.setDynamicRepeat(state.dynamicRepeat, state.dynamicLoopInterval._idleTimeout);
 						}
 						if (state.isAutoplay && state?.data?.Internal_BotUser) {
 							player.setAutoplay(state.isAutoplay, state.data.Internal_BotUser as User | ClientUser);
 						}
-						if(state.data) {
-							for (const [name, value] of  Object.entries(state.data)) {
+						if (state.data) {
+							for (const [name, value] of Object.entries(state.data)) {
 								player.set(name, value);
+							}
+						}
+
+						const filterActions: Record<string, (enabled: boolean) => void> = {
+							bassboost: () => player.filters.bassBoost(state.filters.bassBoostlevel),
+							distort: (enabled) => player.filters.distort(enabled),
+							setDistortion: () => player.filters.setDistortion(state.filters.distortion),
+							eightD: (enabled) => player.filters.eightD(enabled),
+							setKaraoke: () => player.filters.setKaraoke(state.filters.karaoke),
+							nightcore: (enabled) => player.filters.nightcore(enabled),
+							slowmo: (enabled) => player.filters.slowmo(enabled),
+							soft: (enabled) => player.filters.soft(enabled),
+							trebleBass: (enabled) => player.filters.trebleBass(enabled),
+							setTimescale: () => player.filters.setTimescale(state.filters.timescale),
+							tv: (enabled) => player.filters.tv(enabled),
+							vibrato: () => player.filters.setVibrato(state.filters.vibrato),
+							vaporwave: (enabled) => player.filters.vaporwave(enabled),
+							pop: (enabled) => player.filters.pop(enabled),
+							party: (enabled) => player.filters.party(enabled),
+							earrape: (enabled) => player.filters.earrape(enabled),
+							electronic: (enabled) => player.filters.electronic(enabled),
+							radio: (enabled) => player.filters.radio(enabled),
+							setRotation: () => player.filters.setRotation(state.filters.rotation),
+							tremolo: (enabled) => player.filters.tremolo(enabled),
+							china: (enabled) => player.filters.china(enabled),
+							chipmunk: (enabled) => player.filters.chipmunk(enabled),
+							darthvader: (enabled) => player.filters.darthvader(enabled),
+							daycore: (enabled) => player.filters.daycore(enabled),
+							doubletime: (enabled) => player.filters.doubletime(enabled),
+							demon: (enabled) => player.filters.demon(enabled),
+						};
+
+						// Iterate through filterStatus and apply the enabled filters
+						for (const [filter, isEnabled] of Object.entries(state.filters.filterStatus)) {
+							if (isEnabled && filterActions[filter]) {
+								filterActions[filter](true);
 							}
 						}
 					}
@@ -623,148 +593,6 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-	 * Serializes a Player instance to avoid circular references.
-	 * @param player The Player instance to serialize
-	 * @returns The serialized Player instance
-	 */
-	private serializePlayer(player: Player): Record<string, unknown> {
-		const seen = new WeakSet();
-
-		/**
-		 * Recursively serializes an object, avoiding circular references.
-		 * @param obj The object to serialize
-		 * @returns The serialized object
-		 */
-		const serialize = (obj: unknown): unknown => {
-			if (obj && typeof obj === "object") {
-				if (seen.has(obj)) return;
-
-				seen.add(obj);
-			}
-			return obj;
-		};
-
-		return JSON.parse(
-			JSON.stringify(player, (key, value) => {
-				if (key === "filters" || key === "manager") {
-					return null;
-				}
-
-				if (key === "queue") {
-					return {
-						...value,
-						current: value.current || null,
-					};
-				}
-
-				return serialize(value);
-			})
-		);
-	}
-	/**
-	 * Checks for players that are no longer active and deletes their saved state files.
-	 * This is done to prevent stale state files from accumulating on the file system.
-	 */
-	private async cleanupInactivePlayers(): Promise<void> {
-		const playerStatesDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
-
-		try {
-			// Check if the directory exists, and create it if it doesn't
-			await fs.access(playerStatesDir).catch(async () => {
-				await fs.mkdir(playerStatesDir, { recursive: true });
-				this.emit(ManagerEventTypes.Debug, `[MANAGER] Created directory: ${playerStatesDir}`);
-			});
-
-			// Get the list of player state files
-			const playerFiles = await fs.readdir(playerStatesDir);
-
-			// Get the set of active guild IDs from the manager's player collection
-			const activeGuildIds = new Set(this.players.keys());
-
-			// Iterate over the player state files
-			for (const file of playerFiles) {
-				// Get the guild ID from the file name
-				const guildId = path.basename(file, ".json");
-
-				// If the guild ID is not in the set of active guild IDs, delete the file
-				if (!activeGuildIds.has(guildId)) {
-					const filePath = path.join(playerStatesDir, file);
-					await fs.unlink(filePath); // Delete the file asynchronously
-					this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleting inactive player: ${guildId}`);
-				}
-			}
-		} catch (error) {
-			this.emit(ManagerEventTypes.Debug, `[MANAGER] Error cleaning up inactive players: ${error}`);
-		}
-	}
-
-	/**
-	 * Returns the nodes that has the least load.
-	 * The load is calculated by dividing the lavalink load by the number of cores.
-	 * The result is multiplied by 100 to get a percentage.
-	 * @returns {Collection<string, Node>}
-	 */
-	private get leastLoadNode(): Collection<string, Node> {
-		return this.nodes
-			.filter((node) => node.connected)
-			.sort((a, b) => {
-				const aload = a.stats.cpu ? (a.stats.cpu.lavalinkLoad / a.stats.cpu.cores) * 100 : 0;
-				const bload = b.stats.cpu ? (b.stats.cpu.lavalinkLoad / b.stats.cpu.cores) * 100 : 0;
-				// Sort the nodes by their load in ascending order
-				return aload - bload;
-			});
-	}
-
-	/**
-	 * Returns the nodes that have the least amount of players.
-	 * Filters out disconnected nodes and sorts the remaining nodes
-	 * by the number of players in ascending order.
-	 * @returns {Collection<string, Node>} A collection of nodes sorted by player count.
-	 */
-	private get leastPlayersNode(): Collection<string, Node> {
-		return this.nodes
-			.filter((node) => node.connected) // Filter out nodes that are not connected
-			.sort((a, b) => a.stats.players - b.stats.players); // Sort by the number of players
-	}
-
-	/**
-	 * Returns a node based on priority.
-	 * The nodes are sorted by priority in descending order, and then a random number
-	 * between 0 and 1 is generated. The node that has a cumulative weight greater than or equal to the
-	 * random number is returned.
-	 * If no node has a cumulative weight greater than or equal to the random number, the node with the
-	 * lowest load is returned.
-	 * @returns {Node} The node to use.
-	 */
-	private get priorityNode(): Node {
-		// Filter out nodes that are not connected or have a priority of 0
-		const filteredNodes = this.nodes.filter((node) => node.connected && node.options.priority > 0);
-		// Calculate the total weight
-		const totalWeight = filteredNodes.reduce((total, node) => total + node.options.priority, 0);
-		// Map the nodes to their weights
-		const weightedNodes = filteredNodes.map((node) => ({
-			node,
-			weight: node.options.priority / totalWeight,
-		}));
-		// Generate a random number between 0 and 1
-		const randomNumber = Math.random();
-
-		// Initialize the cumulative weight to 0
-		let cumulativeWeight = 0;
-
-		// Loop through the weighted nodes and find the first node that has a cumulative weight greater than or equal to the random number
-		for (const { node, weight } of weightedNodes) {
-			cumulativeWeight += weight;
-			if (randomNumber <= cumulativeWeight) {
-				return node;
-			}
-		}
-
-		// If no node has a cumulative weight greater than or equal to the random number, return the node with the lowest load
-		return this.options.useNode === UseNodeOptions.LeastLoad ? this.leastLoadNode.first() : this.leastPlayersNode.first();
-	}
-
-	/**
 	 * Returns the node to use based on the configured `useNode` and `usePriority` options.
 	 * If `usePriority` is true, the node is chosen based on priority, otherwise it is chosen based on the `useNode` option.
 	 * If `useNode` is "leastLoad", the node with the lowest load is chosen, if it is "leastPlayers", the node with the fewest players is chosen.
@@ -791,7 +619,6 @@ export class Manager extends EventEmitter {
 
 		try {
 			const savePromises = Array.from(this.players.keys()).map(async (guildId) => {
-				console.log(`Saving state for guild: ${guildId}`); // Debugging
 				try {
 					await this.savePlayerState(guildId);
 				} catch (error) {
@@ -799,18 +626,12 @@ export class Manager extends EventEmitter {
 				}
 			});
 
-			console.log("Waiting for all player states to save...");
 			await Promise.allSettled(savePromises);
-			console.log("All player states saved.");
 
-			console.log("Cleaning up inactive players...");
 			await this.cleanupInactivePlayers();
-			console.log("Cleanup complete.");
-
-			console.warn("\x1b[32m%s\x1b[0m", "MAGMASTREAM INFO: Shutting down complete, exiting...");
 
 			setTimeout(() => {
-				console.log("Exiting process...");
+				console.warn("\x1b[32m%s\x1b[0m", "MAGMASTREAM INFO: Shutting down complete, exiting...");
 				process.exit(0);
 			}, 500);
 		} catch (error) {
@@ -914,6 +735,249 @@ export class Manager extends EventEmitter {
 		// Replace special regex characters with their escaped counterparts
 		return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 	}
+
+	/**
+	 * Checks if the given data is a voice update.
+	 * @param data The data to check.
+	 * @returns Whether the data is a voice update.
+	 */
+	private isVoiceUpdate(data: VoicePacket | VoiceServer | VoiceState): boolean {
+		return "t" in data && ["VOICE_STATE_UPDATE", "VOICE_SERVER_UPDATE"].includes(data.t);
+	}
+
+	/**
+	 * Determines if the provided update is a valid voice update.
+	 * A valid update must contain either a token or a session_id.
+	 *
+	 * @param update - The voice update data to validate, which can be a VoicePacket, VoiceServer, or VoiceState.
+	 * @returns {boolean} - True if the update is valid, otherwise false.
+	 */
+	private isValidUpdate(update: VoicePacket | VoiceServer | VoiceState): boolean {
+		return update && ("token" in update || "session_id" in update);
+	}
+
+	/**
+	 * Handles a voice server update by updating the player's voice state and sending the voice state to the Lavalink node.
+	 * @param player The player for which the voice state is being updated.
+	 * @param update The voice server data received from Discord.
+	 * @returns A promise that resolves when the voice state update is handled.
+	 * @emits {debug} - Emits a debug message indicating the voice state is being updated.
+	 */
+	private async handleVoiceServerUpdate(player: Player, update: VoiceServer): Promise<void> {
+		player.voiceState.event = update;
+
+		const {
+			sessionId,
+			event: { token, endpoint },
+		} = player.voiceState;
+
+		await player.node.rest.updatePlayer({
+			guildId: player.guildId,
+			data: { voice: { token, endpoint, sessionId } },
+		});
+		return;
+	}
+
+	/**
+	 * Handles a voice state update by updating the player's voice channel and session ID if provided, or by disconnecting and destroying the player if the channel ID is null.
+	 * @param player The player for which the voice state is being updated.
+	 * @param update The voice state data received from Discord.
+	 * @emits {playerMove} - Emits a player move event if the channel ID is provided and the player is currently connected to a different voice channel.
+	 * @emits {playerDisconnect} - Emits a player disconnect event if the channel ID is null.
+	 */
+	private async handleVoiceStateUpdate(player: Player, update: VoiceState): Promise<void> {
+		if (update.channel_id) {
+			if (player.voiceChannelId !== update.channel_id) {
+				this.emit(ManagerEventTypes.PlayerMove, player, player.voiceChannelId, update.channel_id);
+			}
+
+			player.voiceState.sessionId = update.session_id;
+			player.voiceChannelId = update.channel_id;
+			return;
+		}
+
+		this.emit(ManagerEventTypes.PlayerDisconnect, player, player.voiceChannelId);
+
+		player.voiceChannelId = null;
+		player.voiceState = Object.assign({});
+		await player.destroy();
+		return;
+	}
+
+	/**
+	 * Gets each player's JSON file
+	 * @param {string} guildId - The guild ID
+	 * @returns {string} The path to the player's JSON file
+	 */
+	private async getPlayerFilePath(guildId: string): Promise<string> {
+		const configDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
+
+		try {
+			await fs.mkdir(configDir, { recursive: true });
+			return path.join(configDir, `${guildId}.json`);
+		} catch (err) {
+			console.error("Error ensuring player data directory exists:", err);
+			throw new Error(`Failed to resolve player file path for guild ${guildId}`);
+		}
+	}
+
+	/**
+	 * Serializes a Player instance to avoid circular references.
+	 * @param player The Player instance to serialize
+	 * @returns The serialized Player instance
+	 */
+	private serializePlayer(player: Player): Record<string, unknown> {
+		const seen = new WeakSet();
+
+		/**
+		 * Recursively serializes an object, avoiding circular references.
+		 * @param obj The object to serialize
+		 * @returns The serialized object
+		 */
+		const serialize = (obj: unknown): unknown => {
+			if (obj && typeof obj === "object") {
+				if (seen.has(obj)) return;
+
+				seen.add(obj);
+			}
+			return obj;
+		};
+
+		return JSON.parse(
+			JSON.stringify(player, (key, value) => {
+				if (key === "manager") {
+					return null;
+				}
+
+				if (key === "filters") {
+					return {
+						distortion: value.distortion ?? null,
+						equalizer: value.equalizer ?? [],
+						karaoke: value.karaoke ?? null,
+						rotation: value.rotation ?? null,
+						timescale: value.timescale ?? null,
+						vibrato: value.vibrato ?? null,
+						reverb: value.reverb ?? null,
+						volume: value.volume ?? 1.0,
+						bassBoostlevel: value.bassBoostlevel ?? null,
+						filterStatus: { ...value.filtersStatus },
+					};
+				}
+				if (key === "queue") {
+					return {
+						current: value.current || null,
+						tracks: [...value],
+						previous: [...value.previous],
+					};
+				}
+
+				return serialize(value);
+			})
+		);
+	}
+
+	/**
+	 * Checks for players that are no longer active and deletes their saved state files.
+	 * This is done to prevent stale state files from accumulating on the file system.
+	 */
+	private async cleanupInactivePlayers(): Promise<void> {
+		const playerStatesDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
+
+		try {
+			// Check if the directory exists, and create it if it doesn't
+			await fs.access(playerStatesDir).catch(async () => {
+				await fs.mkdir(playerStatesDir, { recursive: true });
+				this.emit(ManagerEventTypes.Debug, `[MANAGER] Created directory: ${playerStatesDir}`);
+			});
+
+			// Get the list of player state files
+			const playerFiles = await fs.readdir(playerStatesDir);
+
+			// Get the set of active guild IDs from the manager's player collection
+			const activeGuildIds = new Set(this.players.keys());
+
+			// Iterate over the player state files
+			for (const file of playerFiles) {
+				// Get the guild ID from the file name
+				const guildId = path.basename(file, ".json");
+
+				// If the guild ID is not in the set of active guild IDs, delete the file
+				if (!activeGuildIds.has(guildId)) {
+					const filePath = path.join(playerStatesDir, file);
+					await fs.unlink(filePath); // Delete the file asynchronously
+					this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleting inactive player: ${guildId}`);
+				}
+			}
+		} catch (error) {
+			this.emit(ManagerEventTypes.Debug, `[MANAGER] Error cleaning up inactive players: ${error}`);
+		}
+	}
+
+	/**
+	 * Returns the nodes that has the least load.
+	 * The load is calculated by dividing the lavalink load by the number of cores.
+	 * The result is multiplied by 100 to get a percentage.
+	 * @returns {Collection<string, Node>}
+	 */
+	private get leastLoadNode(): Collection<string, Node> {
+		return this.nodes
+			.filter((node) => node.connected)
+			.sort((a, b) => {
+				const aload = a.stats.cpu ? (a.stats.cpu.lavalinkLoad / a.stats.cpu.cores) * 100 : 0;
+				const bload = b.stats.cpu ? (b.stats.cpu.lavalinkLoad / b.stats.cpu.cores) * 100 : 0;
+				// Sort the nodes by their load in ascending order
+				return aload - bload;
+			});
+	}
+
+	/**
+	 * Returns the nodes that have the least amount of players.
+	 * Filters out disconnected nodes and sorts the remaining nodes
+	 * by the number of players in ascending order.
+	 * @returns {Collection<string, Node>} A collection of nodes sorted by player count.
+	 */
+	private get leastPlayersNode(): Collection<string, Node> {
+		return this.nodes
+			.filter((node) => node.connected) // Filter out nodes that are not connected
+			.sort((a, b) => a.stats.players - b.stats.players); // Sort by the number of players
+	}
+
+	/**
+	 * Returns a node based on priority.
+	 * The nodes are sorted by priority in descending order, and then a random number
+	 * between 0 and 1 is generated. The node that has a cumulative weight greater than or equal to the
+	 * random number is returned.
+	 * If no node has a cumulative weight greater than or equal to the random number, the node with the
+	 * lowest load is returned.
+	 * @returns {Node} The node to use.
+	 */
+	private get priorityNode(): Node {
+		// Filter out nodes that are not connected or have a priority of 0
+		const filteredNodes = this.nodes.filter((node) => node.connected && node.options.priority > 0);
+		// Calculate the total weight
+		const totalWeight = filteredNodes.reduce((total, node) => total + node.options.priority, 0);
+		// Map the nodes to their weights
+		const weightedNodes = filteredNodes.map((node) => ({
+			node,
+			weight: node.options.priority / totalWeight,
+		}));
+		// Generate a random number between 0 and 1
+		const randomNumber = Math.random();
+
+		// Initialize the cumulative weight to 0
+		let cumulativeWeight = 0;
+
+		// Loop through the weighted nodes and find the first node that has a cumulative weight greater than or equal to the random number
+		for (const { node, weight } of weightedNodes) {
+			cumulativeWeight += weight;
+			if (randomNumber <= cumulativeWeight) {
+				return node;
+			}
+		}
+
+		// If no node has a cumulative weight greater than or equal to the random number, return the node with the lowest load
+		return this.options.useNode === UseNodeOptions.LeastLoad ? this.leastLoadNode.first() : this.leastPlayersNode.first();
+	}
 }
 
 export interface Payload {
@@ -928,36 +992,38 @@ export interface Payload {
 }
 
 export interface ManagerOptions {
-	/** Use priority mode over least amount of player or load? */
-	usePriority?: boolean;
-	/** Use the least amount of players or least load? */
-	useNode?: UseNodeOptions.LeastLoad | UseNodeOptions.LeastPlayers;
-	/** The array of nodes to connect to. */
-	nodes?: NodeOptions[];
+	/** Whether players should automatically play the next song. */
+	autoPlay?: boolean;
+	/** The search platform autoplay should use. Fallback to YouTube if not found.
+	 * Use enum `SearchPlatform`. */
+	autoPlaySearchPlatform?: SearchPlatform;
 	/** The client ID to use. */
 	clientId?: string;
 	/** Value to use for the `Client-Name` header. */
 	clientName?: string;
 	/** The array of shard IDs connected to this manager instance. */
 	clusterId?: number;
-	/** A array of plugins to use. */
-	plugins?: Plugin[];
-	/** Whether players should automatically play the next song. */
-	autoPlay?: boolean;
-	/** The search platform autoplay should use. Failback to Youtube if not found.
-	 * Use enum `SearchPlatform`. */
-	autoPlaySearchPlatform?: SearchPlatform;
-	/** An array of track properties to keep. `track` will always be present. */
-	trackPartial?: TrackPartial[];
 	/** The default search platform to use.
 	 * Use enum `SearchPlatform`. */
 	defaultSearchPlatform?: SearchPlatform;
-	/** Whether the YouTube video titles should be replaced if the Author does not exactly match. */
-	replaceYouTubeCredentials?: boolean;
 	/** The last.fm API key.
 	 * If you need to create one go here: https://www.last.fm/api/account/create.
 	 * If you already have one, get it from here: https://www.last.fm/api/accounts. */
 	lastFmApiKey: string;
+	/** The maximum number of previous tracks to store. */
+	maxPreviousTracks?: number;
+	/** The array of nodes to connect to. */
+	nodes?: NodeOptions[];
+	/** A array of plugins to use. */
+	plugins?: Plugin[];
+	/** Whether the YouTube video titles should be replaced if the Author does not exactly match. */
+	replaceYouTubeCredentials?: boolean;
+	/** An array of track properties to keep. `track` will always be present. */
+	trackPartial?: TrackPartial[];
+	/** Use the least amount of players or least load? */
+	useNode?: UseNodeOptions.LeastLoad | UseNodeOptions.LeastPlayers;
+	/** Use priority mode over least amount of player or load? */
+	usePriority?: boolean;
 	/**
 	 * Function to send data to the websocket.
 	 * @param id The ID of the node to send the data to.
@@ -968,30 +1034,35 @@ export interface ManagerOptions {
 
 export enum TrackPartial {
 	/** The base64 encoded string of the track */
-	Encoded = "encoded",
-	/** The plugin info of the track */
-	PluginInfo = "pluginInfo",
+	Track = "track",
+	/** The title of the track */
+	Title = "title",
 	/** The track identifier */
 	Identifier = "identifier",
-	/** Whether the track is seekable */
-	IsSeekable = "isSeekable",
 	/** The author of the track */
 	Author = "author",
 	/** The length of the track in milliseconds */
-	Length = "length",
+	Duration = "duration",
 	/** The ISRC of the track */
 	Isrc = "isrc",
+	/** Whether the track is seekable */
+	IsSeekable = "isSeekable",
 	/** Whether the track is a stream */
 	IsStream = "isStream",
-	/** The title of the track */
-	Title = "title",
 	/** The URI of the track */
 	Uri = "uri",
 	/** The artwork URL of the track */
 	ArtworkUrl = "artworkUrl",
 	/** The source name of the track */
 	SourceName = "sourceName",
-	Track = "track"
+	/** The thumbnail of the track */
+	ThumbNail = "thumbnail",
+	/** The requester of the track */
+	Requester = "requester",
+	/** The plugin info of the track */
+	PluginInfo = "pluginInfo",
+	/** The custom data of the track */
+	CustomData = "customData",
 }
 
 export enum UseNodeOptions {
@@ -1099,7 +1170,7 @@ export interface LavalinkResponse {
 
 interface LavaPlayer {
 	guildId: string;
-	track: TrackData | Track;
+	track: TrackData;
 	volume: number;
 	paused: boolean;
 	state: {
