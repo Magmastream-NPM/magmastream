@@ -39,7 +39,7 @@ export class Queue extends Array<Track> {
 	public current: Track | null = null;
 
 	/** The previous tracks */
-	public previous: Track[] | null = null;
+	public previous: Track[] = [];
 
 	/** The Manager instance. */
 	public manager: Manager;
