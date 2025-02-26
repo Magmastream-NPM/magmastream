@@ -537,7 +537,7 @@ export class Node {
 				break;
 
 			case "TrackExceptionEvent":
-				await this.trackError(player, track, payload);
+				await this.trackError(player, track as Track, payload);
 				break;
 
 			case "WebSocketClosedEvent":
