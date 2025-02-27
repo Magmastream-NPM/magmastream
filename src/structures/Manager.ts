@@ -326,22 +326,31 @@ export class Manager extends EventEmitter {
 	 */
 	public async updateVoiceState(data: VoicePacket | VoiceServer | VoiceState): Promise<void> {
 		if (!this.isVoiceUpdate(data)) return;
-
+	
 		const update = "d" in data ? data.d : data;
 		if (!this.isValidUpdate(update)) return;
-
+	
 		const player = this.players.get(update.guild_id);
 		if (!player) return;
-
+	
 		this.emit(ManagerEventTypes.Debug, `[MANAGER] Updating voice state: ${JSON.stringify(update)}`);
-
+	
 		if ("token" in update) {
 			return await this.handleVoiceServerUpdate(player, update);
 		}
-
+	
 		if (update.user_id !== this.options.clientId) return;
+		
+		if (!player.voiceState.sessionId && player.voiceState.event) {
+			if (player.state !== StateTypes.Disconnected) {
+				await player.destroy();
+			}
+			return;
+		}
+	
 		return await this.handleVoiceStateUpdate(player, update);
 	}
+	
 
 	/**
 	 * Decodes an array of base64 encoded tracks and returns an array of TrackData.
