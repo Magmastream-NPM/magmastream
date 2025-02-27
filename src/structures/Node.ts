@@ -697,7 +697,7 @@ export class Node {
 		if (shouldUseYouTube) {
 			// Use YouTube-based autoplay
 			// return this.handleYouTubeAutoplay(player, player.queue.previous);
-			return await this.handleYouTubeAutoplay(player, player.queue.previous?.at(-1) ?? null);
+			return await this.handleYouTubeAutoplay(player, player.queue.previous[0]);
 		}
 
 		// Handle Last.fm-based autoplay (or other platforms)
@@ -706,7 +706,7 @@ export class Node {
 		if (selectedSource) {
 			// Use the selected source to handle autoplay
 			// return this.handlePlatformAutoplay(player, player.queue.previous, selectedSource, apiKey);
-			return await this.handlePlatformAutoplay(player, player.queue.previous?.at(-1) ?? null, selectedSource, apiKey);
+			return await this.handlePlatformAutoplay(player, player.queue.previous[0], selectedSource, apiKey);
 		}
 
 		// If no source is available, return false
