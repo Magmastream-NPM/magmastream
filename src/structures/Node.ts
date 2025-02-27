@@ -21,7 +21,7 @@ import nodeCheck from "../utils/nodeCheck";
 import WebSocket from "ws";
 import fs from "fs";
 import path from "path";
-import { ClientUser } from "discord.js";
+import { User, ClientUser } from "discord.js";
 import axios from "axios";
 
 export enum SponsorBlockSegment {
@@ -579,7 +579,7 @@ export class Node {
 
 		this.manager.emit(ManagerEventTypes.TrackStart, player, track, payload);
 
-		const botUser = player.get("Internal_BotUser") as ClientUser;
+		const botUser = player.get("Internal_BotUser") as User | ClientUser;
 
 		if (botUser && botUser.id === track.requester.id) {
 			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, player, {
@@ -591,6 +591,7 @@ export class Node {
 			});
 			return;
 		}
+
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, player, {
 			changeType: PlayerStateEventTypes.TrackChange,
 			details: {
@@ -782,7 +783,7 @@ export class Node {
 				const randomTrack = response.data.toptracks.track[Math.floor(Math.random() * response.data.toptracks.track.length)];
 				const res = await player.search(
 					{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: platform },
-					player.get("Internal_BotUser") as ClientUser
+					player.get("Internal_BotUser") as User | ClientUser
 				);
 				if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
 
@@ -822,7 +823,7 @@ export class Node {
 			const randomTrack = retryResponse.data.toptracks.track[Math.floor(Math.random() * retryResponse.data.toptracks.track.length)];
 			const res = await player.search(
 				{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: platform },
-				player.get("Internal_BotUser") as ClientUser
+				player.get("Internal_BotUser") as User | ClientUser
 			);
 			if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
 
@@ -837,7 +838,7 @@ export class Node {
 		const randomTrack = response.data.similartracks.track[Math.floor(Math.random() * response.data.similartracks.track.length)];
 		const res = await player.search(
 			{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: platform },
-			player.get("Internal_BotUser") as ClientUser
+			player.get("Internal_BotUser") as User | ClientUser
 		);
 		if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
 
@@ -864,7 +865,7 @@ export class Node {
 			: (
 					await this.manager.search(
 						{ query: `${previousTrack.author} - ${previousTrack.title}`, source: SearchPlatform.YouTube },
-						player.get("Internal_BotUser") as ClientUser
+						player.get("Internal_BotUser") as User | ClientUser
 					)
 			  ).tracks[0]?.uri
 					.split("=")
@@ -884,7 +885,7 @@ export class Node {
 		} while (previousTrack.uri.includes(searchURI));
 
 		// Search for the video and return false if the search fails
-		const res = await this.manager.search({ query: searchURI, source: SearchPlatform.YouTube }, player.get("Internal_BotUser") as ClientUser);
+		const res = await this.manager.search({ query: searchURI, source: SearchPlatform.YouTube }, player.get("Internal_BotUser") as User | ClientUser);
 		if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
 
 		// Find a track that is not the same as the current track

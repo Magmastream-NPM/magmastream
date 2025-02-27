@@ -1,6 +1,6 @@
 import { Track } from "./Player";
 import { Manager, ManagerEventTypes, PlayerStateEventTypes } from "./Manager"; // Import Manager to access emit method
-import { ClientUser } from "discord.js";
+import { ClientUser, User } from "discord.js";
 
 /**
  * The player's queue, the `current` property is the currently playing track, think of the rest as the up-coming tracks.
@@ -115,7 +115,7 @@ export class Queue extends Array<Track> {
 
 		if (this.manager.players.get(this.guildId).isAutoplay) {
 			if (!Array.isArray(track)) {
-				const botUser = this.manager.players.get(this.guildId).get("Internal_BotUser") as ClientUser;
+				const botUser = this.manager.players.get(this.guildId).get("Internal_BotUser") as User | ClientUser;
 				if (botUser && botUser.id === track.requester.id) {
 					this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 						changeType: PlayerStateEventTypes.QueueChange,

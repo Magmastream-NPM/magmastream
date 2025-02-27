@@ -393,7 +393,7 @@ export class Player {
 	 * recommended track if the first one doesn't work.
 	 * @returns {this} - The player instance.
 	 */
-	public setAutoplay(autoplayState: boolean, botUser?: object, tries?: number): this {
+	public setAutoplay(autoplayState: boolean, botUser?: ClientUser | User, tries?: number): this {
 		if (typeof autoplayState !== "boolean") {
 			throw new TypeError("autoplayState must be a boolean.");
 		}
@@ -403,13 +403,13 @@ export class Player {
 				throw new TypeError("botUser must be provided when enabling autoplay.");
 			}
 
-			if (!(botUser instanceof ClientUser) && !(botUser instanceof User)) {
+			if (!["ClientUser", "User"].includes(botUser.constructor.name)) {
 				throw new TypeError("botUser must be a user-object.");
 			}
 
 			this.autoplayTries = tries && typeof tries === "number" && tries > 0 ? tries : 3; // Default to 3 if invalid
 			this.isAutoplay = true;
-			this.set("Internal_BotUser", botUser);
+			this.set("Internal_BotUser", botUser as User | ClientUser);
 		} else {
 			this.isAutoplay = false;
 			this.autoplayTries = null;
@@ -1087,7 +1087,7 @@ export class Player {
 			queueRepeat: this.queueRepeat,
 			dynamicRepeat: this.dynamicRepeat,
 			dynamicRepeatIntervalMs: this.dynamicRepeatIntervalMs,
-			ClientUser: this.get("Internal_BotUser"),
+			ClientUser: this.get("Internal_BotUser") as User | ClientUser,
 			filters: this.filters,
 			nowPlayingMessage: this.nowPlayingMessage,
 			isAutoplay: this.isAutoplay,
@@ -1130,7 +1130,7 @@ export class Player {
 		clonedPlayer.queueRepeat = oldPlayerProperties.queueRepeat;
 		clonedPlayer.dynamicRepeat = oldPlayerProperties.dynamicRepeat;
 		clonedPlayer.dynamicRepeatIntervalMs = oldPlayerProperties.dynamicRepeatIntervalMs;
-		clonedPlayer.set("Internal_BotUser", oldPlayerProperties.ClientUser);
+		clonedPlayer.set("Internal_BotUser", oldPlayerProperties.ClientUser as User | ClientUser);
 		clonedPlayer.paused = oldPlayerProperties.paused;
 
 		// Update filters for the cloned player
