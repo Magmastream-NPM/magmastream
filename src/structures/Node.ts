@@ -632,10 +632,12 @@ export class Node {
 				await this.handleFailedTrack(player, track, payload);
 				break;
 			case TrackEndReasonTypes.Replaced:
+				// Handle the case when a track was replaced
+				break;
 			case TrackEndReasonTypes.Stopped:
 				// If the track was forcibly replaced
 				if (player.queue.length) {
-					this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
+					await this.playNextTrack(player, track, payload);
 				} else {
 					await this.queueEnd(player, track, payload);
 				}
@@ -649,7 +651,6 @@ export class Node {
 				// If there's another track in the queue
 				if (player.queue.length) {
 					await this.playNextTrack(player, track, payload);
-					break;
 				} else {
 					await this.queueEnd(player, track, payload);
 				}
@@ -1018,7 +1019,6 @@ export class Node {
 		}
 
 		// If all attempts fail, reset the player state and emit queueEnd
-		player.queue.previous = [];
 		player.playing = false;
 		this.manager.emit(ManagerEventTypes.QueueEnd, player, track, payload);
 	}
