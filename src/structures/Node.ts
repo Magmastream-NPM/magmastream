@@ -611,19 +611,19 @@ export class Node {
 	protected async trackEnd(player: Player, track: Track, payload: TrackEndEvent): Promise<void> {
 		const { reason } = payload;
 
-		const oldPlayer = player;
-
-		// If the track failed to load or was cleaned up
 		const skipFlag = player.get<boolean>("skipFlag");
-		if (!skipFlag && (!player.queue.previous.length || player.queue.previous.at(-1) !== player.queue.current)) {
+		if (!skipFlag && (!player.queue.previous.length || player.queue.previous[0].track !== player.queue.current.track)) {
+			console.log("Adding track to previous queue: ", player.queue.current);
 			// Store the current track in the previous tracks queue
-			player.queue.previous.unshift(player.queue.current);
+			player.queue.previous.push(player.queue.current);
 
 			// Limit the previous tracks queue to maxPreviousTracks
 			if (player.queue.previous.length > this.manager.options.maxPreviousTracks) {
-				player.queue.previous.pop();
+				player.queue.previous.shift();
 			}
 		}
+
+		const oldPlayer = player;
 		// Handle track end events
 		switch (reason) {
 			case TrackEndReasonTypes.LoadFailed:
@@ -681,7 +681,7 @@ export class Node {
 	 */
 	private async handleAutoplay(player: Player, attempt: number = 0): Promise<boolean> {
 		// If autoplay is not enabled or all attempts have failed, early exit
-		if (!player.isAutoplay || attempt === player.autoplayTries || !player.queue.previous[0]) return false;
+		if (!player.isAutoplay || attempt === player.autoplayTries || !player.queue.previous.length) return false;
 
 		// Get the Last.fm API key and the available source managers
 		const apiKey = this.manager.options.lastFmApiKey;
@@ -694,10 +694,10 @@ export class Node {
 			(!apiKey && enabledSources.includes("youtube")) || // Fallback to YouTube if Last.fm is not available
 			(attempt === player.autoplayTries - 1 && player.autoplayTries > 1 && enabledSources.includes("youtube")); // Use YouTube on the last attempt
 
+		const lastTrack = player.queue.previous[player.queue.previous.length - 1];
 		if (shouldUseYouTube) {
 			// Use YouTube-based autoplay
-			// return this.handleYouTubeAutoplay(player, player.queue.previous);
-			return await this.handleYouTubeAutoplay(player, player.queue.previous[0]);
+			return await this.handleYouTubeAutoplay(player, lastTrack);
 		}
 
 		// Handle Last.fm-based autoplay (or other platforms)
@@ -705,8 +705,7 @@ export class Node {
 
 		if (selectedSource) {
 			// Use the selected source to handle autoplay
-			// return this.handlePlatformAutoplay(player, player.queue.previous, selectedSource, apiKey);
-			return await this.handlePlatformAutoplay(player, player.queue.previous[0], selectedSource, apiKey);
+			return await this.handlePlatformAutoplay(player, lastTrack, selectedSource, apiKey);
 		}
 
 		// If no source is available, return false
@@ -913,7 +912,6 @@ export class Node {
 	 * @private
 	 */
 	private async handleFailedTrack(player: Player, track: Track, payload: TrackEndEvent): Promise<void> {
-		// player.queue.previous = player.queue.current;
 		player.queue.current = player.queue.shift();
 
 		if (!player.queue.current) {
