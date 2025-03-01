@@ -613,7 +613,6 @@ export class Node {
 
 		const skipFlag = player.get<boolean>("skipFlag");
 		if (!skipFlag && (!player.queue.previous.length || player.queue.previous[0].track !== player.queue.current.track)) {
-			console.log("Adding track to previous queue: ", player.queue.current);
 			// Store the current track in the previous tracks queue
 			player.queue.previous.push(player.queue.current);
 
