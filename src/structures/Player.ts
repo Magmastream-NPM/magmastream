@@ -144,7 +144,7 @@ export class Player {
 	 * @param query
 	 * @param requester
 	 */
-	public async search<T extends User | ClientUser = User | ClientUser>(query: string | SearchQuery, requester?: T): Promise<SearchResult> {
+	public async search<T = unknown>(query: string | SearchQuery, requester?: T): Promise<SearchResult> {
 		return await this.manager.search(query, requester);
 	}
 
@@ -394,7 +394,7 @@ export class Player {
 	 * recommended track if the first one doesn't work.
 	 * @returns {this} - The player instance.
 	 */
-	public setAutoplay(autoplayState: boolean, botUser?: ClientUser | User, tries?: number): this {
+	public setAutoplay<T = unknown>(autoplayState: boolean, botUser?: T, tries?: number): this {
 		if (typeof autoplayState !== "boolean") {
 			throw new TypeError("autoplayState must be a boolean.");
 		}
@@ -816,13 +816,17 @@ export class Player {
 				throw new RangeError("Cannot skip more than the queue length.");
 			}
 
-			removedTracks = this.queue.slice(0, amount - 1);
-			this.queue.splice(0, amount - 1);
+			this.queue.current = this.queue[amount - 1];
+			removedTracks = this.queue.slice(0, amount);
+			this.queue.splice(0, amount);
 		} else {
 			// If no amount is provided, remove the current track if it exists.
 			if (this.queue.current) {
 				removedTracks.push(this.queue.current);
 			}
+
+			// Move to the next track
+			this.queue.current = this.queue.shift();
 		}
 
 		// Stop the player and send an event to the manager.
@@ -833,10 +837,9 @@ export class Player {
 			},
 		});
 
-		if (this.queue.length) {
-			this.queue.current = this.queue.shift();
-			// If autoplay is enabled, play the next track
-			if (this.manager.options.autoPlay) await this.play();
+		// If autoplay is enabled, play the next track
+		if (this.queue.current && this.manager.options.autoPlay) {
+			await this.play();
 		}
 
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
