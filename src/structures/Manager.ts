@@ -216,7 +216,9 @@ export class Manager extends EventEmitter {
 				const processTrack = (track: Track): Track => {
 					if (!/(youtube\.com|youtu\.be)/.test(track.uri)) return track;
 					const { cleanTitle, cleanAuthor } = this.parseYouTubeTitle(track.title, track.author);
-					return { ...track, title: cleanTitle, author: cleanAuthor };
+					track.title = cleanTitle;
+					track.author = cleanAuthor;
+					return track;
 				};
 
 				if (playlist) {
