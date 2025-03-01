@@ -806,41 +806,21 @@ export class Player {
 	 * @throws {RangeError} If the amount is greater than the queue length.
 	 */
 	public async stop(amount?: number): Promise<this> {
-		const oldPlayer = this ? { ...this } : null;
-
+		const oldPlayer = { ...this };
 		let removedTracks: Track[] = [];
 
-		// If an amount is provided, remove that many tracks from the queue.
 		if (typeof amount === "number" && amount > 1) {
-			if (amount > this.queue.length) {
-				throw new RangeError("Cannot skip more than the queue length.");
-			}
-
-			this.queue.current = this.queue[amount - 1];
-			removedTracks = this.queue.slice(0, amount);
-			this.queue.splice(0, amount);
-		} else {
-			// If no amount is provided, remove the current track if it exists.
-			if (this.queue.current) {
-				removedTracks.push(this.queue.current);
-			}
-
-			// Move to the next track
-			this.queue.current = this.queue.shift();
+			if (amount > this.queue.length) throw new RangeError("Cannot skip more than the queue length.");
+			removedTracks = this.queue.slice(0, amount - 1);
+			this.queue.splice(0, amount - 1);
 		}
 
-		// Stop the player and send an event to the manager.
-		await this.node.rest.updatePlayer({
+		this.node.rest.updatePlayer({
 			guildId: this.guildId,
 			data: {
 				encodedTrack: null,
 			},
 		});
-
-		// If autoplay is enabled, play the next track
-		if (this.queue.current && this.manager.options.autoPlay) {
-			await this.play();
-		}
 
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.QueueChange,
