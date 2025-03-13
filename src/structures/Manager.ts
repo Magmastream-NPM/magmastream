@@ -526,8 +526,9 @@ export class Manager extends EventEmitter {
 						if (state.dynamicRepeat) {
 							player.setDynamicRepeat(state.dynamicRepeat, state.dynamicLoopInterval._idleTimeout);
 						}
-						if (state.isAutoplay && state?.data?.Internal_BotUser) {
-							player.setAutoplay(state.isAutoplay, state.data.Internal_BotUser as User | ClientUser);
+						if (state.isAutoplay) {
+							Object.setPrototypeOf(state.data.clientUser, { constructor: { name: "User" } });
+							player.setAutoplay(true, state.data.clientUser, state.autoplayTries);
 						}
 						if (state.data) {
 							for (const [name, value] of Object.entries(state.data)) {
@@ -878,6 +879,12 @@ export class Manager extends EventEmitter {
 						current: value.current || null,
 						tracks: [...value],
 						previous: [...value.previous],
+					};
+				}
+
+				if (key === "data") {
+					return {
+						clientUser: value.Internal_BotUser ?? null,
 					};
 				}
 

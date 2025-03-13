@@ -396,16 +396,16 @@ export class Player {
 	 */
 	public setAutoplay<T = unknown>(autoplayState: boolean, botUser?: T, tries?: number): this {
 		if (typeof autoplayState !== "boolean") {
-			throw new TypeError("autoplayState must be a boolean.");
+			throw new Error("autoplayState must be a boolean.");
 		}
 
 		if (autoplayState) {
 			if (!botUser) {
-				throw new TypeError("botUser must be provided when enabling autoplay.");
+				throw new Error("botUser must be provided when enabling autoplay.");
 			}
 
 			if (!["ClientUser", "User"].includes(botUser.constructor.name)) {
-				throw new TypeError("botUser must be a user-object.");
+				throw new Error("botUser must be a user-object.");
 			}
 
 			this.autoplayTries = tries && typeof tries === "number" && tries > 0 ? tries : 3; // Default to 3 if invalid
