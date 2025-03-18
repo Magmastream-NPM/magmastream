@@ -1,6 +1,6 @@
 {
 	"name": "magmastream",
-	"version": "2.8.6-dev.4",
+	"version": "2.8.6-dev.5",
 	"description": "A user-friendly Lavalink client designed for NodeJS.",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
