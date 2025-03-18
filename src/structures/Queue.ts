@@ -113,7 +113,7 @@ export class Queue extends Array<Track> {
 			}
 		}
 
-		if (this.manager.players.get(this.guildId).isAutoplay) {
+		if (this.manager.players.has(this.guildId) && this.manager.players.get(this.guildId).isAutoplay) {
 			if (!Array.isArray(track)) {
 				const botUser = this.manager.players.get(this.guildId).get("Internal_BotUser") as User | ClientUser;
 				if (botUser && botUser.id === track.requester.id) {
