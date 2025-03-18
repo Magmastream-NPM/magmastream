@@ -612,7 +612,11 @@ export class Node {
 		const { reason } = payload;
 
 		const skipFlag = player.get<boolean>("skipFlag");
-		if (!skipFlag && (!player.queue.previous.length || player.queue.previous[0].track !== player.queue.current.track)) {
+		if (
+			!skipFlag && 
+			(player.queue.previous.length === 0 || 
+			(player.queue.previous[0] && player.queue.previous[0].track !== player.queue.current?.track))
+		) {
 			// Store the current track in the previous tracks queue
 			player.queue.previous.push(player.queue.current);
 
