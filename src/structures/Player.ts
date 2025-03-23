@@ -144,7 +144,7 @@ export class Player {
 	 * @param query
 	 * @param requester
 	 */
-	public async search<T extends User | ClientUser = User | ClientUser>(query: string | SearchQuery, requester?: T): Promise<SearchResult> {
+	public async search<T = unknown>(query: string | SearchQuery, requester?: T): Promise<SearchResult> {
 		return await this.manager.search(query, requester);
 	}
 
@@ -243,6 +243,7 @@ export class Player {
 	 * @emits {PlayerStateUpdate} - Emitted when the player state is updated.
 	 */
 	public async destroy(disconnect: boolean = true): Promise<boolean> {
+		if (this.state === StateTypes.Disconnected) return true;
 		const oldPlayer = this ? { ...this } : null;
 		this.state = StateTypes.Destroying;
 
@@ -251,11 +252,11 @@ export class Player {
 		}
 
 		await this.node.rest.destroyPlayer(this.guildId);
-		this.manager.emit(ManagerEventTypes.PlayerDestroy, this);
 		this.queue.clear();
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, null, {
 			changeType: PlayerStateEventTypes.PlayerDestroy,
 		});
+		this.manager.emit(ManagerEventTypes.PlayerDestroy, this);
 		return this.manager.players.delete(this.guildId);
 	}
 
@@ -393,23 +394,23 @@ export class Player {
 	 * recommended track if the first one doesn't work.
 	 * @returns {this} - The player instance.
 	 */
-	public setAutoplay(autoplayState: boolean, botUser?: object, tries?: number): this {
+	public setAutoplay<T = unknown>(autoplayState: boolean, botUser?: T, tries?: number): this {
 		if (typeof autoplayState !== "boolean") {
-			throw new TypeError("autoplayState must be a boolean.");
+			throw new Error("autoplayState must be a boolean.");
 		}
 
 		if (autoplayState) {
 			if (!botUser) {
-				throw new TypeError("botUser must be provided when enabling autoplay.");
+				throw new Error("botUser must be provided when enabling autoplay.");
 			}
 
-			if (!(botUser instanceof ClientUser) && !(botUser instanceof User)) {
-				throw new TypeError("botUser must be a user-object.");
+			if (!["ClientUser", "User"].includes(botUser.constructor.name)) {
+				throw new Error("botUser must be a user-object.");
 			}
 
 			this.autoplayTries = tries && typeof tries === "number" && tries > 0 ? tries : 3; // Default to 3 if invalid
 			this.isAutoplay = true;
-			this.set("Internal_BotUser", botUser);
+			this.set("Internal_BotUser", botUser as User | ClientUser);
 		} else {
 			this.isAutoplay = false;
 			this.autoplayTries = null;
@@ -805,38 +806,21 @@ export class Player {
 	 * @throws {RangeError} If the amount is greater than the queue length.
 	 */
 	public async stop(amount?: number): Promise<this> {
-		const oldPlayer = this ? { ...this } : null;
-
+		const oldPlayer = { ...this };
 		let removedTracks: Track[] = [];
 
-		// If an amount is provided, remove that many tracks from the queue.
 		if (typeof amount === "number" && amount > 1) {
-			if (amount > this.queue.length) {
-				throw new RangeError("Cannot skip more than the queue length.");
-			}
-
+			if (amount > this.queue.length) throw new RangeError("Cannot skip more than the queue length.");
 			removedTracks = this.queue.slice(0, amount - 1);
 			this.queue.splice(0, amount - 1);
-		} else {
-			// If no amount is provided, remove the current track if it exists.
-			if (this.queue.current) {
-				removedTracks.push(this.queue.current);
-			}
 		}
 
-		// Stop the player and send an event to the manager.
-		await this.node.rest.updatePlayer({
+		this.node.rest.updatePlayer({
 			guildId: this.guildId,
 			data: {
 				encodedTrack: null,
 			},
 		});
-
-		if (this.queue.length) {
-			this.queue.current = this.queue.shift();
-			// If autoplay is enabled, play the next track
-			if (this.manager.options.autoPlay) await this.play();
-		}
 
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.QueueChange,
@@ -905,20 +889,17 @@ export class Player {
 		const oldPlayer = { ...this };
 
 		// Store the current track before changing it.
-		let currentTrackBeforeChange: Track;
-		if (this.queue.current) {
-			currentTrackBeforeChange = this.queue.current as Track;
-		}
+		// let currentTrackBeforeChange: Track | null = this.queue.current ? (this.queue.current as Track) : null;
 
 		// Get the last played track and remove it from the history
-		const lastTrack = this.queue.previous.shift() as Track;
+		const lastTrack = this.queue.previous.pop() as Track;
 
 		// Set the skip flag to true to prevent the onTrackEnd event from playing the next track.
 		this.set("skipFlag", true);
 		await this.play(lastTrack);
 
-		// Add the current track back to the start of the queue.
-		if (currentTrackBeforeChange) this.queue.unshift(currentTrackBeforeChange);
+		// Add the current track back to the end of the previous queue
+		// if (currentTrackBeforeChange) this.queue.push(currentTrackBeforeChange);
 
 		// Emit a player state update event indicating the track change to previous.
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
@@ -1087,7 +1068,7 @@ export class Player {
 			queueRepeat: this.queueRepeat,
 			dynamicRepeat: this.dynamicRepeat,
 			dynamicRepeatIntervalMs: this.dynamicRepeatIntervalMs,
-			ClientUser: this.get("Internal_BotUser"),
+			ClientUser: this.get("Internal_BotUser") as User | ClientUser,
 			filters: this.filters,
 			nowPlayingMessage: this.nowPlayingMessage,
 			isAutoplay: this.isAutoplay,
@@ -1130,7 +1111,7 @@ export class Player {
 		clonedPlayer.queueRepeat = oldPlayerProperties.queueRepeat;
 		clonedPlayer.dynamicRepeat = oldPlayerProperties.dynamicRepeat;
 		clonedPlayer.dynamicRepeatIntervalMs = oldPlayerProperties.dynamicRepeatIntervalMs;
-		clonedPlayer.set("Internal_BotUser", oldPlayerProperties.ClientUser);
+		clonedPlayer.set("Internal_BotUser", oldPlayerProperties.ClientUser as User | ClientUser);
 		clonedPlayer.paused = oldPlayerProperties.paused;
 
 		// Update filters for the cloned player

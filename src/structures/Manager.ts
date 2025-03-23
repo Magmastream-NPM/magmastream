@@ -171,7 +171,7 @@ export class Manager extends EventEmitter {
 	 * @param requester
 	 * @returns The search result.
 	 */
-	public async search<T extends User | ClientUser = User | ClientUser>(query: string | SearchQuery, requester?: T): Promise<SearchResult> {
+	public async search<T = unknown>(query: string | SearchQuery, requester?: T): Promise<SearchResult> {
 		const node = this.useableNode;
 		if (!node) throw new Error("No available nodes.");
 
@@ -204,7 +204,7 @@ export class Manager extends EventEmitter {
 					playlist = {
 						name: playlistData.info.name,
 						playlistInfo: playlistData.pluginInfo as PlaylistInfoData[],
-						requester,
+						requester: requester as User,
 						tracks,
 						duration: tracks.reduce((acc, cur) => acc + ((cur as unknown as Track).duration || 0), 0),
 					};
@@ -216,7 +216,9 @@ export class Manager extends EventEmitter {
 				const processTrack = (track: Track): Track => {
 					if (!/(youtube\.com|youtu\.be)/.test(track.uri)) return track;
 					const { cleanTitle, cleanAuthor } = this.parseYouTubeTitle(track.title, track.author);
-					return { ...track, title: cleanTitle, author: cleanAuthor };
+					track.title = cleanTitle;
+					track.author = cleanAuthor;
+					return track;
 				};
 
 				if (playlist) {
@@ -340,6 +342,14 @@ export class Manager extends EventEmitter {
 		}
 
 		if (update.user_id !== this.options.clientId) return;
+
+		if (!player.voiceState.sessionId && player.voiceState.event) {
+			if (player.state !== StateTypes.Disconnected) {
+				await player.destroy();
+			}
+			return;
+		}
+
 		return await this.handleVoiceStateUpdate(player, update);
 	}
 
@@ -516,8 +526,9 @@ export class Manager extends EventEmitter {
 						if (state.dynamicRepeat) {
 							player.setDynamicRepeat(state.dynamicRepeat, state.dynamicLoopInterval._idleTimeout);
 						}
-						if (state.isAutoplay && state?.data?.Internal_BotUser) {
-							player.setAutoplay(state.isAutoplay, state.data.Internal_BotUser as User | ClientUser);
+						if (state.isAutoplay) {
+							Object.setPrototypeOf(state.data.clientUser, { constructor: { name: "User" } });
+							player.setAutoplay(true, state.data.clientUser, state.autoplayTries);
 						}
 						if (state.data) {
 							for (const [name, value] of Object.entries(state.data)) {
@@ -868,6 +879,12 @@ export class Manager extends EventEmitter {
 						current: value.current || null,
 						tracks: [...value],
 						previous: [...value.previous],
+					};
+				}
+
+				if (key === "data") {
+					return {
+						clientUser: value.Internal_BotUser ?? null,
 					};
 				}
 

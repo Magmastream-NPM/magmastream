@@ -113,13 +113,18 @@ export class Rest {
 			const response = await axios(config);
 			return response.data;
 		} catch (error) {
-			if (error?.response.data.message === "Guild not found") {
+			if (!error.response) {
+				console.error("No response from node:", error.message);
+				return null;
+			}
+		
+			if (error.response.data?.message === "Guild not found") {
 				return [];
-			} else if (error?.response?.status === 404) {
+			} else if (error.response.status === 404) {
 				await this.node.destroy();
 				this.node.manager.createNode(this.node.options).connect();
 			}
-
+		
 			return null;
 		}
 	}

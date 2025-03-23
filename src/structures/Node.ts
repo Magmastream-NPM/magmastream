@@ -21,7 +21,7 @@ import nodeCheck from "../utils/nodeCheck";
 import WebSocket from "ws";
 import fs from "fs";
 import path from "path";
-import { ClientUser } from "discord.js";
+import { User, ClientUser } from "discord.js";
 import axios from "axios";
 
 export enum SponsorBlockSegment {
@@ -579,7 +579,7 @@ export class Node {
 
 		this.manager.emit(ManagerEventTypes.TrackStart, player, track, payload);
 
-		const botUser = player.get("Internal_BotUser") as ClientUser;
+		const botUser = player.get("Internal_BotUser") as User | ClientUser;
 
 		if (botUser && botUser.id === track.requester.id) {
 			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, player, {
@@ -591,6 +591,7 @@ export class Node {
 			});
 			return;
 		}
+
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, player, {
 			changeType: PlayerStateEventTypes.TrackChange,
 			details: {
@@ -610,19 +611,22 @@ export class Node {
 	protected async trackEnd(player: Player, track: Track, payload: TrackEndEvent): Promise<void> {
 		const { reason } = payload;
 
-		const oldPlayer = player;
-
-		// If the track failed to load or was cleaned up
 		const skipFlag = player.get<boolean>("skipFlag");
-		if (!skipFlag && (!player.queue.previous.length || player.queue.previous.at(-1) !== player.queue.current)) {
+		if (
+			!skipFlag && 
+			(player.queue.previous.length === 0 || 
+			(player.queue.previous[0] && player.queue.previous[0].track !== player.queue.current?.track))
+		) {
 			// Store the current track in the previous tracks queue
-			player.queue.previous.unshift(player.queue.current);
+			player.queue.previous.push(player.queue.current);
 
 			// Limit the previous tracks queue to maxPreviousTracks
 			if (player.queue.previous.length > this.manager.options.maxPreviousTracks) {
-				player.queue.previous.pop();
+				player.queue.previous.shift();
 			}
 		}
+
+		const oldPlayer = player;
 		// Handle track end events
 		switch (reason) {
 			case TrackEndReasonTypes.LoadFailed:
@@ -631,10 +635,12 @@ export class Node {
 				await this.handleFailedTrack(player, track, payload);
 				break;
 			case TrackEndReasonTypes.Replaced:
+				// Handle the case when a track was replaced
+				break;
 			case TrackEndReasonTypes.Stopped:
 				// If the track was forcibly replaced
 				if (player.queue.length) {
-					this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
+					await this.playNextTrack(player, track, payload);
 				} else {
 					await this.queueEnd(player, track, payload);
 				}
@@ -648,7 +654,6 @@ export class Node {
 				// If there's another track in the queue
 				if (player.queue.length) {
 					await this.playNextTrack(player, track, payload);
-					break;
 				} else {
 					await this.queueEnd(player, track, payload);
 				}
@@ -679,7 +684,7 @@ export class Node {
 	 */
 	private async handleAutoplay(player: Player, attempt: number = 0): Promise<boolean> {
 		// If autoplay is not enabled or all attempts have failed, early exit
-		if (!player.isAutoplay || attempt === player.autoplayTries || !player.queue.previous[0]) return false;
+		if (!player.isAutoplay || attempt === player.autoplayTries || !player.queue.previous.length) return false;
 
 		// Get the Last.fm API key and the available source managers
 		const apiKey = this.manager.options.lastFmApiKey;
@@ -692,10 +697,10 @@ export class Node {
 			(!apiKey && enabledSources.includes("youtube")) || // Fallback to YouTube if Last.fm is not available
 			(attempt === player.autoplayTries - 1 && player.autoplayTries > 1 && enabledSources.includes("youtube")); // Use YouTube on the last attempt
 
+		const lastTrack = player.queue.previous[player.queue.previous.length - 1];
 		if (shouldUseYouTube) {
 			// Use YouTube-based autoplay
-			// return this.handleYouTubeAutoplay(player, player.queue.previous);
-			return await this.handleYouTubeAutoplay(player, player.queue.previous?.at(-1) ?? null);
+			return await this.handleYouTubeAutoplay(player, lastTrack);
 		}
 
 		// Handle Last.fm-based autoplay (or other platforms)
@@ -703,8 +708,7 @@ export class Node {
 
 		if (selectedSource) {
 			// Use the selected source to handle autoplay
-			// return this.handlePlatformAutoplay(player, player.queue.previous, selectedSource, apiKey);
-			return await this.handlePlatformAutoplay(player, player.queue.previous?.at(-1) ?? null, selectedSource, apiKey);
+			return await this.handlePlatformAutoplay(player, lastTrack, selectedSource, apiKey);
 		}
 
 		// If no source is available, return false
@@ -782,7 +786,7 @@ export class Node {
 				const randomTrack = response.data.toptracks.track[Math.floor(Math.random() * response.data.toptracks.track.length)];
 				const res = await player.search(
 					{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: platform },
-					player.get("Internal_BotUser") as ClientUser
+					player.get("Internal_BotUser") as User | ClientUser
 				);
 				if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
 
@@ -822,7 +826,7 @@ export class Node {
 			const randomTrack = retryResponse.data.toptracks.track[Math.floor(Math.random() * retryResponse.data.toptracks.track.length)];
 			const res = await player.search(
 				{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: platform },
-				player.get("Internal_BotUser") as ClientUser
+				player.get("Internal_BotUser") as User | ClientUser
 			);
 			if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
 
@@ -837,7 +841,7 @@ export class Node {
 		const randomTrack = response.data.similartracks.track[Math.floor(Math.random() * response.data.similartracks.track.length)];
 		const res = await player.search(
 			{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: platform },
-			player.get("Internal_BotUser") as ClientUser
+			player.get("Internal_BotUser") as User | ClientUser
 		);
 		if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
 
@@ -864,7 +868,7 @@ export class Node {
 			: (
 					await this.manager.search(
 						{ query: `${previousTrack.author} - ${previousTrack.title}`, source: SearchPlatform.YouTube },
-						player.get("Internal_BotUser") as ClientUser
+						player.get("Internal_BotUser") as User | ClientUser
 					)
 			  ).tracks[0]?.uri
 					.split("=")
@@ -884,7 +888,7 @@ export class Node {
 		} while (previousTrack.uri.includes(searchURI));
 
 		// Search for the video and return false if the search fails
-		const res = await this.manager.search({ query: searchURI, source: SearchPlatform.YouTube }, player.get("Internal_BotUser") as ClientUser);
+		const res = await this.manager.search({ query: searchURI, source: SearchPlatform.YouTube }, player.get("Internal_BotUser") as User | ClientUser);
 		if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
 
 		// Find a track that is not the same as the current track
@@ -911,7 +915,6 @@ export class Node {
 	 * @private
 	 */
 	private async handleFailedTrack(player: Player, track: Track, payload: TrackEndEvent): Promise<void> {
-		// player.queue.previous = player.queue.current;
 		player.queue.current = player.queue.shift();
 
 		if (!player.queue.current) {
@@ -1017,7 +1020,6 @@ export class Node {
 		}
 
 		// If all attempts fail, reset the player state and emit queueEnd
-		player.queue.previous = [];
 		player.playing = false;
 		this.manager.emit(ManagerEventTypes.QueueEnd, player, track, payload);
 	}
