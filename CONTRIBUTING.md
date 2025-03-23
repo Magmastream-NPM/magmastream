@@ -73,13 +73,14 @@ We expect all contributors to adhere to our Code of Conduct. Please read it befo
    git commit -m "feat: add new audio filter functionality"
    ```
    We follow [Conventional Commits](https://www.conventionalcommits.org/) for commit messages.
+   Also take a look at [this](https://www.freecodecamp.org/news/how-to-write-better-git-commit-messages/) tutorial for more information.
 
 5. Push to your fork:
    ```bash
    git push origin feature/your-feature-name
    ```
 
-6. Create a Pull Request from your fork to the main repository
+6. Create a Pull Request from your fork to the [dev](https://github.com/Magmastream-NPM/magmastream/tree/dev) branch
 
 ## Pull Request Process
 
