@@ -243,7 +243,6 @@ export class Player {
 	 * @emits {PlayerStateUpdate} - Emitted when the player state is updated.
 	 */
 	public async destroy(disconnect: boolean = true): Promise<boolean> {
-		if (this.state === StateTypes.Disconnected) return true;
 		const oldPlayer = this ? { ...this } : null;
 		this.state = StateTypes.Destroying;
 
@@ -253,11 +252,19 @@ export class Player {
 
 		await this.node.rest.destroyPlayer(this.guildId);
 		this.queue.clear();
+
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, null, {
 			changeType: PlayerStateEventTypes.PlayerDestroy,
 		});
 		this.manager.emit(ManagerEventTypes.PlayerDestroy, this);
-		return this.manager.players.delete(this.guildId);
+
+		const deleted = this.manager.players.delete(this.guildId);
+
+		if (!deleted) {
+			console.warn(`Failed to delete player with guildId: ${this.guildId}`);
+		}
+
+		return deleted;
 	}
 
 	/**
