@@ -519,7 +519,6 @@ export class Manager extends EventEmitter {
 							await player.pause(true);
 						} else {
 							player.paused = false;
-							player.playing = true;
 						}
 
 						if (state.trackRepeat) player.setTrackRepeat(true);
