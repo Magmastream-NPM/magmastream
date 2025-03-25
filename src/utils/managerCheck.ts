@@ -9,24 +9,24 @@ export default function managerCheck(options: ManagerOptions) {
 	if (!options) throw new TypeError("ManagerOptions must not be empty.");
 
 	const {
-		autoPlay,
+		playNextOnEnd,
 		clientName,
 		defaultSearchPlatform,
 		autoPlaySearchPlatform,
 		nodes,
-		plugins,
+		enabledPlugins,
 		send,
 		trackPartial,
-		usePriority,
+		enablePriorityMode,
 		useNode,
-		replaceYouTubeCredentials,
+		normalizeYouTubeTitles,
 		lastFmApiKey,
 		maxPreviousTracks,
 	} = options;
 
-	// Validate autoPlay option
-	if (typeof autoPlay !== "boolean") {
-		throw new TypeError('Manager option "autoPlay" must be a boolean.');
+	// Validate playNextOnEnd option
+	if (typeof playNextOnEnd !== "boolean") {
+		throw new TypeError('Manager option "playNextOnEnd" must be a boolean.');
 	}
 
 	// Validate clientName option
@@ -55,9 +55,9 @@ export default function managerCheck(options: ManagerOptions) {
 		throw new TypeError('Manager option "nodes" must be an array.');
 	}
 
-	// Validate plugins option
-	if (typeof plugins !== "undefined" && !Array.isArray(plugins)) {
-		throw new TypeError('Manager option "plugins" must be a Plugin array.');
+	// Validate enabledPlugins option
+	if (typeof enabledPlugins !== "undefined" && !Array.isArray(enabledPlugins)) {
+		throw new TypeError('Manager option "enabledPlugins" must be a Plugin array.');
 	}
 
 	// Validate send option
@@ -75,13 +75,13 @@ export default function managerCheck(options: ManagerOptions) {
 		}
 	}
 
-	// Validate usePriority option
-	if (typeof usePriority !== "undefined" && typeof usePriority !== "boolean") {
-		throw new TypeError('Manager option "usePriority" must be a boolean.');
+	// Validate enablePriorityMode option
+	if (typeof enablePriorityMode !== "undefined" && typeof enablePriorityMode !== "boolean") {
+		throw new TypeError('Manager option "enablePriorityMode" must be a boolean.');
 	}
 
-	// Validate node priority if usePriority is enabled
-	if (usePriority) {
+	// Validate node priority if enablePriorityMode is enabled
+	if (enablePriorityMode) {
 		for (let index = 0; index < nodes.length; index++) {
 			if (typeof nodes[index].priority !== "number" || isNaN(nodes[index].priority)) {
 				throw new TypeError(`Missing or invalid node option "priority" at position ${index}`);
@@ -100,9 +100,9 @@ export default function managerCheck(options: ManagerOptions) {
 		}
 	}
 
-	// Validate replaceYouTubeCredentials option
-	if (typeof replaceYouTubeCredentials !== "undefined" && typeof replaceYouTubeCredentials !== "boolean") {
-		throw new TypeError('Manager option "replaceYouTubeCredentials" must be a boolean.');
+	// Validate normalizeYouTubeTitles option
+	if (typeof normalizeYouTubeTitles !== "undefined" && typeof normalizeYouTubeTitles !== "boolean") {
+		throw new TypeError('Manager option "normalizeYouTubeTitles" must be a boolean.');
 	}
 
 	// Validate lastFmApiKey option

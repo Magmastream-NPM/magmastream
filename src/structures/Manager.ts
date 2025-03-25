@@ -44,11 +44,11 @@ export class Manager extends EventEmitter {
 	/**
 	 * Initiates the Manager class.
 	 * @param options
-	 * @param options.plugins - An array of plugins to load.
+	 * @param options.enabledPlugins - An array of enabledPlugins to load.
 	 * @param options.nodes - An array of node options to create nodes from.
-	 * @param options.autoPlay - Whether to automatically play the first track in the queue when the player is created.
+	 * @param options.playNextOnEnd - Whether to automatically play the first track in the queue when the player is created.
 	 * @param options.autoPlaySearchPlatform - The search platform autoplay will use. Fallback to Youtube if not found.
-	 * @param options.usePriority - Whether to use the priority when selecting a node to play on.
+	 * @param options.enablePriorityMode - Whether to use the priority when selecting a node to play on.
 	 * @param options.clientName - The name of the client to send to Lavalink.
 	 * @param options.defaultSearchPlatform - The default search platform to use when searching for tracks.
 	 * @param options.useNode - The strategy to use when selecting a node to play on.
@@ -72,17 +72,17 @@ export class Manager extends EventEmitter {
 		}
 
 		this.options = {
-			plugins: [],
+			enabledPlugins: [],
 			nodes: [
 				{
 					identifier: "default",
 					host: "localhost",
-					resumeStatus: false,
-					resumeTimeout: 1000,
+					enableSessionResumeOption: false,
+					sessionTimeoutMs: 1000,
 				},
 			],
-			autoPlay: true,
-			usePriority: false,
+			playNextOnEnd: true,
+			enablePriorityMode: false,
 			clientName: "Magmastream",
 			defaultSearchPlatform: SearchPlatform.YouTube,
 			// autoPlaySearchPlatform: SearchPlatform.YouTube,
@@ -156,8 +156,8 @@ export class Manager extends EventEmitter {
 			}
 		}
 
-		if (this.options.plugins) {
-			for (const [index, plugin] of this.options.plugins.entries()) {
+		if (this.options.enabledPlugins) {
+			for (const [index, plugin] of this.options.enabledPlugins.entries()) {
 				if (!(plugin instanceof Plugin)) throw new RangeError(`Plugin at index ${index} does not extend Plugin.`);
 				plugin.load(this);
 			}
@@ -214,7 +214,7 @@ export class Manager extends EventEmitter {
 				}
 			}
 
-			if (this.options.replaceYouTubeCredentials) {
+			if (this.options.normalizeYouTubeTitles) {
 				const processTrack = (track: Track): Track => {
 					if (!/(youtube\.com|youtu\.be)/.test(track.uri)) return track;
 					const { cleanTitle, cleanAuthor } = this.parseYouTubeTitle(track.title, track.author);
@@ -605,14 +605,14 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-	 * Returns the node to use based on the configured `useNode` and `usePriority` options.
-	 * If `usePriority` is true, the node is chosen based on priority, otherwise it is chosen based on the `useNode` option.
+	 * Returns the node to use based on the configured `useNode` and `enablePriorityMode` options.
+	 * If `enablePriorityMode` is true, the node is chosen based on priority, otherwise it is chosen based on the `useNode` option.
 	 * If `useNode` is "leastLoad", the node with the lowest load is chosen, if it is "leastPlayers", the node with the fewest players is chosen.
-	 * If `usePriority` is false and `useNode` is not set, the node with the lowest load is chosen.
+	 * If `enablePriorityMode` is false and `useNode` is not set, the node with the lowest load is chosen.
 	 * @returns {Node} The node to use.
 	 */
 	public get useableNode(): Node {
-		return this.options.usePriority
+		return this.options.enablePriorityMode
 			? this.priorityNode
 			: this.options.useNode === UseNodeOptions.LeastLoad
 			? this.leastLoadNode.first()
@@ -971,13 +971,13 @@ export class Manager extends EventEmitter {
 	 */
 	private get priorityNode(): Node {
 		// Filter out nodes that are not connected or have a priority of 0
-		const filteredNodes = this.nodes.filter((node) => node.connected && node.options.priority > 0);
+		const filteredNodes = this.nodes.filter((node) => node.connected && node.options.nodePriority > 0);
 		// Calculate the total weight
-		const totalWeight = filteredNodes.reduce((total, node) => total + node.options.priority, 0);
+		const totalWeight = filteredNodes.reduce((total, node) => total + node.options.nodePriority, 0);
 		// Map the nodes to their weights
 		const weightedNodes = filteredNodes.map((node) => ({
 			node,
-			weight: node.options.priority / totalWeight,
+			weight: node.options.nodePriority / totalWeight,
 		}));
 		// Generate a random number between 0 and 1
 		const randomNumber = Math.random();
@@ -1010,9 +1010,11 @@ export interface Payload {
 }
 
 export interface ManagerOptions {
-	/** Whether players should automatically play the next song. */
-	autoPlay?: boolean;
-	/** The search platform autoplay should use. Fallback to YouTube if not found.
+	/** Enable priority mode over least player count or load balancing? */
+	enablePriorityMode?: boolean;
+	/** Automatically play the next track when the current one ends. */
+	playNextOnEnd?: boolean;
+	/** The search platform autoplay should use
 	 * Use enum `SearchPlatform`. */
 	autoPlaySearchPlatform?: SearchPlatform;
 	/** The client ID to use. */
@@ -1021,6 +1023,8 @@ export interface ManagerOptions {
 	clientName?: string;
 	/** The array of shard IDs connected to this manager instance. */
 	clusterId?: number;
+	/** List of plugins to load. */
+	enabledPlugins?: Plugin[];
 	/** The default search platform to use.
 	 * Use enum `SearchPlatform`. */
 	defaultSearchPlatform?: SearchPlatform;
@@ -1032,16 +1036,12 @@ export interface ManagerOptions {
 	maxPreviousTracks?: number;
 	/** The array of nodes to connect to. */
 	nodes?: NodeOptions[];
-	/** A array of plugins to use. */
-	plugins?: Plugin[];
 	/** Whether the YouTube video titles should be replaced if the Author does not exactly match. */
-	replaceYouTubeCredentials?: boolean;
+	normalizeYouTubeTitles?: boolean;
 	/** An array of track properties to keep. `track` will always be present. */
 	trackPartial?: TrackPartial[];
 	/** Use the least amount of players or least load? */
 	useNode?: UseNodeOptions.LeastLoad | UseNodeOptions.LeastPlayers;
-	/** Use priority mode over least amount of player or load? */
-	usePriority?: boolean;
 	/**
 	 * Function to send data to the websocket.
 	 * @param id The ID of the node to send the data to.

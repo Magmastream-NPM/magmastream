@@ -79,14 +79,14 @@ export class Node {
 		this.options = {
 			port: 2333,
 			password: "youshallnotpass",
-			secure: false,
-			retryAmount: 30,
-			retryDelay: 60000,
-			priority: 0,
+			useSSL: false,
+			maxRetryAttempts: 30,
+			retryDelayMs: 60000,
+			nodePriority: 0,
 			...options,
 		};
 
-		if (this.options.secure) {
+		if (this.options.useSSL) {
 			this.options.port = 443;
 		}
 
@@ -214,7 +214,7 @@ export class Node {
 	 * @remarks
 	 * If the node is already connected, this method will do nothing.
 	 * If the node has a session ID, it will be sent in the headers of the WebSocket connection.
-	 * If the node has no session ID but the `resumeStatus` option is true, it will use the session ID
+	 * If the node has no session ID but the `enableSessionResumeOption` option is true, it will use the session ID
 	 * stored in the sessionIds.json file if it exists.
 	 */
 	public connect(): void {
@@ -230,12 +230,12 @@ export class Node {
 
 		if (this.sessionId) {
 			headers["Session-Id"] = this.sessionId;
-		} else if (this.options.resumeStatus && sessionIdsMap.has(compositeKey)) {
+		} else if (this.options.enableSessionResumeOption && sessionIdsMap.has(compositeKey)) {
 			this.sessionId = sessionIdsMap.get(compositeKey) || null;
 			headers["Session-Id"] = this.sessionId;
 		}
 
-		this.socket = new WebSocket(`ws${this.options.secure ? "s" : ""}://${this.address}/v4/websocket`, { headers });
+		this.socket = new WebSocket(`ws${this.options.useSSL ? "s" : ""}://${this.address}/v4/websocket`, { headers });
 		this.socket.on("open", this.open.bind(this));
 		this.socket.on("close", this.close.bind(this));
 		this.socket.on("message", this.message.bind(this));
@@ -248,7 +248,7 @@ export class Node {
 			options: {
 				clientId: this.manager.options.clientId,
 				clientName: this.manager.options.clientName,
-				secure: this.options.secure,
+				useSSL: this.options.useSSL,
 				identifier: this.options.identifier,
 			},
 		};
@@ -327,8 +327,8 @@ export class Node {
 			identifier: this.options.identifier,
 			connected: this.connected,
 			reconnectAttempts: this.reconnectAttempts,
-			retryAmount: this.options.retryAmount,
-			retryDelay: this.options.retryDelay,
+			maxRetryAttempts: this.options.maxRetryAttempts,
+			retryDelayMs: this.options.retryDelayMs,
 		};
 
 		// Emit a debug event indicating the node is attempting to reconnect
@@ -337,9 +337,9 @@ export class Node {
 		// Schedule the reconnection attempt after the specified retry delay
 		this.reconnectTimeout = setTimeout(async () => {
 			// Check if the maximum number of retry attempts has been reached
-			if (this.reconnectAttempts >= this.options.retryAmount) {
+			if (this.reconnectAttempts >= this.options.maxRetryAttempts) {
 				// Emit an error event and destroy the node if retries are exhausted
-				const error = new Error(`Unable to connect after ${this.options.retryAmount} attempts.`);
+				const error = new Error(`Unable to connect after ${this.options.maxRetryAttempts} attempts.`);
 				this.manager.emit(ManagerEventTypes.NodeError, this, error);
 				return await this.destroy();
 			}
@@ -354,7 +354,7 @@ export class Node {
 
 			// Increment the reconnect attempts counter
 			this.reconnectAttempts++;
-		}, this.options.retryDelay);
+		}, this.options.retryDelayMs);
 	}
 
 	/**
@@ -489,10 +489,10 @@ export class Node {
 					await this.manager.loadPlayerStates(this.options.identifier);
 				}
 
-				if (this.options.resumeStatus) {
+				if (this.options.enableSessionResumeOption) {
 					await this.rest.patch(`/v4/sessions/${this.sessionId}`, {
-						resuming: this.options.resumeStatus,
-						timeout: this.options.resumeTimeout,
+						resuming: this.options.enableSessionResumeOption,
+						timeout: this.options.sessionTimeoutMs,
 					});
 				}
 				break;
@@ -717,7 +717,7 @@ export class Node {
 		}
 
 		this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
-		if (this.manager.options.autoPlay) await player.play();
+		if (this.manager.options.playNextOnEnd) await player.play();
 	}
 
 	/**
@@ -734,7 +734,7 @@ export class Node {
 	 */
 	private async handleRepeatedTrack(player: Player, track: Track, payload: TrackEndEvent): Promise<void> {
 		const { queue, trackRepeat, queueRepeat } = player;
-		const { autoPlay } = this.manager.options;
+		const { playNextOnEnd } = this.manager.options;
 
 		if (trackRepeat) {
 			// Prevent duplicate repeat insertion
@@ -761,7 +761,7 @@ export class Node {
 		}
 
 		// If autoplay is enabled, play the next track
-		if (autoPlay) await player.play();
+		if (playNextOnEnd) await player.play();
 	}
 
 	/**
@@ -783,7 +783,7 @@ export class Node {
 		this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
 
 		// If autoplay is enabled, play the next track
-		if (this.manager.options.autoPlay) await player.play();
+		if (this.manager.options.playNextOnEnd) await player.play();
 	}
 
 	/**
@@ -1016,21 +1016,21 @@ export interface NodeOptions {
 	/** The password for the node. */
 	password?: string;
 	/** Whether the host uses SSL. */
-	secure?: boolean;
+	useSSL?: boolean;
 	/** The identifier for the node. */
 	identifier?: string;
-	/** The retryAmount for the node. */
-	retryAmount?: number;
-	/** The retryDelay for the node. */
-	retryDelay?: number;
+	/** The maxRetryAttempts for the node. */
+	maxRetryAttempts?: number;
+	/** The retryDelayMs for the node. */
+	retryDelayMs?: number;
 	/** Whether to resume the previous session. */
-	resumeStatus?: boolean;
+	enableSessionResumeOption?: boolean;
 	/** The time the lavalink server will wait before it removes the player. */
-	resumeTimeout?: number;
+	sessionTimeoutMs?: number;
 	/** The timeout used for api calls. */
-	requestTimeout?: number;
+	apiRequestTimeoutMs?: number;
 	/** Priority of the node. */
-	priority?: number;
+	nodePriority?: number;
 }
 
 export interface NodeStats {
