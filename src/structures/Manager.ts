@@ -1,4 +1,5 @@
 import {
+	AutoPlayUtils,
 	LoadTypes,
 	SponsorBlockChaptersLoaded,
 	SponsorBlockChapterStarted,
@@ -63,6 +64,7 @@ export class Manager extends EventEmitter {
 		Structure.get("Player").init(this);
 		Structure.get("Node").init(this);
 		TrackUtils.init(this);
+		AutoPlayUtils.init(this);
 
 		if (options.trackPartial) {
 			TrackUtils.setTrackPartial(options.trackPartial);
@@ -83,7 +85,7 @@ export class Manager extends EventEmitter {
 			usePriority: false,
 			clientName: "Magmastream",
 			defaultSearchPlatform: SearchPlatform.YouTube,
-			autoPlaySearchPlatform: SearchPlatform.YouTube,
+			// autoPlaySearchPlatform: SearchPlatform.YouTube,
 			useNode: UseNodeOptions.LeastPlayers,
 			maxPreviousTracks: options.maxPreviousTracks ?? 20,
 			...options,

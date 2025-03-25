@@ -1,5 +1,5 @@
 import {
-	LoadTypes,
+	AutoPlayUtils,
 	PlayerEvent,
 	PlayerEvents,
 	SponsorBlockChaptersLoaded,
@@ -14,7 +14,7 @@ import {
 	TrackStuckEvent,
 	WebSocketClosedEvent,
 } from "./Utils";
-import { Manager, ManagerEventTypes, PlayerStateEventTypes, SearchPlatform } from "./Manager";
+import { Manager, ManagerEventTypes, PlayerStateEventTypes } from "./Manager";
 import { Player, Track } from "./Player";
 import { Rest } from "./Rest";
 import nodeCheck from "../utils/nodeCheck";
@@ -22,7 +22,6 @@ import WebSocket from "ws";
 import fs from "fs";
 import path from "path";
 import { User, ClientUser } from "discord.js";
-import axios from "axios";
 
 export enum SponsorBlockSegment {
 	Sponsor = "sponsor",
@@ -612,11 +611,7 @@ export class Node {
 		const { reason } = payload;
 
 		const skipFlag = player.get<boolean>("skipFlag");
-		if (
-			!skipFlag && 
-			(player.queue.previous.length === 0 || 
-			(player.queue.previous[0] && player.queue.previous[0].track !== player.queue.current?.track))
-		) {
+		if (!skipFlag && (player.queue.previous.length === 0 || (player.queue.previous[0] && player.queue.previous[0].track !== player.queue.current?.track))) {
 			// Store the current track in the previous tracks queue
 			player.queue.previous.push(player.queue.current);
 
@@ -686,220 +681,19 @@ export class Node {
 		// If autoplay is not enabled or all attempts have failed, early exit
 		if (!player.isAutoplay || attempt === player.autoplayTries || !player.queue.previous.length) return false;
 
-		// Get the Last.fm API key and the available source managers
-		const apiKey = this.manager.options.lastFmApiKey;
-		const enabledSources = this.info.sourceManagers;
-
-		// Determine if YouTube should be used
-		// If Last.fm is not available, use YouTube as a fallback
-		// If YouTube is available and this is the last attempt, use YouTube
-		const shouldUseYouTube =
-			(!apiKey && enabledSources.includes("youtube")) || // Fallback to YouTube if Last.fm is not available
-			(attempt === player.autoplayTries - 1 && player.autoplayTries > 1 && enabledSources.includes("youtube")); // Use YouTube on the last attempt
-
 		const lastTrack = player.queue.previous[player.queue.previous.length - 1];
-		if (shouldUseYouTube) {
-			// Use YouTube-based autoplay
-			return await this.handleYouTubeAutoplay(player, lastTrack);
-		}
 
-		// Handle Last.fm-based autoplay (or other platforms)
-		const selectedSource = this.selectPlatform(enabledSources);
+		lastTrack.requester = player.get("Internal_BotUser") as User | ClientUser;
 
-		if (selectedSource) {
-			// Use the selected source to handle autoplay
-			return await this.handlePlatformAutoplay(player, lastTrack, selectedSource, apiKey);
-		}
+		const tracks = await AutoPlayUtils.getRecommendedTracks(player, lastTrack, attempt);
 
-		// If no source is available, return false
-		return false;
-	}
-
-	/**
-	 * Selects a platform from the given enabled sources.
-	 * @param {string[]} enabledSources - The enabled sources to select from.
-	 * @returns {SearchPlatform | null} - The selected platform or null if none was found.
-	 */
-	public selectPlatform(enabledSources: string[]): SearchPlatform | null {
-		const { autoPlaySearchPlatform } = this.manager.options;
-		const platformMapping: { [key in SearchPlatform]: string } = {
-			[SearchPlatform.AppleMusic]: "applemusic",
-			[SearchPlatform.Bandcamp]: "bandcamp",
-			[SearchPlatform.Deezer]: "deezer",
-			[SearchPlatform.Jiosaavn]: "jiosaavn",
-			[SearchPlatform.SoundCloud]: "soundcloud",
-			[SearchPlatform.Spotify]: "spotify",
-			[SearchPlatform.Tidal]: "tidal",
-			[SearchPlatform.VKMusic]: "vkmusic",
-			[SearchPlatform.YouTube]: "youtube",
-			[SearchPlatform.YouTubeMusic]: "youtube",
-		};
-
-		// Try the autoPlaySearchPlatform first
-		if (enabledSources.includes(platformMapping[autoPlaySearchPlatform])) {
-			return autoPlaySearchPlatform;
-		}
-
-		// Fallback to other platforms in a predefined order
-		const fallbackPlatforms = [
-			SearchPlatform.Spotify,
-			SearchPlatform.Deezer,
-			SearchPlatform.SoundCloud,
-			SearchPlatform.AppleMusic,
-			SearchPlatform.Bandcamp,
-			SearchPlatform.Jiosaavn,
-			SearchPlatform.Tidal,
-			SearchPlatform.VKMusic,
-			SearchPlatform.YouTubeMusic,
-			SearchPlatform.YouTube,
-		];
-
-		for (const platform of fallbackPlatforms) {
-			if (enabledSources.includes(platformMapping[platform])) {
-				return platform;
-			}
-		}
-
-		return null;
-	}
-
-	/**
-	 * Handles Last.fm-based autoplay.
-	 * @param {Player} player - The player instance.
-	 * @param {Track} previousTrack - The previous track.
-	 * @param {SearchPlatform} platform - The selected platform.
-	 * @param {string} apiKey - The Last.fm API key.
-	 * @returns {Promise<boolean>} - Whether the autoplay was successful.
-	 */
-	private async handlePlatformAutoplay(player: Player, previousTrack: Track, platform: SearchPlatform, apiKey: string): Promise<boolean> {
-		let { author: artist } = previousTrack;
-		const { title } = previousTrack;
-
-		if (!artist || !title) {
-			if (!title) {
-				// No title provided, search for the artist's top tracks
-				const noTitleUrl = `https://ws.audioscrobbler.com/2.0/?method=artist.getTopTracks&artist=${artist}&autocorrect=1&api_key=${apiKey}&format=json`;
-				const response = await axios.get(noTitleUrl);
-
-				if (response.data.error || !response.data.toptracks?.track?.length) return false;
-
-				const randomTrack = response.data.toptracks.track[Math.floor(Math.random() * response.data.toptracks.track.length)];
-				const res = await player.search(
-					{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: platform },
-					player.get("Internal_BotUser") as User | ClientUser
-				);
-				if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
-
-				const foundTrack = res.tracks.find((t) => t.uri !== previousTrack.uri);
-				if (!foundTrack) return false;
-
-				player.queue.add(foundTrack);
-				await player.play();
-				return true;
-			}
-			if (!artist) {
-				// No artist provided, search for the track title
-				const noArtistUrl = `https://ws.audioscrobbler.com/2.0/?method=track.search&track=${title}&api_key=${apiKey}&format=json`;
-				const response = await axios.get(noArtistUrl);
-				artist = response.data.results.trackmatches?.track?.[0]?.artist;
-				if (!artist) return false;
-			}
-		}
-
-		// Search for similar tracks to the current track
-		const url = `https://ws.audioscrobbler.com/2.0/?method=track.getSimilar&artist=${artist}&track=${title}&limit=10&autocorrect=1&api_key=${apiKey}&format=json`;
-		let response: axios.AxiosResponse;
-
-		try {
-			response = await axios.get(url);
-		} catch (error) {
-			if (error) return false;
-		}
-
-		if (response.data.error || !response.data.similartracks?.track?.length) {
-			// Retry the request if the first attempt fails
-			const retryUrl = `https://ws.audioscrobbler.com/2.0/?method=artist.getTopTracks&artist=${artist}&autocorrect=1&api_key=${apiKey}&format=json`;
-			const retryResponse = await axios.get(retryUrl);
-
-			if (retryResponse.data.error || !retryResponse.data.toptracks?.track?.length) return false;
-
-			const randomTrack = retryResponse.data.toptracks.track[Math.floor(Math.random() * retryResponse.data.toptracks.track.length)];
-			const res = await player.search(
-				{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: platform },
-				player.get("Internal_BotUser") as User | ClientUser
-			);
-			if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
-
-			const foundTrack = res.tracks.find((t) => t.uri !== previousTrack.uri);
-			if (!foundTrack) return false;
-
-			player.queue.add(foundTrack);
+		if (tracks.length) {
+			player.queue.add(tracks[0]);
 			await player.play();
 			return true;
+		} else {
+			return false;
 		}
-
-		const randomTrack = response.data.similartracks.track[Math.floor(Math.random() * response.data.similartracks.track.length)];
-		const res = await player.search(
-			{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: platform },
-			player.get("Internal_BotUser") as User | ClientUser
-		);
-		if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
-
-		const foundTrack = res.tracks.find((t) => t.uri !== previousTrack.uri);
-		if (!foundTrack) return false;
-
-		player.queue.add(foundTrack);
-		await player.play();
-		return true;
-	}
-
-	/**
-	 * Handles YouTube-based autoplay.
-	 * @param {Player} player - The player instance.
-	 * @param {Track} previousTrack - The previous track.
-	 * @returns {Promise<boolean>} - Whether the autoplay was successful.
-	 */
-	private async handleYouTubeAutoplay(player: Player, previousTrack: Track): Promise<boolean> {
-		// Check if the previous track has a YouTube URL
-		const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) => previousTrack.uri.includes(url));
-		// Get the video ID from the previous track's URL
-		const videoID = hasYouTubeURL
-			? previousTrack.uri.split("=").pop()
-			: (
-					await this.manager.search(
-						{ query: `${previousTrack.author} - ${previousTrack.title}`, source: SearchPlatform.YouTube },
-						player.get("Internal_BotUser") as User | ClientUser
-					)
-			  ).tracks[0]?.uri
-					.split("=")
-					.pop();
-
-		// If the video ID is not found, return false
-		if (!videoID) return false;
-
-		// Get a random video index between 2 and 24
-		let randomIndex: number;
-		let searchURI: string;
-		do {
-			// Generate a random index between 2 and 24
-			randomIndex = Math.floor(Math.random() * 23) + 2;
-			// Build the search URI
-			searchURI = `https://www.youtube.com/watch?v=${videoID}&list=RD${videoID}&index=${randomIndex}`;
-		} while (previousTrack.uri.includes(searchURI));
-
-		// Search for the video and return false if the search fails
-		const res = await this.manager.search({ query: searchURI, source: SearchPlatform.YouTube }, player.get("Internal_BotUser") as User | ClientUser);
-		if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
-
-		// Find a track that is not the same as the current track
-		const foundTrack = res.tracks.find((t) => t.uri !== previousTrack.uri && t.author !== previousTrack.author && t.title !== previousTrack.title);
-		// If no track is found, return false
-		if (!foundTrack) return false;
-
-		// Add the found track to the queue and play it
-		player.queue.add(foundTrack);
-		await player.play();
-		return true;
 	}
 
 	/**

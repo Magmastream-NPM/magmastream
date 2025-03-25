@@ -1,12 +1,11 @@
 import { Filters } from "./Filters";
-import { Manager, ManagerEventTypes, PlayerStateEventTypes, SearchPlatform, SearchQuery, SearchResult } from "./Manager";
+import { Manager, ManagerEventTypes, PlayerStateEventTypes, SearchQuery, SearchResult } from "./Manager";
 import { Lyrics, Node, SponsorBlockSegment } from "./Node";
 import { Queue } from "./Queue";
-import { LoadTypes, Sizes, StateTypes, Structure, TrackSourceName, TrackUtils, VoiceState } from "./Utils";
+import { AutoPlayUtils, Sizes, StateTypes, Structure, TrackSourceName, TrackUtils, VoiceState } from "./Utils";
 import * as _ from "lodash";
 import playerCheck from "../utils/playerCheck";
 import { ClientUser, Message, User } from "discord.js";
-import axios from "axios";
 
 export class Player {
 	/** The Queue for the Player. */
@@ -443,143 +442,8 @@ export class Player {
 	 * @returns {Promise<Track[]>} - Array of recommended tracks.
 	 */
 	public async getRecommendedTracks(track: Track): Promise<Track[]> {
-		const node = this.manager.useableNode;
-
-		if (!node) {
-			throw new Error("No available nodes.");
-		}
-
-		if (!TrackUtils.validate(track)) {
-			throw new RangeError('"Track must be a "Track" or "Track[]');
-		}
-
-		// Get the Last.fm API key and the available source managers
-		const apiKey = this.manager.options.lastFmApiKey;
-		const enabledSources = node.info.sourceManagers;
-
-		// Determine if YouTube should be used
-		if (!apiKey && enabledSources.includes("youtube")) {
-			// Use YouTube-based autoplay
-			return await this.handleYouTubeRecommendations(track);
-		}
-
-		if (!apiKey) return [];
-		// Handle Last.fm-based autoplay (or other platforms)
-		const selectedSource = node.selectPlatform(enabledSources);
-
-		if (selectedSource) {
-			// Use the selected source to handle autoplay
-			return await this.handlePlatformAutoplay(track, selectedSource, apiKey);
-		}
-
-		// If no source is available, return false
-		return [];
-	}
-
-	/**
-	 * Handles YouTube-based recommendations.
-	 * @param {Track} track - The track to find recommendations for.
-	 * @returns {Promise<Track[]>} - Array of recommended tracks.
-	 */
-	private async handleYouTubeRecommendations(track: Track): Promise<Track[]> {
-		// Check if the previous track has a YouTube URL
-		const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) => track.uri.includes(url));
-		// Get the video ID from the previous track's URL
-
-		let videoID: string | null = null;
-		if (hasYouTubeURL) {
-			videoID = track.uri.split("=").pop();
-		} else {
-			const searchResult = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.YouTube }, track.requester);
-			videoID = searchResult.tracks[0]?.uri.split("=").pop();
-		}
-
-		// If the video ID is not found, return false
-		if (!videoID) return [];
-
-		// Get a random video index between 2 and 24
-		let randomIndex: number;
-		let searchURI: string;
-		do {
-			// Generate a random index between 2 and 24
-			randomIndex = Math.floor(Math.random() * 23) + 2;
-			// Build the search URI
-			searchURI = `https://www.youtube.com/watch?v=${videoID}&list=RD${videoID}&index=${randomIndex}`;
-		} while (track.uri.includes(searchURI));
-
-		// Search for the video and return false if the search fails
-		const res = await this.manager.search({ query: searchURI, source: SearchPlatform.YouTube }, track.requester);
-		if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return [];
-
-		// Return all track titles that do not have the same URI as the track.uri from before
-		return res.tracks.filter((t) => t.uri !== track.uri);
-	}
-
-	/**
-	 * Handles Last.fm-based autoplay (or other platforms).
-	 * @param {Track} track - The track to find recommendations for.
-	 * @param {SearchPlatform} source - The selected search platform.
-	 * @param {string} apiKey - The Last.fm API key.
-	 * @returns {Promise<Track[]>} - Array of recommended tracks.
-	 */
-	private async handlePlatformAutoplay(track: Track, source: SearchPlatform, apiKey: string): Promise<Track[]> {
-		let { author: artist } = track;
-		const { title } = track;
-
-		if (!artist || !title) {
-			if (!title) {
-				// No title provided, search for the artist's top tracks
-				const noTitleUrl = `https://ws.audioscrobbler.com/2.0/?method=artist.getTopTracks&artist=${artist}&autocorrect=1&api_key=${apiKey}&format=json`;
-				const response = await axios.get(noTitleUrl);
-
-				if (response.data.error || !response.data.toptracks?.track?.length) return [];
-
-				const randomTrack = response.data.toptracks.track[Math.floor(Math.random() * response.data.toptracks.track.length)];
-				const res = await this.manager.search({ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: source }, track.requester);
-				if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return [];
-
-				const filteredTracks = res.tracks.filter((t) => t.uri !== track.uri);
-				if (!filteredTracks) return [];
-
-				return filteredTracks;
-			}
-			if (!artist) {
-				// No artist provided, search for the track title
-				const noArtistUrl = `https://ws.audioscrobbler.com/2.0/?method=track.search&track=${title}&api_key=${apiKey}&format=json`;
-				const response = await axios.get(noArtistUrl);
-				artist = response.data.results.trackmatches?.track?.[0]?.artist;
-				if (!artist) return [];
-			}
-		}
-
-		// Search for similar tracks to the current track
-		const url = `https://ws.audioscrobbler.com/2.0/?method=track.getSimilar&artist=${artist}&track=${title}&limit=10&autocorrect=1&api_key=${apiKey}&format=json`;
-		let response: axios.AxiosResponse;
-
-		try {
-			response = await axios.get(url);
-		} catch (error) {
-			if (error) return [];
-		}
-
-		if (response.data.error || !response.data.similartracks?.track?.length) {
-			// Retry the request if the first attempt fails
-			const retryUrl = `https://ws.audioscrobbler.com/2.0/?method=artist.getTopTracks&artist=${artist}&autocorrect=1&api_key=${apiKey}&format=json`;
-			const retryResponse = await axios.get(retryUrl);
-
-			if (retryResponse.data.error || !retryResponse.data.toptracks?.track?.length) return [];
-
-			const randomTrack = retryResponse.data.toptracks.track[Math.floor(Math.random() * retryResponse.data.toptracks.track.length)];
-			const res = await this.manager.search({ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: source }, track.requester);
-			if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return [];
-
-			const filteredTracks = res.tracks.filter((t) => t.uri !== track.uri);
-			if (!filteredTracks) return [];
-
-			return filteredTracks;
-		}
-
-		return response.data.similartracks.track.filter((t: { uri: string }) => t.uri !== track.uri);
+		const tracks = await AutoPlayUtils.getRecommendedTracks(this, track);
+		return tracks;
 	}
 
 	/**
@@ -1219,7 +1083,7 @@ export interface Track {
 	/** The thumbnail of the track or null if it's a unsupported source. */
 	readonly thumbnail: string | null;
 	/** The user that requested the track. */
-	readonly requester?: User | ClientUser;
+	requester?: User | ClientUser;
 	/** Displays the track thumbnail with optional size or null if it's a unsupported source. */
 	displayThumbnail(size?: Sizes): string;
 	/** Additional track info provided by plugins. */
