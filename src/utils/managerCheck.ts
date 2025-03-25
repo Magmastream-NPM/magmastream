@@ -83,8 +83,8 @@ export default function managerCheck(options: ManagerOptions) {
 	// Validate node priority if enablePriorityMode is enabled
 	if (enablePriorityMode) {
 		for (let index = 0; index < nodes.length; index++) {
-			if (typeof nodes[index].priority !== "number" || isNaN(nodes[index].priority)) {
-				throw new TypeError(`Missing or invalid node option "priority" at position ${index}`);
+			if (typeof nodes[index].nodePriority !== "number" || isNaN(nodes[index].nodePriority)) {
+				throw new TypeError(`Missing or invalid node option "nodePriority" at position ${index}`);
 			}
 		}
 	}
