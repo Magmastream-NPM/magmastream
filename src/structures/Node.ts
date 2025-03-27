@@ -685,6 +685,8 @@ export class Node {
 
 		lastTrack.requester = player.get("Internal_BotUser") as User | ClientUser;
 
+		if (!lastTrack) return false;
+
 		const tracks = await AutoPlayUtils.getRecommendedTracks(player, lastTrack, attempt);
 
 		if (tracks.length) {
