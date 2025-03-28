@@ -47,7 +47,7 @@ export class Player {
 	/** The autoplay state of the player. */
 	public isAutoplay: boolean = false;
 	/** The number of times to try autoplay before emitting queueEnd. */
-	public autoplayTries: number | null = null;
+	public autoplayTries: number = 3;
 
 	private static _manager: Manager;
 	private readonly data: Record<string, unknown> = {};

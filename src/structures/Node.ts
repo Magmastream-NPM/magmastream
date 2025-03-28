@@ -679,7 +679,7 @@ export class Node {
 	 */
 	private async handleAutoplay(player: Player, attempt: number = 0): Promise<boolean> {
 		// If autoplay is not enabled or all attempts have failed, early exit
-		if (!player.isAutoplay || attempt === player.autoplayTries || !player.queue.previous.length) return false;
+		if (!player.isAutoplay || attempt > player.autoplayTries || !player.queue.previous.length) return false;
 
 		const lastTrack = player.queue.previous[player.queue.previous.length - 1];
 
@@ -806,13 +806,13 @@ export class Node {
 			return;
 		}
 
-		let attempts = 1;
+		let attempt = 1;
 		let success = false;
 
-		while (attempts <= player.autoplayTries) {
-			success = await this.handleAutoplay(player, attempts);
+		while (attempt <= player.autoplayTries) {
+			success = await this.handleAutoplay(player, attempt);
 			if (success) return;
-			attempts++;
+			attempt++;
 		}
 
 		// If all attempts fail, reset the player state and emit queueEnd
