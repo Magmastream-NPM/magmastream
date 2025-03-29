@@ -253,7 +253,7 @@ export abstract class AutoPlayUtils {
 		try {
 			response = await axios.get(url);
 		} catch (error) {
-			console.log(error);
+			console.error("[AutoPlay] Error fetching similar tracks from Last.fm:", error);
 			return [];
 		}
 
@@ -369,7 +369,7 @@ export abstract class AutoPlayUtils {
 						const response = await axios.get("https://open.spotify.com/get_access_token", { params });
 						body = response.data;
 					} catch (error) {
-						console.error("[AutoPlay] Failed to get access token:", error.response?.status, error.response?.data || error.message);
+						console.error("[AutoPlay] Failed to get spotify access token:", error.response?.status, error.response?.data || error.message);
 						return [];
 					}
 
@@ -384,7 +384,7 @@ export abstract class AutoPlayUtils {
 						});
 						json = response.data;
 					} catch (error) {
-						console.error("[AutoPlay] Failed to fetch recommendations:", error.response?.status, error.response?.data || error.message);
+						console.error("[AutoPlay] Failed to fetch spotify recommendations:", error.response?.status, error.response?.data || error.message);
 						return [];
 					}
 
@@ -410,7 +410,7 @@ export abstract class AutoPlayUtils {
 
 					return res.tracks;
 				} catch (error) {
-					console.error("[AutoPlay] Unexpected error:", error.message || error);
+					console.error("[AutoPlay] Unexpected spotify error:", error.message || error);
 					return [];
 				}
 				break;
@@ -557,53 +557,44 @@ export abstract class AutoPlayUtils {
 					}
 					return res.tracks;
 				} catch (error) {
-					console.error("[AutoPlay] Error occurred while fetching recommendations:", error);
+					console.error("[AutoPlay] Error occurred while fetching soundcloud recommendations:", error);
 					return [];
 				}
 				break;
 			case "youtube":
-				return this.getRecommendedTracksFromYouTube(track);
+				const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) => track.uri.includes(url));
+				let videoID: string | null = null;
+
+				if (hasYouTubeURL) {
+					videoID = track.uri.split("=").pop();
+				} else {
+					const searchResult = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.YouTube }, track.requester);
+					videoID = searchResult.tracks[0]?.uri.split("=").pop();
+				}
+
+				if (!videoID) {
+					return [];
+				}
+
+				let randomIndex: number;
+				let searchURI: string;
+
+				do {
+					randomIndex = Math.floor(Math.random() * 23) + 2;
+					searchURI = `https://www.youtube.com/watch?v=${videoID}&list=RD${videoID}&index=${randomIndex}`;
+				} while (track.uri.includes(searchURI));
+
+				const res = await this.manager.search({ query: searchURI, source: SearchPlatform.YouTube }, track.requester);
+				if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
+					return [];
+				}
+
+				const filteredTracks = res.tracks.filter((t) => t.uri !== track.uri);
+
+				return filteredTracks;
 			default:
 				return [];
 		}
-	}
-
-	/**
-	 * Gets recommended tracks from YouTube for the given track.
-	 * @param track The track to get recommended tracks for.
-	 * @returns An array of recommended tracks.
-	 */
-	static async getRecommendedTracksFromYouTube(track: Track): Promise<Track[]> {
-		const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) => track.uri.includes(url));
-		let videoID: string | null = null;
-
-		if (hasYouTubeURL) {
-			videoID = track.uri.split("=").pop();
-		} else {
-			const searchResult = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.YouTube }, track.requester);
-			videoID = searchResult.tracks[0]?.uri.split("=").pop();
-		}
-
-		if (!videoID) {
-			return [];
-		}
-
-		let randomIndex: number;
-		let searchURI: string;
-
-		do {
-			randomIndex = Math.floor(Math.random() * 23) + 2;
-			searchURI = `https://www.youtube.com/watch?v=${videoID}&list=RD${videoID}&index=${randomIndex}`;
-		} while (track.uri.includes(searchURI));
-
-		const res = await this.manager.search({ query: searchURI, source: SearchPlatform.YouTube }, track.requester);
-		if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
-			return [];
-		}
-
-		const filteredTracks = res.tracks.filter((t) => t.uri !== track.uri);
-
-		return filteredTracks;
 	}
 }
 
