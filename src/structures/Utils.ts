@@ -159,6 +159,11 @@ export abstract class AutoPlayUtils {
 		this.manager = manager;
 	}
 
+	/**
+	 * Gets recommended tracks for the given track.
+	 * @param track The track to get recommended tracks for.
+	 * @returns An array of recommended tracks.
+	 */
 	public static async getRecommendedTracks(track: Track): Promise<Track[]> {
 		const node = this.manager.useableNode;
 		if (!node) {
@@ -189,6 +194,12 @@ export abstract class AutoPlayUtils {
 		return [];
 	}
 
+	/**
+	 * Gets recommended tracks from Last.fm for the given track.
+	 * @param track The track to get recommended tracks for.
+	 * @param apiKey The API key for Last.fm.
+	 * @returns An array of recommended tracks.
+	 */
 	static async getRecommendedTracksFromLastFm(track: Track, apiKey: string): Promise<Track[]> {
 		let { author: artist } = track;
 		const { title } = track;
@@ -294,6 +305,12 @@ export abstract class AutoPlayUtils {
 		return res.tracks;
 	}
 
+	/**
+	 * Gets recommended tracks from the given source.
+	 * @param track The track to get recommended tracks for.
+	 * @param platform The source to get recommended tracks from.
+	 * @returns An array of recommended tracks.
+	 */
 	static async getRecommendedTracksFromSource(track: Track, platform: string): Promise<Track[]> {
 		switch (platform) {
 			case "spotify":
@@ -396,6 +413,7 @@ export abstract class AutoPlayUtils {
 					console.error("[AutoPlay] Unexpected error:", error.message || error);
 					return [];
 				}
+				break;
 			case "deezer":
 				if (!track.uri.includes("deezer")) {
 					const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.Deezer }, track.requester);
@@ -467,6 +485,7 @@ export abstract class AutoPlayUtils {
 				}
 
 				return result.tracks;
+				break;
 			case "soundcloud":
 				if (!track.uri.includes("soundcloud")) {
 					const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.SoundCloud }, track.requester);
@@ -541,6 +560,7 @@ export abstract class AutoPlayUtils {
 					console.error("[AutoPlay] Error occurred while fetching recommendations:", error);
 					return [];
 				}
+				break;
 			case "youtube":
 				return this.getRecommendedTracksFromYouTube(track);
 			default:
@@ -548,6 +568,11 @@ export abstract class AutoPlayUtils {
 		}
 	}
 
+	/**
+	 * Gets recommended tracks from YouTube for the given track.
+	 * @param track The track to get recommended tracks for.
+	 * @returns An array of recommended tracks.
+	 */
 	static async getRecommendedTracksFromYouTube(track: Track): Promise<Track[]> {
 		const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) => track.uri.includes(url));
 		let videoID: string | null = null;
