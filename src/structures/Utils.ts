@@ -314,9 +314,112 @@ export abstract class AutoPlayUtils {
 	static async getRecommendedTracksFromSource(track: Track, platform: string): Promise<Track[]> {
 		switch (platform) {
 			case "spotify":
-				try {
-					if (!track.uri.includes("spotify")) {
-						const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.Spotify }, track.requester);
+				{
+					try {
+						if (!track.uri.includes("spotify")) {
+							const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.Spotify }, track.requester);
+
+							if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
+								return [];
+							}
+
+							if (res.loadType === LoadTypes.Playlist) {
+								res.tracks = res.playlist.tracks;
+							}
+
+							if (!res.tracks.length) {
+								return [];
+							}
+
+							track = res.tracks[0];
+						}
+
+						const TOTP_SECRET = new Uint8Array([
+							53, 53, 48, 55, 49, 52, 53, 56, 53, 51, 52, 56, 55, 52, 57, 57, 53, 57, 50, 50, 52, 56, 54, 51, 48, 51, 50, 57, 51, 52, 55,
+						]);
+						const hmac = crypto.createHmac("sha1", TOTP_SECRET);
+
+						function generateTotp() {
+							const counter = Math.floor(Date.now() / 30000);
+							const counterBuffer = Buffer.alloc(8);
+							counterBuffer.writeBigInt64BE(BigInt(counter));
+
+							hmac.update(counterBuffer);
+							const hmacResult = hmac.digest();
+
+							const offset = hmacResult[hmacResult.length - 1] & 15;
+							const truncatedValue =
+								((hmacResult[offset] & 127) << 24) | ((hmacResult[offset + 1] & 255) << 16) | ((hmacResult[offset + 2] & 255) << 8) | (hmacResult[offset + 3] & 255);
+
+							const totp = (truncatedValue % 1000000).toString().padStart(6, "0");
+							return [totp, counter * 30000];
+						}
+
+						const [totp, timestamp] = generateTotp();
+
+						const params = {
+							reason: "transport",
+							productType: "embed",
+							totp: totp,
+							totpVer: 5,
+							ts: timestamp,
+						};
+
+						let body;
+						try {
+							const response = await axios.get("https://open.spotify.com/get_access_token", { params });
+							body = response.data;
+						} catch (error) {
+							console.error("[AutoPlay] Failed to get spotify access token:", error.response?.status, error.response?.data || error.message);
+							return [];
+						}
+
+						let json;
+						try {
+							const response = await axios.get(`https://api.spotify.com/v1/recommendations`, {
+								params: { limit: 10, seed_tracks: track.identifier },
+								headers: {
+									Authorization: `Bearer ${body.accessToken}`,
+									"Content-Type": "application/json",
+								},
+							});
+							json = response.data;
+						} catch (error) {
+							console.error("[AutoPlay] Failed to fetch spotify recommendations:", error.response?.status, error.response?.data || error.message);
+							return [];
+						}
+
+						if (!json.tracks || !json.tracks.length) {
+							return [];
+						}
+
+						const recommendedTrackId = json.tracks[Math.floor(Math.random() * json.tracks.length)].id;
+
+						const res = await this.manager.search({ query: `https://open.spotify.com/track/${recommendedTrackId}`, source: SearchPlatform.Spotify }, track.requester);
+
+						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
+							return [];
+						}
+
+						if (res.loadType === LoadTypes.Playlist) {
+							res.tracks = res.playlist.tracks;
+						}
+
+						if (!res.tracks.length) {
+							return [];
+						}
+
+						return res.tracks;
+					} catch (error) {
+						console.error("[AutoPlay] Unexpected spotify error:", error.message || error);
+						return [];
+					}
+				}
+				break;
+			case "deezer":
+				{
+					if (!track.uri.includes("deezer")) {
+						const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.Deezer }, track.requester);
 
 						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
 							return [];
@@ -333,265 +436,319 @@ export abstract class AutoPlayUtils {
 						track = res.tracks[0];
 					}
 
-					const TOTP_SECRET = new Uint8Array([
-						53, 53, 48, 55, 49, 52, 53, 56, 53, 51, 52, 56, 55, 52, 57, 57, 53, 57, 50, 50, 52, 56, 54, 51, 48, 51, 50, 57, 51, 52, 55,
-					]);
-					const hmac = crypto.createHmac("sha1", TOTP_SECRET);
+					const identifier = `dzrec:${track.identifier}`;
 
-					function generateTotp() {
-						const counter = Math.floor(Date.now() / 30000);
-						const counterBuffer = Buffer.alloc(8);
-						counterBuffer.writeBigInt64BE(BigInt(counter));
+					const recommendedResult = (await this.manager.useableNode.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(identifier)}`)) as LavalinkResponse;
 
-						hmac.update(counterBuffer);
-						const hmacResult = hmac.digest();
-
-						const offset = hmacResult[hmacResult.length - 1] & 15;
-						const truncatedValue =
-							((hmacResult[offset] & 127) << 24) | ((hmacResult[offset + 1] & 255) << 16) | ((hmacResult[offset + 2] & 255) << 8) | (hmacResult[offset + 3] & 255);
-
-						const totp = (truncatedValue % 1000000).toString().padStart(6, "0");
-						return [totp, counter * 30000];
-					}
-
-					const [totp, timestamp] = generateTotp();
-
-					const params = {
-						reason: "transport",
-						productType: "embed",
-						totp: totp,
-						totpVer: 5,
-						ts: timestamp,
-					};
-
-					let body;
-					try {
-						const response = await axios.get("https://open.spotify.com/get_access_token", { params });
-						body = response.data;
-					} catch (error) {
-						console.error("[AutoPlay] Failed to get spotify access token:", error.response?.status, error.response?.data || error.message);
+					if (!recommendedResult) {
 						return [];
 					}
 
-					let json;
-					try {
-						const response = await axios.get(`https://api.spotify.com/v1/recommendations`, {
-							params: { limit: 10, seed_tracks: track.identifier },
-							headers: {
-								Authorization: `Bearer ${body.accessToken}`,
-								"Content-Type": "application/json",
-							},
-						});
-						json = response.data;
-					} catch (error) {
-						console.error("[AutoPlay] Failed to fetch spotify recommendations:", error.response?.status, error.response?.data || error.message);
+					let tracks: Track[] = [];
+					let playlist: SearchResult["playlist"] = null;
+
+					const requester = track.requester;
+
+					switch (recommendedResult.loadType) {
+						case LoadTypes.Search:
+							tracks = (recommendedResult.data as TrackData[]).map((track) => TrackUtils.build(track, requester));
+							break;
+
+						case LoadTypes.Track:
+							tracks = [TrackUtils.build(recommendedResult.data as unknown as TrackData, requester)];
+							break;
+
+						case LoadTypes.Playlist: {
+							const playlistData = recommendedResult.data as PlaylistRawData;
+							tracks = playlistData.tracks.map((track) => TrackUtils.build(track, requester));
+
+							playlist = {
+								name: playlistData.info.name,
+								playlistInfo: playlistData.pluginInfo as PlaylistInfoData[],
+								requester: requester as User,
+								tracks,
+								duration: tracks.reduce((acc, cur) => acc + ((cur as unknown as Track).duration || 0), 0),
+							};
+							break;
+						}
+					}
+
+					const result: SearchResult = { loadType: recommendedResult.loadType, tracks, playlist };
+
+					if (result.loadType === LoadTypes.Empty || result.loadType === LoadTypes.Error) {
 						return [];
 					}
 
-					if (!json.tracks || !json.tracks.length) {
+					if (result.loadType === LoadTypes.Playlist) {
+						result.tracks = result.playlist.tracks;
+					}
+
+					if (!result.tracks.length) {
 						return [];
 					}
 
-					const recommendedTrackId = json.tracks[Math.floor(Math.random() * json.tracks.length)].id;
-
-					const res = await this.manager.search({ query: `https://open.spotify.com/track/${recommendedTrackId}`, source: SearchPlatform.Spotify }, track.requester);
-
-					if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
-						return [];
-					}
-
-					if (res.loadType === LoadTypes.Playlist) {
-						res.tracks = res.playlist.tracks;
-					}
-
-					if (!res.tracks.length) {
-						return [];
-					}
-
-					return res.tracks;
-				} catch (error) {
-					console.error("[AutoPlay] Unexpected spotify error:", error.message || error);
-					return [];
+					return result.tracks;
 				}
-				break;
-			case "deezer":
-				if (!track.uri.includes("deezer")) {
-					const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.Deezer }, track.requester);
-
-					if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
-						return [];
-					}
-
-					if (res.loadType === LoadTypes.Playlist) {
-						res.tracks = res.playlist.tracks;
-					}
-
-					if (!res.tracks.length) {
-						return [];
-					}
-
-					track = res.tracks[0];
-				}
-
-				const identifier = `dzrec:${track.identifier}`;
-
-				const recommendedResult = (await this.manager.useableNode.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(identifier)}`)) as LavalinkResponse;
-
-				if (!recommendedResult) {
-					return [];
-				}
-
-				let tracks: Track[] = [];
-				let playlist: SearchResult["playlist"] = null;
-
-				const requester = track.requester;
-
-				switch (recommendedResult.loadType) {
-					case LoadTypes.Search:
-						tracks = (recommendedResult.data as TrackData[]).map((track) => TrackUtils.build(track, requester));
-						break;
-
-					case LoadTypes.Track:
-						tracks = [TrackUtils.build(recommendedResult.data as unknown as TrackData, requester)];
-						break;
-
-					case LoadTypes.Playlist: {
-						const playlistData = recommendedResult.data as PlaylistRawData;
-						tracks = playlistData.tracks.map((track) => TrackUtils.build(track, requester));
-
-						playlist = {
-							name: playlistData.info.name,
-							playlistInfo: playlistData.pluginInfo as PlaylistInfoData[],
-							requester: requester as User,
-							tracks,
-							duration: tracks.reduce((acc, cur) => acc + ((cur as unknown as Track).duration || 0), 0),
-						};
-						break;
-					}
-				}
-
-				const result: SearchResult = { loadType: recommendedResult.loadType, tracks, playlist };
-
-				if (result.loadType === LoadTypes.Empty || result.loadType === LoadTypes.Error) {
-					return [];
-				}
-
-				if (result.loadType === LoadTypes.Playlist) {
-					result.tracks = result.playlist.tracks;
-				}
-
-				if (!result.tracks.length) {
-					return [];
-				}
-
-				return result.tracks;
 				break;
 			case "soundcloud":
-				if (!track.uri.includes("soundcloud")) {
-					const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.SoundCloud }, track.requester);
+				{
+					if (!track.uri.includes("soundcloud")) {
+						const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.SoundCloud }, track.requester);
 
-					if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
+						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
+							return [];
+						}
+
+						if (res.loadType === LoadTypes.Playlist) {
+							res.tracks = res.playlist.tracks;
+						}
+
+						if (!res.tracks.length) {
+							return [];
+						}
+
+						track = res.tracks[0];
+					}
+
+					try {
+						const recommendedRes = await axios.get(`${track.uri}/recommended`).catch((err) => {
+							console.error(`[AutoPlay] Failed to fetch SoundCloud recommendations. Status: ${err.response?.status || "Unknown"}`, err.message);
+							return null;
+						});
+
+						if (!recommendedRes) {
+							return [];
+						}
+
+						const html = recommendedRes.data;
+
+						const dom = new JSDOM(html);
+						const document = dom.window.document;
+
+						const secondNoscript = document.querySelectorAll("noscript")[1];
+						const sectionElement = secondNoscript.querySelector("section");
+						const articleElements = sectionElement.querySelectorAll("article") as NodeListOf<HTMLElement>;
+
+						if (!articleElements || articleElements.length === 0) {
+							return [];
+						}
+
+						const urls = Array.from(articleElements)
+							.map((articleElement) => {
+								const h2Element = articleElement.querySelector('h2[itemprop="name"]');
+								const aElement = h2Element?.querySelector('a[itemprop="url"]');
+								return aElement ? `https://soundcloud.com${aElement.getAttribute("href")}` : null;
+							})
+							.filter(Boolean);
+
+						if (!urls.length) {
+							return [];
+						}
+
+						const randomUrl = urls[Math.floor(Math.random() * urls.length)];
+
+						const res = await this.manager.search({ query: randomUrl, source: SearchPlatform.SoundCloud }, track.requester);
+
+						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
+							return [];
+						}
+
+						if (res.loadType === LoadTypes.Playlist) {
+							res.tracks = res.playlist.tracks;
+						}
+
+						if (!res.tracks.length) {
+							return [];
+						}
+						return res.tracks;
+					} catch (error) {
+						console.error("[AutoPlay] Error occurred while fetching soundcloud recommendations:", error);
 						return [];
 					}
-
-					if (res.loadType === LoadTypes.Playlist) {
-						res.tracks = res.playlist.tracks;
-					}
-
-					if (!res.tracks.length) {
-						return [];
-					}
-
-					track = res.tracks[0];
-				}
-
-				try {
-					const recommendedRes = await axios.get(`${track.uri}/recommended`).catch((err) => {
-						console.error(`[AutoPlay] Failed to fetch SoundCloud recommendations. Status: ${err.response?.status || "Unknown"}`, err.message);
-						return null;
-					});
-
-					if (!recommendedRes) {
-						return [];
-					}
-
-					const html = recommendedRes.data;
-
-					const dom = new JSDOM(html);
-					const document = dom.window.document;
-
-					const secondNoscript = document.querySelectorAll("noscript")[1];
-					const sectionElement = secondNoscript.querySelector("section");
-					const articleElements = sectionElement.querySelectorAll("article") as NodeListOf<HTMLElement>;
-
-					if (!articleElements || articleElements.length === 0) {
-						return [];
-					}
-
-					const urls = Array.from(articleElements)
-						.map((articleElement) => {
-							const h2Element = articleElement.querySelector('h2[itemprop="name"]');
-							const aElement = h2Element?.querySelector('a[itemprop="url"]');
-							return aElement ? `https://soundcloud.com${aElement.getAttribute("href")}` : null;
-						})
-						.filter(Boolean);
-
-					if (!urls.length) {
-						return [];
-					}
-
-					const randomUrl = urls[Math.floor(Math.random() * urls.length)];
-
-					const res = await this.manager.search({ query: randomUrl, source: SearchPlatform.SoundCloud }, track.requester);
-
-					if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
-						return [];
-					}
-
-					if (res.loadType === LoadTypes.Playlist) {
-						res.tracks = res.playlist.tracks;
-					}
-
-					if (!res.tracks.length) {
-						return [];
-					}
-					return res.tracks;
-				} catch (error) {
-					console.error("[AutoPlay] Error occurred while fetching soundcloud recommendations:", error);
-					return [];
 				}
 				break;
 			case "youtube":
-				const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) => track.uri.includes(url));
-				let videoID: string | null = null;
+				{
+					const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) => track.uri.includes(url));
+					let videoID: string | null = null;
 
-				if (hasYouTubeURL) {
-					videoID = track.uri.split("=").pop();
-				} else {
-					const searchResult = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.YouTube }, track.requester);
-					videoID = searchResult.tracks[0]?.uri.split("=").pop();
+					if (hasYouTubeURL) {
+						videoID = track.uri.split("=").pop();
+					} else {
+						const searchResult = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.YouTube }, track.requester);
+						videoID = searchResult.tracks[0]?.uri.split("=").pop();
+					}
+
+					if (!videoID) {
+						return [];
+					}
+
+					let randomIndex: number;
+					let searchURI: string;
+
+					do {
+						randomIndex = Math.floor(Math.random() * 23) + 2;
+						searchURI = `https://www.youtube.com/watch?v=${videoID}&list=RD${videoID}&index=${randomIndex}`;
+					} while (track.uri.includes(searchURI));
+
+					const res = await this.manager.search({ query: searchURI, source: SearchPlatform.YouTube }, track.requester);
+					if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
+						return [];
+					}
+
+					const filteredTracks = res.tracks.filter((t) => t.uri !== track.uri);
+
+					return filteredTracks;
 				}
+				break;
+			case "tidal":
+				{
+					if (!track.uri.includes("tidal")) {
+						const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.Tidal }, track.requester);
 
-				if (!videoID) {
-					return [];
+						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
+							return [];
+						}
+
+						if (res.loadType === LoadTypes.Playlist) {
+							res.tracks = res.playlist.tracks;
+						}
+
+						if (!res.tracks.length) {
+							return [];
+						}
+
+						track = res.tracks[0];
+					}
+
+					const identifier = `tdrec:${track.identifier}`;
+
+					const recommendedResult = (await this.manager.useableNode.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(identifier)}`)) as LavalinkResponse;
+
+					if (!recommendedResult) {
+						return [];
+					}
+
+					let tracks: Track[] = [];
+					let playlist: SearchResult["playlist"] = null;
+
+					const requester = track.requester;
+
+					switch (recommendedResult.loadType) {
+						case LoadTypes.Search:
+							tracks = (recommendedResult.data as TrackData[]).map((track) => TrackUtils.build(track, requester));
+							break;
+
+						case LoadTypes.Track:
+							tracks = [TrackUtils.build(recommendedResult.data as unknown as TrackData, requester)];
+							break;
+
+						case LoadTypes.Playlist: {
+							const playlistData = recommendedResult.data as PlaylistRawData;
+							tracks = playlistData.tracks.map((track) => TrackUtils.build(track, requester));
+
+							playlist = {
+								name: playlistData.info.name,
+								playlistInfo: playlistData.pluginInfo as PlaylistInfoData[],
+								requester: requester as User,
+								tracks,
+								duration: tracks.reduce((acc, cur) => acc + ((cur as unknown as Track).duration || 0), 0),
+							};
+							break;
+						}
+					}
+
+					const result: SearchResult = { loadType: recommendedResult.loadType, tracks, playlist };
+
+					if (result.loadType === LoadTypes.Empty || result.loadType === LoadTypes.Error) {
+						return [];
+					}
+
+					if (result.loadType === LoadTypes.Playlist) {
+						result.tracks = result.playlist.tracks;
+					}
+
+					if (!result.tracks.length) {
+						return [];
+					}
+
+					return result.tracks;
 				}
+				break;
+			case "vkmusic":
+				{
+					if (!track.uri.includes("vk.com") && !track.uri.includes("vk.ru")) {
+						const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.VKMusic }, track.requester);
 
-				let randomIndex: number;
-				let searchURI: string;
+						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
+							return [];
+						}
 
-				do {
-					randomIndex = Math.floor(Math.random() * 23) + 2;
-					searchURI = `https://www.youtube.com/watch?v=${videoID}&list=RD${videoID}&index=${randomIndex}`;
-				} while (track.uri.includes(searchURI));
+						if (res.loadType === LoadTypes.Playlist) {
+							res.tracks = res.playlist.tracks;
+						}
 
-				const res = await this.manager.search({ query: searchURI, source: SearchPlatform.YouTube }, track.requester);
-				if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
-					return [];
+						if (!res.tracks.length) {
+							return [];
+						}
+
+						track = res.tracks[0];
+					}
+
+					const identifier = `vkrec:${track.identifier}`;
+
+					const recommendedResult = (await this.manager.useableNode.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(identifier)}`)) as LavalinkResponse;
+
+					if (!recommendedResult) {
+						return [];
+					}
+
+					let tracks: Track[] = [];
+					let playlist: SearchResult["playlist"] = null;
+
+					const requester = track.requester;
+
+					switch (recommendedResult.loadType) {
+						case LoadTypes.Search:
+							tracks = (recommendedResult.data as TrackData[]).map((track) => TrackUtils.build(track, requester));
+							break;
+
+						case LoadTypes.Track:
+							tracks = [TrackUtils.build(recommendedResult.data as unknown as TrackData, requester)];
+							break;
+
+						case LoadTypes.Playlist: {
+							const playlistData = recommendedResult.data as PlaylistRawData;
+							tracks = playlistData.tracks.map((track) => TrackUtils.build(track, requester));
+
+							playlist = {
+								name: playlistData.info.name,
+								playlistInfo: playlistData.pluginInfo as PlaylistInfoData[],
+								requester: requester as User,
+								tracks,
+								duration: tracks.reduce((acc, cur) => acc + ((cur as unknown as Track).duration || 0), 0),
+							};
+							break;
+						}
+					}
+
+					const result: SearchResult = { loadType: recommendedResult.loadType, tracks, playlist };
+
+					if (result.loadType === LoadTypes.Empty || result.loadType === LoadTypes.Error) {
+						return [];
+					}
+
+					if (result.loadType === LoadTypes.Playlist) {
+						result.tracks = result.playlist.tracks;
+					}
+
+					if (!result.tracks.length) {
+						return [];
+					}
+
+					return result.tracks;
 				}
-
-				const filteredTracks = res.tracks.filter((t) => t.uri !== track.uri);
-
-				return filteredTracks;
+				break;
 			default:
 				return [];
 		}

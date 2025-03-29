@@ -460,6 +460,7 @@ export class Manager extends EventEmitter {
 							voiceChannelId: state.options.voiceChannelId,
 							selfDeafen: state.options.selfDeafen,
 							volume: lavaPlayer.volume || state.options.volume,
+							node: nodeId,
 						};
 
 						this.emit(ManagerEventTypes.Debug, `[MANAGER] Recreating player: ${state.guildId} from saved file: ${JSON.stringify(state.options)}`);
@@ -1013,9 +1014,9 @@ export interface ManagerOptions {
 	enablePriorityMode?: boolean;
 	/** Automatically play the next track when the current one ends. */
 	playNextOnEnd?: boolean;
-	/** An array of search platforms to use for autoplay. First to last matters 
+	/** An array of search platforms to use for autoplay. First to last matters
 	 * Use enum `AutoPlayPlatform`.
-	*/
+	 */
 	autoPlaySearchPlatforms?: AutoPlayPlatform[];
 	/** The client ID to use. */
 	clientId?: string;
@@ -1107,6 +1108,8 @@ export enum AutoPlayPlatform {
 	Spotify = "spotify",
 	Deezer = "deezer",
 	SoundCloud = "soundcloud",
+	Tidal = "tidal",
+	VKMusic = "vkmusic",
 	YouTube = "youtube",
 }
 
