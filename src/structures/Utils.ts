@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 import { ClientUser, User } from "discord.js";
-import { LavalinkResponse, Manager, PlaylistInfoData, PlaylistRawData, SearchPlatform, SearchResult, TrackPartial } from "./Manager";
+import { AutoPlayPlatform, LavalinkResponse, Manager, PlaylistInfoData, PlaylistRawData, SearchPlatform, SearchResult, TrackPartial } from "./Manager";
 import { Node, NodeStats } from "./Node";
 import { Player, Track } from "./Player";
 import { Queue } from "./Queue";
@@ -159,53 +159,26 @@ export abstract class AutoPlayUtils {
 		this.manager = manager;
 	}
 
-	public static async getRecommendedTracks(player: Player, track: Track, attempt: number = 0): Promise<Track[]> {
+	public static async getRecommendedTracks(track: Track): Promise<Track[]> {
 		const node = this.manager.useableNode;
 		if (!node) {
 			throw new Error("No available nodes.");
 		}
 
-		if (!player.isAutoplay) {
-			return [];
-		}
-
-		if (attempt >= player.autoplayTries) {
-			return [];
-		}
-
-		if (!player.queue.previous.length) {
-			return [];
-		}
-
 		const apiKey = this.manager.options.lastFmApiKey;
 		const enabledSources = node.info.sourceManagers;
-		const { autoPlaySearchPlatform } = this.manager.options;
+		const autoPlaySearchPlatforms: AutoPlayPlatform[] = this.manager.options.autoPlaySearchPlatforms;
 
-		const supportedPlatforms: string[] = ["spotify", "deezer", "soundcloud", "youtube"];
+		// Iterate over autoplay platforms in order of priority
+		for (const platform of autoPlaySearchPlatforms) {
+			if (enabledSources.includes(platform)) {
+				const recommendedTracks = await this.getRecommendedTracksFromSource(track, platform);
 
-		const platformMapping: { [key in SearchPlatform]: string } = {
-			[SearchPlatform.AppleMusic]: "applemusic",
-			[SearchPlatform.Bandcamp]: "bandcamp",
-			[SearchPlatform.Deezer]: "deezer",
-			[SearchPlatform.Jiosaavn]: "jiosaavn",
-			[SearchPlatform.SoundCloud]: "soundcloud",
-			[SearchPlatform.Spotify]: "spotify",
-			[SearchPlatform.Tidal]: "tidal",
-			[SearchPlatform.VKMusic]: "vkmusic",
-			[SearchPlatform.YouTube]: "youtube",
-			[SearchPlatform.YouTubeMusic]: "youtube",
-		};
-
-		const mappedPlatform = platformMapping[autoPlaySearchPlatform];
-
-		// Last attempt fallback to YouTube
-		if (attempt === player.autoplayTries - 1 && player.autoplayTries > 1 && enabledSources.includes("youtube")) {
-			return await this.getRecommendedTracksFromYouTube(track);
-		}
-
-		// Check if the preferred autoplay platform is supported and enabled
-		if (mappedPlatform && supportedPlatforms.includes(mappedPlatform) && enabledSources.includes(mappedPlatform)) {
-			return await this.getRecommendedTracksFromSource(track, mappedPlatform);
+				// If tracks are found, return them immediately
+				if (recommendedTracks.length > 0) {
+					return recommendedTracks;
+				}
+			}
 		}
 
 		// Check if Last.fm API is available
@@ -213,18 +186,10 @@ export abstract class AutoPlayUtils {
 			return await this.getRecommendedTracksFromLastFm(track, apiKey);
 		}
 
-		// Fallback to YouTube if all else fails
-		if (enabledSources.includes("youtube")) {
-			return await this.getRecommendedTracksFromYouTube(track);
-		}
-
 		return [];
 	}
 
 	static async getRecommendedTracksFromLastFm(track: Track, apiKey: string): Promise<Track[]> {
-		const enabledSources = this.manager.useableNode.info.sourceManagers;
-		const selectedSource = this.selectPlatform(enabledSources);
-
 		let { author: artist } = track;
 		const { title } = track;
 
@@ -241,7 +206,10 @@ export abstract class AutoPlayUtils {
 
 				const randomTrack = response.data.toptracks.track[Math.floor(Math.random() * response.data.toptracks.track.length)];
 
-				const res = await this.manager.search({ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: selectedSource }, track.requester);
+				const res = await this.manager.search(
+					{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: this.manager.options.defaultSearchPlatform },
+					track.requester
+				);
 				if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
 					return [];
 				}
@@ -289,7 +257,10 @@ export abstract class AutoPlayUtils {
 
 			const randomTrack = retryResponse.data.toptracks.track[Math.floor(Math.random() * retryResponse.data.toptracks.track.length)];
 
-			const res = await this.manager.search({ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: selectedSource }, track.requester);
+			const res = await this.manager.search(
+				{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: this.manager.options.defaultSearchPlatform },
+				track.requester
+			);
 			if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
 				return [];
 			}
@@ -308,7 +279,10 @@ export abstract class AutoPlayUtils {
 			return [];
 		}
 
-		const res = await this.manager.search({ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: selectedSource }, track.requester);
+		const res = await this.manager.search(
+			{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: this.manager.options.defaultSearchPlatform },
+			track.requester
+		);
 		if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
 			return [];
 		}
@@ -320,8 +294,8 @@ export abstract class AutoPlayUtils {
 		return res.tracks;
 	}
 
-	static async getRecommendedTracksFromSource(track: Track, mappedPlatform: string): Promise<Track[]> {
-		switch (mappedPlatform) {
+	static async getRecommendedTracksFromSource(track: Track, platform: string): Promise<Track[]> {
+		switch (platform) {
 			case "spotify":
 				try {
 					if (!track.uri.includes("spotify")) {
@@ -605,49 +579,6 @@ export abstract class AutoPlayUtils {
 		const filteredTracks = res.tracks.filter((t) => t.uri !== track.uri);
 
 		return filteredTracks;
-	}
-
-	static selectPlatform(enabledSources: string[]): SearchPlatform | null {
-		const { autoPlaySearchPlatform } = this.manager.options;
-		const platformMapping: { [key in SearchPlatform]: string } = {
-			[SearchPlatform.AppleMusic]: "applemusic",
-			[SearchPlatform.Bandcamp]: "bandcamp",
-			[SearchPlatform.Deezer]: "deezer",
-			[SearchPlatform.Jiosaavn]: "jiosaavn",
-			[SearchPlatform.SoundCloud]: "soundcloud",
-			[SearchPlatform.Spotify]: "spotify",
-			[SearchPlatform.Tidal]: "tidal",
-			[SearchPlatform.VKMusic]: "vkmusic",
-			[SearchPlatform.YouTube]: "youtube",
-			[SearchPlatform.YouTubeMusic]: "youtube",
-		};
-
-		// Try the autoPlaySearchPlatform first
-		if (enabledSources.includes(platformMapping[autoPlaySearchPlatform])) {
-			return autoPlaySearchPlatform;
-		}
-
-		// Fallback to other platforms in a predefined order
-		const fallbackPlatforms = [
-			SearchPlatform.Spotify,
-			SearchPlatform.Deezer,
-			SearchPlatform.SoundCloud,
-			SearchPlatform.AppleMusic,
-			SearchPlatform.Bandcamp,
-			SearchPlatform.Jiosaavn,
-			SearchPlatform.Tidal,
-			SearchPlatform.VKMusic,
-			SearchPlatform.YouTubeMusic,
-			SearchPlatform.YouTube,
-		];
-
-		for (const platform of fallbackPlatforms) {
-			if (enabledSources.includes(platformMapping[platform])) {
-				return platform;
-			}
-		}
-
-		return null;
 	}
 }
 

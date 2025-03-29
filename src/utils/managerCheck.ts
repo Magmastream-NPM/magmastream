@@ -1,4 +1,4 @@
-import { ManagerOptions, SearchPlatform, TrackPartial, UseNodeOptions } from "../structures/Manager";
+import { AutoPlayPlatform, ManagerOptions, SearchPlatform, TrackPartial, UseNodeOptions } from "../structures/Manager";
 
 /**
  * Validates the provided ManagerOptions object.
@@ -12,7 +12,7 @@ export default function managerCheck(options: ManagerOptions) {
 		playNextOnEnd,
 		clientName,
 		defaultSearchPlatform,
-		autoPlaySearchPlatform,
+		autoPlaySearchPlatforms,
 		nodes,
 		enabledPlugins,
 		send,
@@ -30,33 +30,37 @@ export default function managerCheck(options: ManagerOptions) {
 	}
 
 	// Validate clientName option
-	if (typeof clientName !== "undefined") {
+	if (typeof clientName !== undefined) {
 		if (typeof clientName !== "string" || clientName.trim().length === 0) {
 			throw new TypeError('Manager option "clientName" must be a non-empty string.');
 		}
 	}
 
 	// Validate defaultSearchPlatform option
-	if (typeof defaultSearchPlatform !== "undefined") {
+	if (typeof defaultSearchPlatform !== undefined) {
 		if (!Object.values(SearchPlatform).includes(defaultSearchPlatform)) {
 			throw new TypeError(`Manager option "defaultSearchPlatform" must be one of: ${Object.values(SearchPlatform).join(", ")}.`);
 		}
 	}
 
-	// Validate autoPlaySearchPlatform
-	if (typeof autoPlaySearchPlatform !== "undefined") {
-		if (!Object.values(SearchPlatform).includes(autoPlaySearchPlatform)) {
-			throw new TypeError(`Manager option "autoPlaySearchPlatform" must be one of: ${Object.values(SearchPlatform).join(", ")}.`);
+	// Validate autoPlaySearchPlatforms
+	if (autoPlaySearchPlatforms !== undefined) {
+		if (!Array.isArray(autoPlaySearchPlatforms)) {
+			throw new TypeError('Manager option "autoPlaySearchPlatforms" must be an array.');
+		}
+
+		if (!autoPlaySearchPlatforms.every((platform) => Object.values(AutoPlayPlatform).includes(platform))) {
+			throw new TypeError(`Manager option "autoPlaySearchPlatforms" must be an array of valid AutoPlayPlatform values.`);
 		}
 	}
 
 	// Validate nodes option
-	if (typeof nodes === "undefined" || !Array.isArray(nodes)) {
+	if (typeof nodes === undefined || !Array.isArray(nodes)) {
 		throw new TypeError('Manager option "nodes" must be an array.');
 	}
 
 	// Validate enabledPlugins option
-	if (typeof enabledPlugins !== "undefined" && !Array.isArray(enabledPlugins)) {
+	if (typeof enabledPlugins !== undefined && !Array.isArray(enabledPlugins)) {
 		throw new TypeError('Manager option "enabledPlugins" must be a Plugin array.');
 	}
 
@@ -66,7 +70,7 @@ export default function managerCheck(options: ManagerOptions) {
 	}
 
 	// Validate trackPartial option
-	if (typeof trackPartial !== "undefined") {
+	if (typeof trackPartial !== undefined) {
 		if (!Array.isArray(trackPartial)) {
 			throw new TypeError('Manager option "trackPartial" must be an array.');
 		}
@@ -76,7 +80,7 @@ export default function managerCheck(options: ManagerOptions) {
 	}
 
 	// Validate enablePriorityMode option
-	if (typeof enablePriorityMode !== "undefined" && typeof enablePriorityMode !== "boolean") {
+	if (typeof enablePriorityMode !== undefined && typeof enablePriorityMode !== "boolean") {
 		throw new TypeError('Manager option "enablePriorityMode" must be a boolean.');
 	}
 
@@ -90,7 +94,7 @@ export default function managerCheck(options: ManagerOptions) {
 	}
 
 	// Validate useNode option
-	if (typeof useNode !== "undefined") {
+	if (typeof useNode !== undefined) {
 		if (typeof useNode !== "string") {
 			throw new TypeError('Manager option "useNode" must be a string "leastLoad" or "leastPlayers".');
 		}
@@ -101,17 +105,17 @@ export default function managerCheck(options: ManagerOptions) {
 	}
 
 	// Validate normalizeYouTubeTitles option
-	if (typeof normalizeYouTubeTitles !== "undefined" && typeof normalizeYouTubeTitles !== "boolean") {
+	if (typeof normalizeYouTubeTitles !== undefined && typeof normalizeYouTubeTitles !== "boolean") {
 		throw new TypeError('Manager option "normalizeYouTubeTitles" must be a boolean.');
 	}
 
 	// Validate lastFmApiKey option
-	if (typeof lastFmApiKey !== "undefined" && (typeof lastFmApiKey !== "string" || lastFmApiKey.trim().length === 0)) {
+	if (typeof lastFmApiKey !== undefined && (typeof lastFmApiKey !== "string" || lastFmApiKey.trim().length === 0)) {
 		throw new TypeError('Manager option "lastFmApiKey" must be a non-empty string.');
 	}
 
 	// Validate maxPreviousTracks option
-	if (typeof maxPreviousTracks !== "undefined") {
+	if (typeof maxPreviousTracks !== undefined) {
 		if (typeof maxPreviousTracks !== "number" || isNaN(maxPreviousTracks)) {
 			throw new TypeError('Manager option "maxPreviousTracks" must be a number.');
 		}

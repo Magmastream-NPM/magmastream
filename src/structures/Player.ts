@@ -442,7 +442,7 @@ export class Player {
 	 * @returns {Promise<Track[]>} - Array of recommended tracks.
 	 */
 	public async getRecommendedTracks(track: Track): Promise<Track[]> {
-		const tracks = await AutoPlayUtils.getRecommendedTracks(this, track);
+		const tracks = await AutoPlayUtils.getRecommendedTracks(track);
 		return tracks;
 	}
 

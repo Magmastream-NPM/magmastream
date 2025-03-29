@@ -687,7 +687,7 @@ export class Node {
 
 		if (!lastTrack) return false;
 
-		const tracks = await AutoPlayUtils.getRecommendedTracks(player, lastTrack, attempt);
+		const tracks = await AutoPlayUtils.getRecommendedTracks(lastTrack);
 
 		if (tracks.length) {
 			player.queue.add(tracks[0]);

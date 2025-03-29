@@ -47,7 +47,7 @@ export class Manager extends EventEmitter {
 	 * @param options.enabledPlugins - An array of enabledPlugins to load.
 	 * @param options.nodes - An array of node options to create nodes from.
 	 * @param options.playNextOnEnd - Whether to automatically play the first track in the queue when the player is created.
-	 * @param options.autoPlaySearchPlatform - The search platform autoplay will use. Fallback to Youtube if not found.
+	 * @param options.autoPlaySearchPlatforms - The search platform autoplay will use. Fallback to Youtube if not found.
 	 * @param options.enablePriorityMode - Whether to use the priority when selecting a node to play on.
 	 * @param options.clientName - The name of the client to send to Lavalink.
 	 * @param options.defaultSearchPlatform - The default search platform to use when searching for tracks.
@@ -85,7 +85,6 @@ export class Manager extends EventEmitter {
 			enablePriorityMode: false,
 			clientName: "Magmastream",
 			defaultSearchPlatform: SearchPlatform.YouTube,
-			// autoPlaySearchPlatform: SearchPlatform.YouTube,
 			useNode: UseNodeOptions.LeastPlayers,
 			maxPreviousTracks: options.maxPreviousTracks ?? 20,
 			...options,
@@ -1014,9 +1013,10 @@ export interface ManagerOptions {
 	enablePriorityMode?: boolean;
 	/** Automatically play the next track when the current one ends. */
 	playNextOnEnd?: boolean;
-	/** The search platform autoplay should use
-	 * Use enum `SearchPlatform`. */
-	autoPlaySearchPlatform?: SearchPlatform;
+	/** An array of search platforms to use for autoplay. First to last matters 
+	 * Use enum `AutoPlayPlatform`.
+	*/
+	autoPlaySearchPlatforms?: AutoPlayPlatform[];
 	/** The client ID to use. */
 	clientId?: string;
 	/** Value to use for the `Client-Name` header. */
@@ -1101,6 +1101,13 @@ export enum SearchPlatform {
 	VKMusic = "vksearch",
 	YouTube = "ytsearch",
 	YouTubeMusic = "ytmsearch",
+}
+
+export enum AutoPlayPlatform {
+	Spotify = "spotify",
+	Deezer = "deezer",
+	SoundCloud = "soundcloud",
+	YouTube = "youtube",
 }
 
 export enum PlayerStateEventTypes {
