@@ -141,6 +141,15 @@ Want to showcase your bot? Feel free to create a pull request and add it to our 
         <br />
         <a href="#code-ItzRandom23" title="Code">💻</a>
       </td>
+      <td align="center" valign="top" width="14.28%">
+        <a href="https://github.com/pomicee">
+          <img src="https://avatars.githubusercontent.com/u/134554554?v=4?s=100" width="100px;" alt="pomicee"/>
+          <br />
+          <sub><b>pomicee</b></sub>
+        </a>
+        <br />
+        <a href="#code-pomicee" title="Code">💻</a>
+      </td>
     </tr>
   </tbody>
 </table>
