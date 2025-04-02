@@ -28,6 +28,7 @@ import { ClientUser, User } from "discord.js";
 import { blockedWords } from "../config/blockedWords";
 import fs from "fs/promises";
 import path from "path";
+import Redis, { Redis as RedisClient } from "ioredis";
 
 /**
  * The main hub for interacting with Lavalink and using Magmastream,
@@ -40,6 +41,7 @@ export class Manager extends EventEmitter {
 	/** The options that were set. */
 	public readonly options: ManagerOptions;
 	public initiated = false;
+	private redis?: RedisClient;
 
 	/**
 	 * Initiates the Manager class.
@@ -87,6 +89,7 @@ export class Manager extends EventEmitter {
 			defaultSearchPlatform: SearchPlatform.YouTube,
 			useNode: UseNodeOptions.LeastPlayers,
 			maxPreviousTracks: options.maxPreviousTracks ?? 20,
+			stateStorage: { type: StateStorageType.Collection },
 			...options,
 		};
 
@@ -149,7 +152,7 @@ export class Manager extends EventEmitter {
 
 		for (const node of this.nodes.values()) {
 			try {
-				node.connect(); // Connect the node
+				node.connect();
 			} catch (err) {
 				this.emit(ManagerEventTypes.NodeError, node, err);
 			}
@@ -160,6 +163,30 @@ export class Manager extends EventEmitter {
 				if (!(plugin instanceof Plugin)) throw new RangeError(`Plugin at index ${index} does not extend Plugin.`);
 				plugin.load(this);
 			}
+		}
+
+		const storage = this.options.stateStorage;
+
+		if (storage.type === StateStorageType.Redis) {
+			if (!storage.redisConfig) {
+				throw new Error("Redis config must be provided when using Redis state storage.");
+			}
+
+			this.redis = new Redis({
+				host: storage.redisConfig.host,
+				port: Number(storage.redisConfig.port),
+				password: storage.redisConfig.password,
+				db: storage.redisConfig.db ?? 0,
+				keyPrefix: storage.redisConfig.prefix ?? "magmastream:",
+			});
+
+			this.redis.on("connect", () => {
+				this.emit(ManagerEventTypes.Debug, "[MANAGER] Connected to Redis");
+			});
+
+			this.redis.on("error", (err) => {
+				this.emit(ManagerEventTypes.Debug, `[MANAGER] Redis error: ${err.message}`);
+			});
 		}
 
 		this.initiated = true;
@@ -1010,6 +1037,7 @@ export interface Payload {
 }
 
 export interface ManagerOptions {
+	stateStorage?: StateStorageOptions;
 	/** Enable priority mode over least player count or load balancing? */
 	enablePriorityMode?: boolean;
 	/** Automatically play the next track when the current one ends. */
@@ -1049,6 +1077,24 @@ export interface ManagerOptions {
 	 * @param payload The payload to send.
 	 */
 	send(id: string, payload: Payload): void;
+}
+
+export interface RedisConfig {
+	host: string;
+	port: string;
+	password?: string;
+	db?: number;
+	prefix?: string;
+}
+
+export enum StateStorageType {
+	Collection = "collection",
+	Redis = "redis",
+}
+
+export interface StateStorageOptions {
+	type: StateStorageType;
+	redisConfig?: RedisConfig;
 }
 
 export enum TrackPartial {
