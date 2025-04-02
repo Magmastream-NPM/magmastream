@@ -28,6 +28,7 @@ import { ClientUser, User } from "discord.js";
 import { blockedWords } from "../config/blockedWords";
 import fs from "fs/promises";
 import path from "path";
+import Redis, { Redis as RedisClient } from "ioredis";
 
 /**
  * The main hub for interacting with Lavalink and using Magmastream,
@@ -40,6 +41,7 @@ export class Manager extends EventEmitter {
 	/** The options that were set. */
 	public readonly options: ManagerOptions;
 	public initiated = false;
+	public redis?: RedisClient;
 
 	/**
 	 * Initiates the Manager class.
@@ -87,6 +89,7 @@ export class Manager extends EventEmitter {
 			defaultSearchPlatform: SearchPlatform.YouTube,
 			useNode: UseNodeOptions.LeastPlayers,
 			maxPreviousTracks: options.maxPreviousTracks ?? 20,
+			stateStorage: { type: StateStorageType.Collection },
 			...options,
 		};
 
@@ -149,7 +152,7 @@ export class Manager extends EventEmitter {
 
 		for (const node of this.nodes.values()) {
 			try {
-				node.connect(); // Connect the node
+				node.connect();
 			} catch (err) {
 				this.emit(ManagerEventTypes.NodeError, node, err);
 			}
@@ -160,6 +163,17 @@ export class Manager extends EventEmitter {
 				if (!(plugin instanceof Plugin)) throw new RangeError(`Plugin at index ${index} does not extend Plugin.`);
 				plugin.load(this);
 			}
+		}
+
+		if (this.options.stateStorage?.type === StateStorageType.Redis) {
+			const config = this.options.stateStorage.redisConfig;
+
+			this.redis = new Redis({
+				host: config.host,
+				port: Number(config.port),
+				password: config.password,
+				db: config.db ?? 0,
+			});
 		}
 
 		this.initiated = true;
@@ -239,6 +253,25 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
+	 * Returns a player or undefined if it does not exist.
+	 * @param guildId The guild ID of the player to retrieve.
+	 * @returns The player if it exists, undefined otherwise.
+	 */
+	public getPlayer(guildId: string): Player | undefined {
+		return this.players.get(guildId);
+	}
+
+	/**
+	 * @deprecated - Will be removed with v2.10.0 use {@link getPlayer} instead
+	 * Returns a player or undefined if it does not exist.
+	 * @param guildId The guild ID of the player to retrieve.
+	 * @returns The player if it exists, undefined otherwise.
+	 */
+	public async get(guildId: string): Promise<Player | undefined> {
+		return this.players.get(guildId);
+	}
+
+	/**
 	 * Creates a player or returns one if it already exists.
 	 * @param options The options to create the player with.
 	 * @returns The created player.
@@ -251,15 +284,6 @@ export class Manager extends EventEmitter {
 		// Create a new player with the given options
 		this.emit(ManagerEventTypes.Debug, `[MANAGER] Creating new player with options: ${JSON.stringify(options)}`);
 		return new (Structure.get("Player"))(options);
-	}
-
-	/**
-	 * Returns a player or undefined if it does not exist.
-	 * @param guildId The guild ID of the player to retrieve.
-	 * @returns The player if it exists, undefined otherwise.
-	 */
-	public get(guildId: string): Player | undefined {
-		return this.players.get(guildId);
 	}
 
 	/**
@@ -333,7 +357,7 @@ export class Manager extends EventEmitter {
 		const update = "d" in data ? data.d : data;
 		if (!this.isValidUpdate(update)) return;
 
-		const player = this.players.get(update.guild_id);
+		const player = this.getPlayer(update.guild_id);
 		if (!player) return;
 
 		this.emit(ManagerEventTypes.Debug, `[MANAGER] Updating voice state: ${JSON.stringify(update)}`);
@@ -396,7 +420,8 @@ export class Manager extends EventEmitter {
 	public async savePlayerState(guildId: string): Promise<void> {
 		try {
 			const playerStateFilePath = await this.getPlayerFilePath(guildId);
-			const player = this.players.get(guildId);
+			const player = this.getPlayer(guildId);
+
 			if (!player || player.state === StateTypes.Disconnected || !player.voiceChannelId) {
 				console.warn(`Skipping save for inactive player: ${guildId}`);
 				return;
@@ -482,7 +507,7 @@ export class Manager extends EventEmitter {
 							if (lavaPlayer.track) {
 								tracks.push(...queueTracks);
 								if (currentTrack && currentTrack.uri === lavaPlayer.track.info.uri) {
-									player.queue.current = TrackUtils.build(lavaPlayer.track as TrackData, currentTrack.requester);
+									await player.queue.setCurrent(TrackUtils.build(lavaPlayer.track as TrackData, currentTrack.requester));
 								}
 							} else {
 								if (!currentTrack) {
@@ -506,13 +531,13 @@ export class Manager extends EventEmitter {
 						}
 
 						if (tracks.length > 0) {
-							player.queue.add(tracks as Track[]);
+							await player.queue.add(tracks as Track[]);
 						}
 
 						if (state.queue.previous.length > 0) {
-							player.queue.previous = state.queue.previous;
+							await player.queue.addPrevious(state.queue.previous);
 						} else {
-							player.queue.previous = [];
+							await player.queue.clearPrevious();
 						}
 
 						if (state.paused) {
@@ -838,7 +863,7 @@ export class Manager extends EventEmitter {
 	 * @param player The Player instance to serialize
 	 * @returns The serialized Player instance
 	 */
-	private serializePlayer(player: Player): Record<string, unknown> {
+	public serializePlayer(player: Player): Record<string, unknown> {
 		const seen = new WeakSet();
 
 		/**
@@ -862,6 +887,8 @@ export class Manager extends EventEmitter {
 				}
 
 				if (key === "filters") {
+					if (!value || typeof value !== "object") return null;
+
 					return {
 						distortion: value.distortion ?? null,
 						equalizer: value.equalizer ?? [],
@@ -872,14 +899,14 @@ export class Manager extends EventEmitter {
 						reverb: value.reverb ?? null,
 						volume: value.volume ?? 1.0,
 						bassBoostlevel: value.bassBoostlevel ?? null,
-						filterStatus: { ...value.filtersStatus },
+						filterStatus: value.filtersStatus ? { ...value.filtersStatus } : {},
 					};
 				}
 				if (key === "queue") {
 					return {
 						current: value.current || null,
-						tracks: [...value],
-						previous: [...value.previous],
+						tracks: Array.isArray(value) ? [...value] : [],
+						previous: Array.isArray(value.previous) ? [...value.previous] : [],
 					};
 				}
 
@@ -1010,6 +1037,7 @@ export interface Payload {
 }
 
 export interface ManagerOptions {
+	stateStorage?: StateStorageOptions;
 	/** Enable priority mode over least player count or load balancing? */
 	enablePriorityMode?: boolean;
 	/** Automatically play the next track when the current one ends. */
@@ -1049,6 +1077,24 @@ export interface ManagerOptions {
 	 * @param payload The payload to send.
 	 */
 	send(id: string, payload: Payload): void;
+}
+
+export interface RedisConfig {
+	host: string;
+	port: string;
+	password?: string;
+	db?: number;
+	prefix?: string;
+}
+
+export enum StateStorageType {
+	Collection = "collection",
+	Redis = "redis",
+}
+
+export interface StateStorageOptions {
+	type: StateStorageType;
+	redisConfig?: RedisConfig;
 }
 
 export enum TrackPartial {
@@ -1311,3 +1357,24 @@ export interface ManagerEvents {
 	[ManagerEventTypes.ChapterStarted]: [player: Player, track: Track, payload: SponsorBlockChapterStarted];
 	[ManagerEventTypes.ChaptersLoaded]: [player: Player, track: Track, payload: SponsorBlockChaptersLoaded];
 }
+
+export interface PlayerStore {
+	get(guildId: string): Promise<Player | undefined>;
+	set(guildId: string, player: Player): Promise<void>;
+	delete(guildId: string): Promise<void>;
+	keys(): Promise<string[]>;
+	has(guildId: string): Promise<boolean>;
+
+	filter(predicate: (player: Player, guildId: string) => boolean | Promise<boolean>): Promise<Map<string, Player>>;
+	find(predicate: (player: Player, guildId: string) => boolean | Promise<boolean>): Promise<Player | undefined>;
+	map<T>(callback: (player: Player, guildId: string) => T | Promise<T>): Promise<T[]>;
+	forEach(callback: (player: Player, guildId: string) => void | Promise<void>): Promise<void>;
+
+	some(predicate: (player: Player, guildId: string) => boolean | Promise<boolean>): Promise<boolean>;
+	every(predicate: (player: Player, guildId: string) => boolean | Promise<boolean>): Promise<boolean>;
+	size(): Promise<number>;
+	clear(): Promise<void>;
+	entries(): AsyncIterableIterator<[string, Player]>;
+}
+
+// PlayerStore WILL BE REMOVED IF YOU DONT FIND A USE FOR IT.
