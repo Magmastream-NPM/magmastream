@@ -1054,4 +1054,10 @@ export interface IQueue {
 	shuffle(): Promise<void>;
 	userBlockShuffle(): Promise<void>;
 	roundRobinShuffle(): Promise<void>;
+
+	mapAsync<T>(callback: (track: Track, index: number, array: Track[]) => T): Promise<T[]>;
+	filterAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<Track[]>;
+	findAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<Track | undefined>;
+	someAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<boolean>;
+	everyAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<boolean>;
 }

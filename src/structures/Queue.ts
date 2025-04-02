@@ -403,4 +403,24 @@ export class Queue extends Array<Track> implements IQueue {
 	public async modifyAt(start: number, deleteCount = 0, ...items: Track[]): Promise<Track[]> {
 		return super.splice(start, deleteCount, ...items);
 	}
+
+	public async mapAsync<T>(callback: (track: Track, index: number, array: Track[]) => T): Promise<T[]> {
+		return this.map(callback);
+	}
+
+	public async filterAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<Track[]> {
+		return this.filter(callback);
+	}
+
+	public async findAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<Track | undefined> {
+		return this.find(callback);
+	}
+
+	public async someAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<boolean> {
+		return this.some(callback);
+	}
+
+	public async everyAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<boolean> {
+		return this.every(callback);
+	}
 }

@@ -333,4 +333,29 @@ export class RedisQueue implements IQueue {
 
 		return removed.map(this.deserialize);
 	}
+
+	public async mapAsync<T>(callback: (track: Track, index: number, array: Track[]) => T): Promise<T[]> {
+		const tracks = await this.getTracks(); // same as lrange + deserialize
+		return tracks.map(callback);
+	}
+
+	public async filterAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<Track[]> {
+		const tracks = await this.getTracks();
+		return tracks.filter(callback);
+	}
+
+	public async findAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<Track | undefined> {
+		const tracks = await this.getTracks();
+		return tracks.find(callback);
+	}
+
+	public async someAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<boolean> {
+		const tracks = await this.getTracks();
+		return tracks.some(callback);
+	}
+
+	public async everyAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<boolean> {
+		const tracks = await this.getTracks();
+		return tracks.every(callback);
+	}
 }
