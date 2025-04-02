@@ -317,7 +317,7 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-	 * @deprecated - Will be removed with v2.10.0 use {@link setPlayer} instead
+	 * @deprecated - Will be removed with v2.10.0 use {@link getPlayer} instead
 	 * Returns a player or undefined if it does not exist.
 	 * @param guildId The guild ID of the player to retrieve.
 	 * @returns The player if it exists, undefined otherwise.
