@@ -29,19 +29,21 @@ import { blockedWords } from "../config/blockedWords";
 import fs from "fs/promises";
 import path from "path";
 import Redis, { Redis as RedisClient } from "ioredis";
+import { RedisPlayerStore } from "../storage/RedisPlayerStore";
+import { CollectionPlayerStore } from "../storage/CollectionPlayerStore";
 
 /**
  * The main hub for interacting with Lavalink and using Magmastream,
  */
 export class Manager extends EventEmitter {
 	/** The map of players. */
-	public readonly players = new Collection<string, Player>();
+	private _players: PlayerStore;
 	/** The map of nodes. */
 	public readonly nodes = new Collection<string, Node>();
 	/** The options that were set. */
 	public readonly options: ManagerOptions;
 	public initiated = false;
-	private redis?: RedisClient;
+	public redis?: RedisClient;
 
 	/**
 	 * Initiates the Manager class.
@@ -128,6 +130,10 @@ export class Manager extends EventEmitter {
 		});
 	}
 
+	public get players(): PlayerStore {
+		return this._players;
+	}
+
 	/**
 	 * Initiates the Manager.
 	 * @param clientId - The Discord client ID (required).
@@ -165,28 +171,20 @@ export class Manager extends EventEmitter {
 			}
 		}
 
-		const storage = this.options.stateStorage;
-
-		if (storage.type === StateStorageType.Redis) {
-			if (!storage.redisConfig) {
-				throw new Error("Redis config must be provided when using Redis state storage.");
-			}
+		if (this.options.stateStorage?.type === StateStorageType.Redis) {
+			const config = this.options.stateStorage.redisConfig;
+			const prefix = config.prefix?.endsWith(":") ? config.prefix : `${config.prefix ?? "magmastream"}:`;
 
 			this.redis = new Redis({
-				host: storage.redisConfig.host,
-				port: Number(storage.redisConfig.port),
-				password: storage.redisConfig.password,
-				db: storage.redisConfig.db ?? 0,
-				keyPrefix: storage.redisConfig.prefix ?? "magmastream:",
+				host: config.host,
+				port: Number(config.port),
+				password: config.password,
+				db: config.db ?? 0,
 			});
 
-			this.redis.on("connect", () => {
-				this.emit(ManagerEventTypes.Debug, "[MANAGER] Connected to Redis");
-			});
-
-			this.redis.on("error", (err) => {
-				this.emit(ManagerEventTypes.Debug, `[MANAGER] Redis error: ${err.message}`);
-			});
+			this._players = new RedisPlayerStore(this.redis, prefix);
+		} else {
+			this._players = new CollectionPlayerStore();
 		}
 
 		this.initiated = true;
@@ -266,27 +264,69 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-	 * Creates a player or returns one if it already exists.
-	 * @param options The options to create the player with.
-	 * @returns The created player.
-	 */
-	public create(options: PlayerOptions): Player {
-		if (this.players.has(options.guildId)) {
-			return this.players.get(options.guildId);
-		}
-
-		// Create a new player with the given options
-		this.emit(ManagerEventTypes.Debug, `[MANAGER] Creating new player with options: ${JSON.stringify(options)}`);
-		return new (Structure.get("Player"))(options);
-	}
-
-	/**
 	 * Returns a player or undefined if it does not exist.
 	 * @param guildId The guild ID of the player to retrieve.
 	 * @returns The player if it exists, undefined otherwise.
 	 */
-	public get(guildId: string): Player | undefined {
-		return this.players.get(guildId);
+	public async getPlayer(guildId: string): Promise<Player | undefined> {
+		if (this._players instanceof Collection) {
+			return this._players.get(guildId);
+		}
+		return await this._players.get(guildId);
+	}
+
+	/**
+	 * Save player data.
+	 * @param guildId The guild ID of the player to save.
+	 */
+	public async setPlayer(guildId: string, player: Player): Promise<void> {
+		if (this._players instanceof Collection) {
+			this._players.set(guildId, player);
+		} else {
+			await this._players.set(guildId, player);
+		}
+	}
+
+	/**
+	 * Remove player data.
+	 * @param guildId The guild ID of the player to remove.
+	 */
+	public async deletePlayer(guildId: string): Promise<void> {
+		if (this._players instanceof Collection) {
+			this._players.delete(guildId);
+		} else {
+			await this._players.delete(guildId);
+		}
+	}
+
+	/**
+	 * Creates a player or returns one if it already exists.
+	 * @param options The options to create the player with.
+	 * @returns The created player.
+	 */
+	public async create(options: PlayerOptions): Promise<Player> {
+		const existing = await this.getPlayer(options.guildId);
+		if (existing) return existing;
+
+		this.emit(ManagerEventTypes.Debug, `[MANAGER] Creating new player with options: ${JSON.stringify(options)}`);
+
+		const player = new (Structure.get("Player"))(options);
+		await this.setPlayer(options.guildId, player);
+
+		return player;
+	}
+
+	/**
+	 * @deprecated - Will be removed with v2.10.0 use {@link setPlayer} instead
+	 * Returns a player or undefined if it does not exist.
+	 * @param guildId The guild ID of the player to retrieve.
+	 * @returns The player if it exists, undefined otherwise.
+	 */
+	public async get(guildId: string): Promise<Player | undefined> {
+		if (this._players instanceof Collection) {
+			return this._players.get(guildId);
+		}
+		return await this._players.get(guildId);
 	}
 
 	/**
@@ -298,8 +338,7 @@ export class Manager extends EventEmitter {
 		// Emit debug message for player destruction
 		this.emit(ManagerEventTypes.Debug, `[MANAGER] Destroying player: ${guildId}`);
 
-		// Remove the player from the manager's collection
-		this.players.delete(guildId);
+		await this.deletePlayer(guildId);
 
 		// Clean up any inactive players
 		await this.cleanupInactivePlayers();
@@ -360,7 +399,7 @@ export class Manager extends EventEmitter {
 		const update = "d" in data ? data.d : data;
 		if (!this.isValidUpdate(update)) return;
 
-		const player = this.players.get(update.guild_id);
+		const player = await this.getPlayer(update.guild_id);
 		if (!player) return;
 
 		this.emit(ManagerEventTypes.Debug, `[MANAGER] Updating voice state: ${JSON.stringify(update)}`);
@@ -423,7 +462,8 @@ export class Manager extends EventEmitter {
 	public async savePlayerState(guildId: string): Promise<void> {
 		try {
 			const playerStateFilePath = await this.getPlayerFilePath(guildId);
-			const player = this.players.get(guildId);
+			const player = await this.getPlayer(guildId);
+
 			if (!player || player.state === StateTypes.Disconnected || !player.voiceChannelId) {
 				console.warn(`Skipping save for inactive player: ${guildId}`);
 				return;
@@ -491,7 +531,7 @@ export class Manager extends EventEmitter {
 						};
 
 						this.emit(ManagerEventTypes.Debug, `[MANAGER] Recreating player: ${state.guildId} from saved file: ${JSON.stringify(state.options)}`);
-						const player = this.create(playerOptions);
+						const player = await this.create(playerOptions);
 
 						await player.node.rest.updatePlayer({
 							guildId: state.options.guildId,
@@ -509,7 +549,7 @@ export class Manager extends EventEmitter {
 							if (lavaPlayer.track) {
 								tracks.push(...queueTracks);
 								if (currentTrack && currentTrack.uri === lavaPlayer.track.info.uri) {
-									player.queue.current = TrackUtils.build(lavaPlayer.track as TrackData, currentTrack.requester);
+									await player.queue.setCurrent(TrackUtils.build(lavaPlayer.track as TrackData, currentTrack.requester));
 								}
 							} else {
 								if (!currentTrack) {
@@ -533,13 +573,13 @@ export class Manager extends EventEmitter {
 						}
 
 						if (tracks.length > 0) {
-							player.queue.add(tracks as Track[]);
+							await player.queue.add(tracks as Track[]);
 						}
 
 						if (state.queue.previous.length > 0) {
-							player.queue.previous = state.queue.previous;
+							await player.queue.addPrevious(state.queue.previous);
 						} else {
-							player.queue.previous = [];
+							await player.queue.clearPrevious();
 						}
 
 						if (state.paused) {
@@ -657,7 +697,8 @@ export class Manager extends EventEmitter {
 		console.warn("\x1b[31m%s\x1b[0m", "MAGMASTREAM WARNING: Shutting down! Please wait, saving active players...");
 
 		try {
-			const savePromises = Array.from(this.players.keys()).map(async (guildId) => {
+			const guildIds = await this.getAllGuildIds();
+			const savePromises = Array.from(guildIds).map(async (guildId) => {
 				try {
 					await this.savePlayerState(guildId);
 				} catch (error) {
@@ -935,21 +976,21 @@ export class Manager extends EventEmitter {
 				this.emit(ManagerEventTypes.Debug, `[MANAGER] Created directory: ${playerStatesDir}`);
 			});
 
-			// Get the list of player state files
+			// Get all state files
 			const playerFiles = await fs.readdir(playerStatesDir);
 
-			// Get the set of active guild IDs from the manager's player collection
-			const activeGuildIds = new Set(this.players.keys());
+			// Get active guild IDs from storage
+			const guildIds = this._players instanceof Collection ? Array.from(await this._players.keys()) : await this._players.keys();
 
-			// Iterate over the player state files
+			const activeGuildIds = new Set(guildIds);
+
+			// Delete state files that don't match active players
 			for (const file of playerFiles) {
-				// Get the guild ID from the file name
 				const guildId = path.basename(file, ".json");
 
-				// If the guild ID is not in the set of active guild IDs, delete the file
 				if (!activeGuildIds.has(guildId)) {
 					const filePath = path.join(playerStatesDir, file);
-					await fs.unlink(filePath); // Delete the file asynchronously
+					await fs.unlink(filePath);
 					this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleting inactive player: ${guildId}`);
 				}
 			}
@@ -1022,6 +1063,14 @@ export class Manager extends EventEmitter {
 
 		// If no node has a cumulative weight greater than or equal to the random number, return the node with the lowest load
 		return this.options.useNode === UseNodeOptions.LeastLoad ? this.leastLoadNode.first() : this.leastPlayersNode.first();
+	}
+
+	private async getAllGuildIds(): Promise<string[]> {
+		if (this._players instanceof Collection) {
+			return Array.from(await this._players.keys());
+		} else {
+			return await this._players.keys();
+		}
 	}
 }
 
@@ -1356,4 +1405,23 @@ export interface ManagerEvents {
 	[ManagerEventTypes.SegmentSkipped]: [player: Player, track: Track, payload: SponsorBlockSegmentSkipped];
 	[ManagerEventTypes.ChapterStarted]: [player: Player, track: Track, payload: SponsorBlockChapterStarted];
 	[ManagerEventTypes.ChaptersLoaded]: [player: Player, track: Track, payload: SponsorBlockChaptersLoaded];
+}
+
+export interface PlayerStore {
+	get(guildId: string): Promise<Player | undefined>;
+	set(guildId: string, player: Player): Promise<void>;
+	delete(guildId: string): Promise<void>;
+	keys(): Promise<string[]>;
+	has(guildId: string): Promise<boolean>;
+
+	filter(predicate: (player: Player, guildId: string) => boolean | Promise<boolean>): Promise<Map<string, Player>>;
+	find(predicate: (player: Player, guildId: string) => boolean | Promise<boolean>): Promise<Player | undefined>;
+	map<T>(callback: (player: Player, guildId: string) => T | Promise<T>): Promise<T[]>;
+	forEach(callback: (player: Player, guildId: string) => void | Promise<void>): Promise<void>;
+
+	some(predicate: (player: Player, guildId: string) => boolean | Promise<boolean>): Promise<boolean>;
+	every(predicate: (player: Player, guildId: string) => boolean | Promise<boolean>): Promise<boolean>;
+	size(): Promise<number>;
+	clear(): Promise<void>;
+	entries(): AsyncIterableIterator<[string, Player]>;
 }

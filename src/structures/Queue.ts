@@ -1,40 +1,12 @@
 import { Track } from "./Player";
 import { Manager, ManagerEventTypes, PlayerStateEventTypes } from "./Manager"; // Import Manager to access emit method
 import { ClientUser, User } from "discord.js";
+import { IQueue } from "./Utils";
 
 /**
  * The player's queue, the `current` property is the currently playing track, think of the rest as the up-coming tracks.
  */
-export class Queue extends Array<Track> {
-	/**
-	 * The total duration of the queue in milliseconds.
-	 * This includes the duration of the currently playing track.
-	 */
-	public get duration(): number {
-		// Get the duration of the currently playing track, or 0 if there is none.
-		const current = this.current?.duration ?? 0;
-		// Return the sum of all durations in the queue including the current track.
-		return this.reduce((acc, cur) => acc + (cur.duration || 0), current);
-	}
-
-	/**
-	 * The total size of tracks in the queue including the current track.
-	 * This includes the current track if it is not null.
-	 * @returns The total size of tracks in the queue including the current track.
-	 */
-	public get totalSize(): number {
-		return this.length + (this.current ? 1 : 0);
-	}
-
-	/**
-	 * The size of tracks in the queue.
-	 * This does not include the currently playing track.
-	 * @returns The size of tracks in the queue.
-	 */
-	public get size(): number {
-		return this.length;
-	}
-
+export class Queue extends Array<Track> implements IQueue {
 	/** The current track */
 	public current: Track | null = null;
 
@@ -60,19 +32,70 @@ export class Queue extends Array<Track> {
 		this.guildId = guildId;
 	}
 
+	async getCurrent(): Promise<Track | null> {
+		return this.current;
+	}
+
+	async setCurrent(track: Track | null): Promise<void> {
+		this.current = track;
+	}
+
+	async getPrevious(): Promise<Track[]> {
+		return this.previous;
+	}
+
+	public async addPrevious(track: Track | Track[]): Promise<void> {
+		if (Array.isArray(track)) {
+			this.previous.unshift(...track);
+		} else {
+			this.previous.unshift(track);
+		}
+	}
+
+	public async clearPrevious(): Promise<void> {
+		this.previous = [];
+	}
+
+	/**
+	 * The total duration of the queue in milliseconds.
+	 * This includes the duration of the currently playing track.
+	 */
+	public async duration(): Promise<number> {
+		const current = this.current?.duration ?? 0;
+		return this.reduce((acc, cur) => acc + (cur.duration || 0), current);
+	}
+
+	/**
+	 * The total size of tracks in the queue including the current track.
+	 * This includes the current track if it is not null.
+	 * @returns The total size of tracks in the queue including the current track.
+	 */
+	public async totalSize(): Promise<number> {
+		return this.length + (this.current ? 1 : 0);
+	}
+
+	/**
+	 * The size of tracks in the queue.
+	 * This does not include the currently playing track.
+	 * @returns The size of tracks in the queue.
+	 */
+	public async size(): Promise<number> {
+		return this.length;
+	}
+
 	/**
 	 * Adds a track to the queue.
 	 * @param track The track or tracks to add. Can be a single `Track` or an array of `Track`s.
 	 * @param [offset=null] The position to add the track(s) at. If not provided, the track(s) will be added at the end of the queue.
 	 */
-	public add(track: Track | Track[], offset?: number): void {
+	public async add(track: Track | Track[], offset?: number): Promise<void> {
 		// Get the track info as a string
 		const trackInfo = Array.isArray(track) ? track.map((t) => JSON.stringify(t, null, 2)).join(", ") : JSON.stringify(track, null, 2);
 
 		// Emit a debug message
 		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Added ${Array.isArray(track) ? track.length : 1} track(s) to queue: ${trackInfo}`);
 
-		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
+		const oldPlayer = (await this.manager.players.get(this.guildId)) ? { ...(await this.manager.players.get(this.guildId)) } : null;
 
 		// If the track is valid, add it to the queue
 
@@ -113,11 +136,11 @@ export class Queue extends Array<Track> {
 			}
 		}
 
-		if (this.manager.players.has(this.guildId) && this.manager.players.get(this.guildId).isAutoplay) {
+		if ((await this.manager.players.has(this.guildId)) && (await this.manager.players.get(this.guildId)).isAutoplay) {
 			if (!Array.isArray(track)) {
-				const botUser = this.manager.players.get(this.guildId).get("Internal_BotUser") as User | ClientUser;
+				const botUser = (await (await this.manager.players.get(this.guildId)).get("Internal_BotUser")) as User | ClientUser;
 				if (botUser && botUser.id === track.requester.id) {
-					this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+					this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
 						changeType: PlayerStateEventTypes.QueueChange,
 						details: {
 							changeType: "autoPlayAdd",
@@ -130,7 +153,7 @@ export class Queue extends Array<Track> {
 			}
 		}
 		// Emit a player state update event with the added track(s)
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
 			details: {
 				changeType: "add",
@@ -146,10 +169,10 @@ export class Queue extends Array<Track> {
 	 * @param end Optional, end of the range of tracks to remove.
 	 * @returns The removed track(s).
 	 */
-	public remove(position?: number): Track[];
-	public remove(start: number, end: number): Track[];
-	public remove(startOrPosition = 0, end?: number): Track[] {
-		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
+	public async remove(position?: number): Promise<Track[]>;
+	public async remove(start: number, end: number): Promise<Track[]>;
+	public async remove(startOrPosition = 0, end?: number): Promise<Track[]> {
+		const oldPlayer = (await this.manager.players.get(this.guildId)) ? { ...(await this.manager.players.get(this.guildId)) } : null;
 
 		if (typeof end !== "undefined") {
 			// Validate input for `start` and `end`
@@ -167,7 +190,7 @@ export class Queue extends Array<Track> {
 				`[QUEUE] Removed ${removedTracks.length} track(s) from player: ${this.guildId} from position ${startOrPosition} to ${end}.`
 			);
 
-			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
 				changeType: PlayerStateEventTypes.QueueChange,
 				details: {
 					changeType: "remove",
@@ -188,7 +211,7 @@ export class Queue extends Array<Track> {
 		// Ensure removedTrack is an array for consistency
 		const tracksToEmit = removedTrack.length > 0 ? removedTrack : [];
 
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
 			details: {
 				changeType: "remove",
@@ -203,15 +226,15 @@ export class Queue extends Array<Track> {
 	 * Clears the queue.
 	 * This will remove all tracks from the queue and emit a state update event.
 	 */
-	public clear(): void {
+	public async clear(): Promise<void> {
 		// Capture the current state of the player for event emission.
-		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
+		const oldPlayer = (await this.manager.players.get(this.guildId)) ? { ...(await this.manager.players.get(this.guildId)) } : null;
 
 		// Remove all items from the queue.
 		this.splice(0);
 
 		// Emit an event to update the player state indicating the queue has been cleared.
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
 			details: {
 				changeType: "clear",
@@ -227,9 +250,9 @@ export class Queue extends Array<Track> {
 	 * Shuffles the queue.
 	 * This will randomize the order of the tracks in the queue and emit a state update event.
 	 */
-	public shuffle(): void {
+	public async shuffle(): Promise<void> {
 		// Capture the current state of the player for event emission.
-		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
+		const oldPlayer = (await this.manager.players.get(this.guildId)) ? { ...(await this.manager.players.get(this.guildId)) } : null;
 
 		// Shuffle the queue.
 		for (let i = this.length - 1; i > 0; i--) {
@@ -238,7 +261,7 @@ export class Queue extends Array<Track> {
 		}
 
 		// Emit an event to update the player state indicating the queue has been shuffled.
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
 			details: {
 				changeType: "shuffle",
@@ -252,9 +275,9 @@ export class Queue extends Array<Track> {
 	/**
 	 * Shuffles the queue to play tracks requested by each user one block at a time.
 	 */
-	public userBlockShuffle(): void {
+	public async userBlockShuffle(): Promise<void> {
 		// Capture the current state of the player for event emission.
-		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
+		const oldPlayer = (await this.manager.players.get(this.guildId)) ? { ...(await this.manager.players.get(this.guildId)) } : null;
 
 		// Group the tracks in the queue by the user that requested them.
 		const userTracks = new Map<string, Array<Track>>();
@@ -287,7 +310,7 @@ export class Queue extends Array<Track> {
 		this.add(shuffledQueue);
 
 		// Emit an event to update the player state indicating the queue has been shuffled.
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
 			details: {
 				changeType: "userBlock",
@@ -301,8 +324,8 @@ export class Queue extends Array<Track> {
 	/**
 	 * Shuffles the queue to play tracks requested by each user one by one.
 	 */
-	public roundRobinShuffle() {
-		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
+	public async roundRobinShuffle() {
+		const oldPlayer = (await this.manager.players.get(this.guildId)) ? { ...(await this.manager.players.get(this.guildId)) } : null;
 		const userTracks = new Map<string, Array<Track>>();
 
 		// Group the tracks in the queue by the user that requested them.
@@ -346,7 +369,7 @@ export class Queue extends Array<Track> {
 		this.add(shuffledQueue);
 
 		// Emit an event to update the player state indicating the queue has been shuffled.
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
 			details: {
 				changeType: "roundRobin",
@@ -355,5 +378,29 @@ export class Queue extends Array<Track> {
 
 		// Emit a debug message indicating the queue has been shuffled for a specific guild ID.
 		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] roundRobinShuffled the queue for: ${this.guildId}`);
+	}
+
+	public async dequeue(): Promise<Track | undefined> {
+		return super.shift();
+	}
+
+	public async enqueueFront(track: Track | Track[]): Promise<void> {
+		if (Array.isArray(track)) {
+			this.unshift(...track);
+		} else {
+			this.unshift(track);
+		}
+	}
+
+	public async getTracks(): Promise<Track[]> {
+		return [...this]; // clone to avoid direct mutation
+	}
+
+	public async getSlice(start?: number, end?: number): Promise<Track[]> {
+		return this.slice(start, end); // Native sync method, still wrapped in a Promise
+	}
+
+	public async modifyAt(start: number, deleteCount = 0, ...items: Track[]): Promise<Track[]> {
+		return super.splice(start, deleteCount, ...items);
 	}
 }

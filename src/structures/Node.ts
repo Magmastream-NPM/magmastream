@@ -275,13 +275,13 @@ export class Node {
 			identifier: this.options.identifier,
 			address: this.address,
 			sessionId: this.sessionId,
-			playerCount: this.manager.players.filter((p) => p.node == this).size,
+			playerCount: (await this.manager.players.filter((p) => p.node == this)).size,
 		};
 
 		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Destroying node: ${JSON.stringify(debugInfo)}`);
 
 		// Automove all players connected to that node
-		const players = this.manager.players.filter((p) => p.node == this);
+		const players = await this.manager.players.filter((p) => p.node == this);
 		if (players.size) {
 			players.forEach(async (player) => {
 				await player.autoMoveNode();
@@ -408,7 +408,7 @@ export class Node {
 		// Try moving all players connected to that node to a useable one
 
 		if (this.manager.useableNode) {
-			const players = this.manager.players.filter((p) => p.node.options.identifier == this.options.identifier);
+			const players = await this.manager.players.filter((p) => p.node.options.identifier == this.options.identifier);
 			if (players.size) {
 				await Promise.all(Array.from(players.values(), (player) => player.autoMoveNode()));
 			}
@@ -463,14 +463,14 @@ export class Node {
 				this.stats = { ...payload } as unknown as NodeStats;
 				break;
 			case "playerUpdate":
-				player = this.manager.players.get(payload.guildId);
+				player = await this.manager.players.get(payload.guildId);
 				if (player && player.node.options.identifier !== this.options.identifier) {
 					return;
 				}
 				if (player) player.position = payload.state.position || 0;
 				break;
 			case "event":
-				player = this.manager.players.get(payload.guildId);
+				player = await this.manager.players.get(payload.guildId);
 				if (player && player.node.options.identifier !== this.options.identifier) {
 					return;
 				}
@@ -511,10 +511,10 @@ export class Node {
 	protected async handleEvent(payload: PlayerEvent & PlayerEvents): Promise<void> {
 		if (!payload.guildId) return;
 
-		const player = this.manager.players.get(payload.guildId);
+		const player = await this.manager.players.get(payload.guildId);
 		if (!player) return;
 
-		const track = player.queue.current;
+		const track = await player.queue.getCurrent();
 		const type = payload.type;
 
 		let error: Error;
@@ -544,16 +544,16 @@ export class Node {
 				break;
 
 			case "SegmentsLoaded":
-				this.sponsorBlockSegmentLoaded(player, player.queue.current as Track, payload);
+				this.sponsorBlockSegmentLoaded(player, track, payload);
 				break;
 			case "SegmentSkipped":
-				this.sponsorBlockSegmentSkipped(player, player.queue.current as Track, payload);
+				this.sponsorBlockSegmentSkipped(player, track, payload);
 				break;
 			case "ChaptersLoaded":
-				this.sponsorBlockChaptersLoaded(player, player.queue.current as Track, payload);
+				this.sponsorBlockChaptersLoaded(player, track, payload);
 				break;
 			case "ChapterStarted":
-				this.sponsorBlockChapterStarted(player, player.queue.current as Track, payload);
+				this.sponsorBlockChapterStarted(player, track, payload);
 				break;
 
 			default:
@@ -611,13 +611,16 @@ export class Node {
 		const { reason } = payload;
 
 		const skipFlag = player.get<boolean>("skipFlag");
-		if (!skipFlag && (player.queue.previous.length === 0 || (player.queue.previous[0] && player.queue.previous[0].track !== player.queue.current?.track))) {
+		const previous = await player.queue.getPrevious();
+		const current = await player.queue.getCurrent();
+
+		if (!skipFlag && (previous.length === 0 || (previous[0] && previous[0].track !== current?.track))) {
 			// Store the current track in the previous tracks queue
-			player.queue.previous.push(player.queue.current);
+			await player.queue.addPrevious(await player.queue.getCurrent());
 
 			// Limit the previous tracks queue to maxPreviousTracks
-			if (player.queue.previous.length > this.manager.options.maxPreviousTracks) {
-				player.queue.previous.shift();
+			if ((await player.queue.getPrevious()).length > this.manager.options.maxPreviousTracks) {
+				(await player.queue.getPrevious()).shift();
 			}
 		}
 
@@ -634,7 +637,7 @@ export class Node {
 				break;
 			case TrackEndReasonTypes.Stopped:
 				// If the track was forcibly replaced
-				if (player.queue.length) {
+				if (await player.queue.size()) {
 					await this.playNextTrack(player, track, payload);
 				} else {
 					await this.queueEnd(player, track, payload);
@@ -647,7 +650,7 @@ export class Node {
 					break;
 				}
 				// If there's another track in the queue
-				if (player.queue.length) {
+				if (await player.queue.size()) {
 					await this.playNextTrack(player, track, payload);
 				} else {
 					await this.queueEnd(player, track, payload);
@@ -679,9 +682,9 @@ export class Node {
 	 */
 	private async handleAutoplay(player: Player, attempt: number = 0): Promise<boolean> {
 		// If autoplay is not enabled or all attempts have failed, early exit
-		if (!player.isAutoplay || attempt > player.autoplayTries || !player.queue.previous.length) return false;
+		if (!player.isAutoplay || attempt > player.autoplayTries || !(await player.queue.getPrevious()).length) return false;
 
-		const lastTrack = player.queue.previous[player.queue.previous.length - 1];
+		const lastTrack = await player.queue.getPrevious()[(await player.queue.getPrevious()).length - 1];
 
 		lastTrack.requester = player.get("Internal_BotUser") as User | ClientUser;
 
@@ -690,7 +693,7 @@ export class Node {
 		const tracks = await AutoPlayUtils.getRecommendedTracks(lastTrack);
 
 		if (tracks.length) {
-			player.queue.add(tracks[0]);
+			await player.queue.add(tracks[0]);
 			await player.play();
 			return true;
 		} else {
@@ -711,9 +714,9 @@ export class Node {
 	 * @private
 	 */
 	private async handleFailedTrack(player: Player, track: Track, payload: TrackEndEvent): Promise<void> {
-		player.queue.current = player.queue.shift();
+		await player.queue.setCurrent(await player.queue.dequeue());
 
-		if (!player.queue.current) {
+		if (!(await player.queue.getCurrent())) {
 			await this.queueEnd(player, track, payload);
 			return;
 		}
@@ -740,26 +743,31 @@ export class Node {
 
 		if (trackRepeat) {
 			// Prevent duplicate repeat insertion
-			if (queue[0] !== queue.current) {
-				queue.unshift(queue.current);
+			if (queue[0] !== (await queue.getCurrent())) {
+				await queue.enqueueFront(await queue.getCurrent());
 			}
 		} else if (queueRepeat) {
 			// Prevent duplicate queue insertion
-			if (queue[queue.length - 1] !== queue.current) {
-				queue.add(queue.current as Track);
+			if (queue[(await queue.size()) - 1] !== (await queue.getCurrent())) {
+				await queue.add(await queue.getCurrent());
 			}
 		}
 
 		// Move to the next track
-		queue.current = queue.shift() as Track;
+		await queue.setCurrent(await queue.dequeue());
 
 		// Emit track end event
 		this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
 
 		// If the track was stopped manually and no more tracks exist, end the queue
-		if (payload.reason === TrackEndReasonTypes.Stopped && !(queue.current = queue.shift())) {
-			await this.queueEnd(player, track, payload);
-			return;
+		if (payload.reason === TrackEndReasonTypes.Stopped) {
+			const next = await queue.dequeue();
+			await queue.setCurrent(next ?? null);
+
+			if (!next) {
+				await this.queueEnd(player, track, payload);
+				return;
+			}
 		}
 
 		// If autoplay is enabled, play the next track
@@ -779,7 +787,7 @@ export class Node {
 	 */
 	private async playNextTrack(player: Player, track: Track, payload: TrackEndEvent): Promise<void> {
 		// Shift the queue to set the next track as current
-		player.queue.current = player.queue.shift();
+		await player.queue.setCurrent(await player.queue.dequeue());
 
 		// Emit the track end event
 		this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
@@ -798,7 +806,7 @@ export class Node {
 	 * @returns {Promise<void>} A promise that resolves when the queue end processing is complete.
 	 */
 	public async queueEnd(player: Player, track: Track, payload: TrackEndEvent): Promise<void> {
-		player.queue.current = null;
+		await player.queue.setCurrent(null);
 
 		if (!player.isAutoplay) {
 			player.playing = false;

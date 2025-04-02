@@ -1030,3 +1030,28 @@ export interface PlayerUpdate {
 		ping: number;
 	};
 }
+export interface IQueue {
+	getCurrent(): Promise<Track | null>;
+	setCurrent(track: Track | null): Promise<void>;
+
+	getPrevious(): Promise<Track[]>;
+	addPrevious(track: Track | Track[]): Promise<void>;
+	clearPrevious(): Promise<void>;
+
+	size(): Promise<number>;
+	totalSize(): Promise<number>;
+	duration(): Promise<number>;
+
+	add(track: Track | Track[], offset?: number): Promise<void>;
+	remove(start?: number, end?: number): Promise<Track[]>;
+	clear(): Promise<void>;
+	dequeue(): Promise<Track | undefined>;
+	enqueueFront(track: Track | Track[]): Promise<void>;
+	getTracks(): Promise<Track[]>;
+	getSlice(start?: number, end?: number): Promise<Track[]>;
+	modifyAt(start: number, deleteCount?: number, ...items: Track[]): Promise<Track[]>;
+
+	shuffle(): Promise<void>;
+	userBlockShuffle(): Promise<void>;
+	roundRobinShuffle(): Promise<void>;
+}

@@ -1,15 +1,16 @@
 import { Filters } from "./Filters";
-import { Manager, ManagerEventTypes, PlayerStateEventTypes, SearchQuery, SearchResult } from "./Manager";
+import { Manager, ManagerEventTypes, PlayerStateEventTypes, SearchQuery, SearchResult, StateStorageType } from "./Manager";
 import { Lyrics, Node, SponsorBlockSegment } from "./Node";
 import { Queue } from "./Queue";
-import { AutoPlayUtils, Sizes, StateTypes, Structure, TrackSourceName, TrackUtils, VoiceState } from "./Utils";
+import { AutoPlayUtils, IQueue, Sizes, StateTypes, Structure, TrackSourceName, TrackUtils, VoiceState } from "./Utils";
 import * as _ from "lodash";
 import playerCheck from "../utils/playerCheck";
 import { ClientUser, Message, User } from "discord.js";
+import { RedisQueue } from "./RedisQueue";
 
 export class Player {
 	/** The Queue for the Player. */
-	public readonly queue: Queue;
+	public readonly queue: IQueue;
 	/** The filters applied to the audio. */
 	public filters: Filters;
 	/** Whether the queue repeats the track. */
@@ -64,11 +65,6 @@ export class Player {
 		if (!this.manager) this.manager = Structure.get("Player")._manager;
 		if (!this.manager) throw new RangeError("Manager has not been initiated.");
 
-		// If a player with the same guild ID already exists, return it.
-		if (this.manager.players.has(options.guildId)) {
-			return this.manager.players.get(options.guildId);
-		}
-
 		// Check the player options for errors.
 		playerCheck(options);
 
@@ -91,8 +87,15 @@ export class Player {
 		if (!this.node) throw new RangeError("No available nodes.");
 
 		// Initialize the queue with the guild ID and manager.
-		this.queue = new Queue(this.guildId, this.manager);
-		this.queue.previous = new Array<Track>();
+		if (this.manager.options.stateStorage.type === StateStorageType.Redis) {
+			this.queue = new RedisQueue(this.guildId, this.manager);
+		} else {
+			this.queue = new Queue(this.guildId, this.manager);
+		}
+
+		if (this.queue instanceof Queue) {
+			this.queue.previous = [];
+		}
 
 		// Add the player to the manager's player collection.
 		this.manager.players.set(options.guildId, this);
@@ -237,11 +240,11 @@ export class Player {
 	/**
 	 * Destroys the player and clears the queue.
 	 * @param {boolean} disconnect - Whether to disconnect the player from the voice channel.
-	 * @returns {Promise<boolean>} - Whether the player was successfully destroyed.
+	 * @returns {Promise<Player>}
 	 * @emits {PlayerDestroy} - Emitted when the player is destroyed.
 	 * @emits {PlayerStateUpdate} - Emitted when the player state is updated.
 	 */
-	public async destroy(disconnect: boolean = true): Promise<boolean> {
+	public async destroy(disconnect: boolean = true): Promise<this> {
 		const oldPlayer = this ? { ...this } : null;
 		this.state = StateTypes.Destroying;
 
@@ -257,13 +260,9 @@ export class Player {
 		});
 		this.manager.emit(ManagerEventTypes.PlayerDestroy, this);
 
-		const deleted = this.manager.players.delete(this.guildId);
+		await this.manager.deletePlayer(this.guildId);
 
-		if (!deleted) {
-			console.warn(`Failed to delete player with guildId: ${this.guildId}`);
-		}
-
-		return deleted;
+		return this;
 	}
 
 	/**
@@ -363,10 +362,10 @@ export class Player {
 	public async play(track: Track, options: PlayOptions): Promise<Player>;
 	public async play(optionsOrTrack?: PlayOptions | Track, playOptions?: PlayOptions): Promise<Player> {
 		if (typeof optionsOrTrack !== "undefined" && TrackUtils.validate(optionsOrTrack)) {
-			this.queue.current = optionsOrTrack as Track;
+			await this.queue.setCurrent(optionsOrTrack as Track);
 		}
 
-		if (!this.queue.current) throw new RangeError("No current track.");
+		if (!(await this.queue.getCurrent())) throw new RangeError("No current track.");
 
 		const finalOptions = playOptions
 			? playOptions
@@ -377,7 +376,7 @@ export class Player {
 		await this.node.rest.updatePlayer({
 			guildId: this.guildId,
 			data: {
-				encodedTrack: this.queue.current?.track,
+				encodedTrack: (await this.queue.getCurrent()).track,
 				...finalOptions,
 			},
 		});
@@ -590,14 +589,14 @@ export class Player {
 	 * @throws {TypeError} If the repeat parameter is not a boolean.
 	 * @throws {RangeError} If the queue size is less than or equal to 1.
 	 */
-	public setDynamicRepeat(repeat: boolean, ms: number): this {
+	public async setDynamicRepeat(repeat: boolean, ms: number): Promise<this> {
 		// Validate the repeat parameter
 		if (typeof repeat !== "boolean") {
 			throw new TypeError('Repeat can only be "true" or "false".');
 		}
 
 		// Ensure the queue has more than one track for dynamic repeat
-		if (this.queue.size <= 1) {
+		if ((await this.queue.size()) <= 1) {
 			throw new RangeError("The queue size must be greater than 1.");
 		}
 
@@ -611,14 +610,13 @@ export class Player {
 			this.dynamicRepeat = true;
 
 			// Set an interval to shuffle the queue periodically
-			this.dynamicLoopInterval = setInterval(() => {
+			this.dynamicLoopInterval = setInterval(async () => {
 				if (!this.dynamicRepeat) return;
 				// Shuffle the queue and replace it with the shuffled tracks
-				const shuffled = _.shuffle(this.queue);
-				this.queue.clear();
-				shuffled.forEach((track) => {
-					this.queue.add(track as Track);
-				});
+				const tracks = await this.queue.getTracks();
+				const shuffled = _.shuffle(tracks);
+				await this.queue.clear();
+				await this.queue.add(shuffled);
 			}, ms);
 
 			// Store the ms value
@@ -652,9 +650,9 @@ export class Player {
 	 */
 	public async restart(): Promise<Player> {
 		// Check if there is a current track in the queue
-		if (!this.queue.current?.track) {
+		if (!(await this.queue.getCurrent())?.track) {
 			// If the queue has tracks, play the next one
-			if (this.queue.length) await this.play();
+			if (await this.queue.size()) await this.play();
 			return this;
 		}
 
@@ -663,7 +661,7 @@ export class Player {
 			guildId: this.guildId,
 			data: {
 				position: 0,
-				encodedTrack: this.queue.current?.track,
+				encodedTrack: (await this.queue.getCurrent())?.track,
 			},
 		});
 
@@ -681,9 +679,9 @@ export class Player {
 		let removedTracks: Track[] = [];
 
 		if (typeof amount === "number" && amount > 1) {
-			if (amount > this.queue.length) throw new RangeError("Cannot skip more than the queue length.");
-			removedTracks = this.queue.slice(0, amount - 1);
-			this.queue.splice(0, amount - 1);
+			if (amount > (await this.queue.size())) throw new RangeError("Cannot skip more than the queue length.");
+			removedTracks = await this.queue.getSlice(0, amount - 1);
+			await this.queue.modifyAt(0, amount - 1);
 		}
 
 		this.node.rest.updatePlayer({
@@ -752,7 +750,7 @@ export class Player {
 	 */
 	public async previous(): Promise<this> {
 		// Check if there are previous tracks in the queue.
-		if (!this.queue.previous.length) {
+		if (!(await this.queue.getPrevious()).length) {
 			throw new Error("No previous track available.");
 		}
 
@@ -763,7 +761,7 @@ export class Player {
 		// let currentTrackBeforeChange: Track | null = this.queue.current ? (this.queue.current as Track) : null;
 
 		// Get the last played track and remove it from the history
-		const lastTrack = this.queue.previous.pop() as Track;
+		const lastTrack = (await this.queue.getPrevious()).pop();
 
 		// Set the skip flag to true to prevent the onTrackEnd event from playing the next track.
 		this.set("skipFlag", true);
@@ -794,7 +792,7 @@ export class Player {
 	 * @emits {PlayerStateUpdate} - With {@link PlayerStateEventTypes.TrackChange} as the change type.
 	 */
 	public async seek(position: number): Promise<this> {
-		if (!this.queue.current) return undefined;
+		if (!(await this.queue.getCurrent())) return undefined;
 		position = Number(position);
 
 		// Check if the position is valid.
@@ -806,8 +804,8 @@ export class Player {
 		const oldPlayer = this ? { ...this } : null;
 
 		// Clamp the position to ensure it is within the valid range.
-		if (position < 0 || position > this.queue.current.duration) {
-			position = Math.max(Math.min(position, this.queue.current.duration), 0);
+		if (position < 0 || position > (await this.queue.getCurrent()).duration) {
+			position = Math.max(Math.min(position, (await this.queue.getCurrent()).duration), 0);
 		}
 
 		// Update the player's position.
@@ -885,7 +883,7 @@ export class Player {
 				sessionId,
 				event: { token, endpoint },
 			} = this.voiceState;
-			const currentTrack = this.queue.current ? this.queue.current : null;
+			const currentTrack = (await this.queue.getCurrent()) ? await this.queue.getCurrent() : null;
 
 			await this.node.rest.destroyPlayer(this.guildId).catch(() => {});
 
@@ -919,7 +917,7 @@ export class Player {
 		if (!newOptions.textChannelId) throw new Error("Text channel ID is required");
 
 		// Check if a player already exists for the new guild
-		let newPlayer = this.manager.players.get(newOptions.guildId);
+		let newPlayer = await this.manager.getPlayer(newOptions.guildId);
 
 		// If the player already exists and force is false, return the existing player
 		if (newPlayer && !force) return newPlayer;
@@ -931,9 +929,9 @@ export class Player {
 			volume: this.volume,
 			position: this.position,
 			queue: {
-				current: this.queue.current,
-				tracks: [...this.queue],
-				previous: [...this.queue.previous],
+				current: await this.queue.getCurrent(),
+				tracks: [...(await this.queue.getTracks())],
+				previous: [...(await this.queue.getPrevious())],
 			},
 			trackRepeat: this.trackRepeat,
 			queueRepeat: this.queueRepeat,
@@ -956,7 +954,7 @@ export class Player {
 		newOptions.volume = newOptions.volume ?? oldPlayerProperties.volume;
 
 		// Deep clone the current player
-		const clonedPlayer = this.manager.create(newOptions);
+		const clonedPlayer = await this.manager.create(newOptions);
 
 		// Connect the cloned player to the new voice channel
 		clonedPlayer.connect();
@@ -972,9 +970,9 @@ export class Player {
 			},
 		});
 
-		clonedPlayer.queue.current = oldPlayerProperties.queue.current;
-		clonedPlayer.queue.previous = oldPlayerProperties.queue.previous;
-		clonedPlayer.queue.add(oldPlayerProperties.queue.tracks as Track[]);
+		await clonedPlayer.queue.setCurrent(oldPlayerProperties.queue.current);
+		await clonedPlayer.queue.addPrevious(oldPlayerProperties.queue.previous);
+		await clonedPlayer.queue.add(oldPlayerProperties.queue.tracks);
 		clonedPlayer.filters = oldPlayerProperties.filters;
 		clonedPlayer.isAutoplay = oldPlayerProperties.isAutoplay;
 		clonedPlayer.nowPlayingMessage = oldPlayerProperties.nowPlayingMessage;
@@ -991,7 +989,7 @@ export class Player {
 		// Debug information
 		const debugInfo = {
 			success: true,
-			message: `Transferred ${clonedPlayer.queue.length} tracks successfully to <#${newOptions.voiceChannelId}> bound to <#${newOptions.textChannelId}>.`,
+			message: `Transferred ${await clonedPlayer.queue.size()} tracks successfully to <#${newOptions.voiceChannelId}> bound to <#${newOptions.textChannelId}>.`,
 			player: {
 				guildId: clonedPlayer.guildId,
 				voiceChannelId: clonedPlayer.voiceChannelId,
@@ -1022,7 +1020,7 @@ export class Player {
 		}
 
 		// Fetch the lyrics for the current track from the Lavalink node
-		let result = (await this.node.getLyrics(this.queue.current, skipTrackSource)) as Lyrics;
+		let result = (await this.node.getLyrics(await this.queue.getCurrent(), skipTrackSource)) as Lyrics;
 
 		// If no lyrics are found, return a default empty lyrics object
 		if (!result) {
