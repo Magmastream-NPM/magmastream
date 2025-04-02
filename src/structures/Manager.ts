@@ -29,15 +29,13 @@ import { blockedWords } from "../config/blockedWords";
 import fs from "fs/promises";
 import path from "path";
 import Redis, { Redis as RedisClient } from "ioredis";
-import { RedisPlayerStore } from "../storage/RedisPlayerStore";
-import { CollectionPlayerStore } from "../storage/CollectionPlayerStore";
 
 /**
  * The main hub for interacting with Lavalink and using Magmastream,
  */
 export class Manager extends EventEmitter {
 	/** The map of players. */
-	private _players: PlayerStore;
+	public readonly players = new Collection<string, Player>();
 	/** The map of nodes. */
 	public readonly nodes = new Collection<string, Node>();
 	/** The options that were set. */
@@ -130,10 +128,6 @@ export class Manager extends EventEmitter {
 		});
 	}
 
-	public get players(): PlayerStore {
-		return this._players;
-	}
-
 	/**
 	 * Initiates the Manager.
 	 * @param clientId - The Discord client ID (required).
@@ -173,7 +167,6 @@ export class Manager extends EventEmitter {
 
 		if (this.options.stateStorage?.type === StateStorageType.Redis) {
 			const config = this.options.stateStorage.redisConfig;
-			const prefix = config.prefix?.endsWith(":") ? config.prefix : `${config.prefix ?? "magmastream"}:`;
 
 			this.redis = new Redis({
 				host: config.host,
@@ -181,10 +174,6 @@ export class Manager extends EventEmitter {
 				password: config.password,
 				db: config.db ?? 0,
 			});
-
-			this._players = new RedisPlayerStore(this.redis, prefix);
-		} else {
-			this._players = new CollectionPlayerStore();
 		}
 
 		this.initiated = true;
@@ -268,52 +257,8 @@ export class Manager extends EventEmitter {
 	 * @param guildId The guild ID of the player to retrieve.
 	 * @returns The player if it exists, undefined otherwise.
 	 */
-	public async getPlayer(guildId: string): Promise<Player | undefined> {
-		if (this._players instanceof Collection) {
-			return this._players.get(guildId);
-		}
-		return await this._players.get(guildId);
-	}
-
-	/**
-	 * Save player data.
-	 * @param guildId The guild ID of the player to save.
-	 */
-	public async setPlayer(guildId: string, player: Player): Promise<void> {
-		if (this._players instanceof Collection) {
-			this._players.set(guildId, player);
-		} else {
-			await this._players.set(guildId, player);
-		}
-	}
-
-	/**
-	 * Remove player data.
-	 * @param guildId The guild ID of the player to remove.
-	 */
-	public async deletePlayer(guildId: string): Promise<void> {
-		if (this._players instanceof Collection) {
-			this._players.delete(guildId);
-		} else {
-			await this._players.delete(guildId);
-		}
-	}
-
-	/**
-	 * Creates a player or returns one if it already exists.
-	 * @param options The options to create the player with.
-	 * @returns The created player.
-	 */
-	public async create(options: PlayerOptions): Promise<Player> {
-		const existing = await this.getPlayer(options.guildId);
-		if (existing) return existing;
-
-		this.emit(ManagerEventTypes.Debug, `[MANAGER] Creating new player with options: ${JSON.stringify(options)}`);
-
-		const player = new (Structure.get("Player"))(options);
-		await this.setPlayer(options.guildId, player);
-
-		return player;
+	public getPlayer(guildId: string): Player | undefined {
+		return this.players.get(guildId);
 	}
 
 	/**
@@ -323,10 +268,22 @@ export class Manager extends EventEmitter {
 	 * @returns The player if it exists, undefined otherwise.
 	 */
 	public async get(guildId: string): Promise<Player | undefined> {
-		if (this._players instanceof Collection) {
-			return this._players.get(guildId);
+		return this.players.get(guildId);
+	}
+
+	/**
+	 * Creates a player or returns one if it already exists.
+	 * @param options The options to create the player with.
+	 * @returns The created player.
+	 */
+	public create(options: PlayerOptions): Player {
+		if (this.players.has(options.guildId)) {
+			return this.players.get(options.guildId);
 		}
-		return await this._players.get(guildId);
+
+		// Create a new player with the given options
+		this.emit(ManagerEventTypes.Debug, `[MANAGER] Creating new player with options: ${JSON.stringify(options)}`);
+		return new (Structure.get("Player"))(options);
 	}
 
 	/**
@@ -338,7 +295,8 @@ export class Manager extends EventEmitter {
 		// Emit debug message for player destruction
 		this.emit(ManagerEventTypes.Debug, `[MANAGER] Destroying player: ${guildId}`);
 
-		await this.deletePlayer(guildId);
+		// Remove the player from the manager's collection
+		this.players.delete(guildId);
 
 		// Clean up any inactive players
 		await this.cleanupInactivePlayers();
@@ -399,7 +357,7 @@ export class Manager extends EventEmitter {
 		const update = "d" in data ? data.d : data;
 		if (!this.isValidUpdate(update)) return;
 
-		const player = await this.getPlayer(update.guild_id);
+		const player = this.getPlayer(update.guild_id);
 		if (!player) return;
 
 		this.emit(ManagerEventTypes.Debug, `[MANAGER] Updating voice state: ${JSON.stringify(update)}`);
@@ -462,7 +420,7 @@ export class Manager extends EventEmitter {
 	public async savePlayerState(guildId: string): Promise<void> {
 		try {
 			const playerStateFilePath = await this.getPlayerFilePath(guildId);
-			const player = await this.getPlayer(guildId);
+			const player = this.getPlayer(guildId);
 
 			if (!player || player.state === StateTypes.Disconnected || !player.voiceChannelId) {
 				console.warn(`Skipping save for inactive player: ${guildId}`);
@@ -531,7 +489,7 @@ export class Manager extends EventEmitter {
 						};
 
 						this.emit(ManagerEventTypes.Debug, `[MANAGER] Recreating player: ${state.guildId} from saved file: ${JSON.stringify(state.options)}`);
-						const player = await this.create(playerOptions);
+						const player = this.create(playerOptions);
 
 						await player.node.rest.updatePlayer({
 							guildId: state.options.guildId,
@@ -697,8 +655,7 @@ export class Manager extends EventEmitter {
 		console.warn("\x1b[31m%s\x1b[0m", "MAGMASTREAM WARNING: Shutting down! Please wait, saving active players...");
 
 		try {
-			const guildIds = await this.getAllGuildIds();
-			const savePromises = Array.from(guildIds).map(async (guildId) => {
+			const savePromises = Array.from(this.players.keys()).map(async (guildId) => {
 				try {
 					await this.savePlayerState(guildId);
 				} catch (error) {
@@ -906,7 +863,7 @@ export class Manager extends EventEmitter {
 	 * @param player The Player instance to serialize
 	 * @returns The serialized Player instance
 	 */
-	private serializePlayer(player: Player): Record<string, unknown> {
+	public serializePlayer(player: Player): Record<string, unknown> {
 		const seen = new WeakSet();
 
 		/**
@@ -930,6 +887,8 @@ export class Manager extends EventEmitter {
 				}
 
 				if (key === "filters") {
+					if (!value || typeof value !== "object") return null;
+
 					return {
 						distortion: value.distortion ?? null,
 						equalizer: value.equalizer ?? [],
@@ -940,14 +899,14 @@ export class Manager extends EventEmitter {
 						reverb: value.reverb ?? null,
 						volume: value.volume ?? 1.0,
 						bassBoostlevel: value.bassBoostlevel ?? null,
-						filterStatus: { ...value.filtersStatus },
+						filterStatus: value.filtersStatus ? { ...value.filtersStatus } : {},
 					};
 				}
 				if (key === "queue") {
 					return {
 						current: value.current || null,
-						tracks: [...value],
-						previous: [...value.previous],
+						tracks: Array.isArray(value) ? [...value] : [],
+						previous: Array.isArray(value.previous) ? [...value.previous] : [],
 					};
 				}
 
@@ -976,21 +935,21 @@ export class Manager extends EventEmitter {
 				this.emit(ManagerEventTypes.Debug, `[MANAGER] Created directory: ${playerStatesDir}`);
 			});
 
-			// Get all state files
+			// Get the list of player state files
 			const playerFiles = await fs.readdir(playerStatesDir);
 
-			// Get active guild IDs from storage
-			const guildIds = this._players instanceof Collection ? Array.from(await this._players.keys()) : await this._players.keys();
+			// Get the set of active guild IDs from the manager's player collection
+			const activeGuildIds = new Set(this.players.keys());
 
-			const activeGuildIds = new Set(guildIds);
-
-			// Delete state files that don't match active players
+			// Iterate over the player state files
 			for (const file of playerFiles) {
+				// Get the guild ID from the file name
 				const guildId = path.basename(file, ".json");
 
+				// If the guild ID is not in the set of active guild IDs, delete the file
 				if (!activeGuildIds.has(guildId)) {
 					const filePath = path.join(playerStatesDir, file);
-					await fs.unlink(filePath);
+					await fs.unlink(filePath); // Delete the file asynchronously
 					this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleting inactive player: ${guildId}`);
 				}
 			}
@@ -1063,14 +1022,6 @@ export class Manager extends EventEmitter {
 
 		// If no node has a cumulative weight greater than or equal to the random number, return the node with the lowest load
 		return this.options.useNode === UseNodeOptions.LeastLoad ? this.leastLoadNode.first() : this.leastPlayersNode.first();
-	}
-
-	private async getAllGuildIds(): Promise<string[]> {
-		if (this._players instanceof Collection) {
-			return Array.from(await this._players.keys());
-		} else {
-			return await this._players.keys();
-		}
 	}
 }
 
@@ -1425,3 +1376,5 @@ export interface PlayerStore {
 	clear(): Promise<void>;
 	entries(): AsyncIterableIterator<[string, Player]>;
 }
+
+// PlayerStore WILL BE REMOVED IF YOU DONT FIND A USE FOR IT.

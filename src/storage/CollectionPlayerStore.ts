@@ -1,3 +1,5 @@
+// THIS WILL BE REMOVED IF YOU DONT FIND A USE FOR IT.
+
 import { Collection } from "@discordjs/collection";
 import { Player } from "../structures/Player";
 import { PlayerStore } from "../structures/Manager";

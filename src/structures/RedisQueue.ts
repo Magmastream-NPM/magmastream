@@ -59,8 +59,11 @@ export class RedisQueue implements IQueue {
 
 	public async addPrevious(track: Track | Track[]): Promise<void> {
 		const tracks = Array.isArray(track) ? track : [track];
+		if (!tracks.length) return;
+
 		const serialized = tracks.map(this.serialize);
-		// LPUSH reverses order, so we reverse to maintain correct stack order
+		if (!serialized.length) return; // avoid lpush with no values
+
 		await this.redis.lpush(this.previousKey, ...serialized.reverse());
 	}
 
@@ -73,7 +76,7 @@ export class RedisQueue implements IQueue {
 		const tracks = isArray ? track : [track];
 		const serialized = tracks.map((t) => this.serialize(t));
 
-		const oldPlayer = (await this.manager.players.get(this.guildId)) ? { ...(await this.manager.players.get(this.guildId)) } : null;
+		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
 		// If there's no current track, pop one from the list
 		if (!this.current) {
@@ -97,11 +100,11 @@ export class RedisQueue implements IQueue {
 
 		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Added ${tracks.length} track(s) to queue`);
 
-		if ((await this.manager.players.has(this.guildId)) && (await this.manager.players.get(this.guildId)).isAutoplay) {
+		if (this.manager.players.has(this.guildId) && this.manager.players.get(this.guildId).isAutoplay) {
 			if (!Array.isArray(track)) {
-				const botUser = (await (await this.manager.players.get(this.guildId)).get("Internal_BotUser")) as User | ClientUser;
+				const botUser = (await this.manager.players.get(this.guildId).get("Internal_BotUser")) as User | ClientUser;
 				if (botUser && botUser.id === track.requester.id) {
-					this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
+					this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 						changeType: PlayerStateEventTypes.QueueChange,
 						details: {
 							changeType: "autoPlayAdd",
@@ -114,7 +117,7 @@ export class RedisQueue implements IQueue {
 			}
 		}
 
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
 			details: {
 				changeType: "add",
@@ -126,7 +129,7 @@ export class RedisQueue implements IQueue {
 	public async remove(position?: number): Promise<Track[]>;
 	public async remove(start: number, end: number): Promise<Track[]>;
 	public async remove(startOrPos = 0, end?: number): Promise<Track[]> {
-		const oldPlayer = (await this.manager.players.get(this.guildId)) ? { ...(await this.manager.players.get(this.guildId)) } : null;
+		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
 		const queue = await this.redis.lrange(this.queueKey, 0, -1);
 
@@ -151,7 +154,7 @@ export class RedisQueue implements IQueue {
 
 		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Removed ${removed.length} track(s) from position ${startOrPos}${end ? ` to ${end}` : ""}`);
 
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
 			details: {
 				changeType: "remove",
@@ -163,10 +166,10 @@ export class RedisQueue implements IQueue {
 	}
 
 	public async clear(): Promise<void> {
-		const oldPlayer = (await this.manager.players.get(this.guildId)) ? { ...(await this.manager.players.get(this.guildId)) } : null;
+		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 		await this.redis.del(this.queueKey);
 
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
 			details: {
 				changeType: "clear",
@@ -203,7 +206,7 @@ export class RedisQueue implements IQueue {
 	}
 
 	public async shuffle(): Promise<void> {
-		const oldPlayer = (await this.manager.players.get(this.guildId)) ? { ...(await this.manager.players.get(this.guildId)) } : null;
+		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
 		const queue = await this.redis.lrange(this.queueKey, 0, -1);
 		for (let i = queue.length - 1; i > 0; i--) {
@@ -216,7 +219,7 @@ export class RedisQueue implements IQueue {
 			await this.redis.rpush(this.queueKey, ...queue);
 		}
 
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
 			details: { changeType: "shuffle" },
 		});
@@ -225,7 +228,7 @@ export class RedisQueue implements IQueue {
 	}
 
 	public async userBlockShuffle(): Promise<void> {
-		const oldPlayer = (await this.manager.players.get(this.guildId)) ? { ...(await this.manager.players.get(this.guildId)) } : null;
+		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
 		const rawTracks = await this.redis.lrange(this.queueKey, 0, -1);
 		const deserialized = rawTracks.map(this.deserialize);
@@ -248,7 +251,7 @@ export class RedisQueue implements IQueue {
 		await this.redis.del(this.queueKey);
 		await this.redis.rpush(this.queueKey, ...shuffledQueue.map(this.serialize));
 
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
 			details: { changeType: "userBlock" },
 		});
@@ -257,7 +260,7 @@ export class RedisQueue implements IQueue {
 	}
 
 	public async roundRobinShuffle(): Promise<void> {
-		const oldPlayer = (await this.manager.players.get(this.guildId)) ? { ...(await this.manager.players.get(this.guildId)) } : null;
+		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
 		const rawTracks = await this.redis.lrange(this.queueKey, 0, -1);
 		const deserialized = rawTracks.map(this.deserialize);
@@ -291,7 +294,7 @@ export class RedisQueue implements IQueue {
 		await this.redis.del(this.queueKey);
 		await this.redis.rpush(this.queueKey, ...shuffledQueue.map(this.serialize));
 
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
 			details: { changeType: "roundRobin" },
 		});

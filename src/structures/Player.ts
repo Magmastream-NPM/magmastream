@@ -10,7 +10,7 @@ import { RedisQueue } from "./RedisQueue";
 
 export class Player {
 	/** The Queue for the Player. */
-	public readonly queue: IQueue;
+	public queue: IQueue;
 	/** The filters applied to the audio. */
 	public filters: Filters;
 	/** Whether the queue repeats the track. */
@@ -53,7 +53,7 @@ export class Player {
 	private static _manager: Manager;
 	private readonly data: Record<string, unknown> = {};
 	private dynamicLoopInterval: NodeJS.Timeout | null = null;
-	private dynamicRepeatIntervalMs: number | null = null;
+	public dynamicRepeatIntervalMs: number | null = null;
 
 	/**
 	 * Creates a new player, returns one if it already exists.
@@ -240,11 +240,11 @@ export class Player {
 	/**
 	 * Destroys the player and clears the queue.
 	 * @param {boolean} disconnect - Whether to disconnect the player from the voice channel.
-	 * @returns {Promise<Player>}
+	 * @returns {Promise<boolean>} - Whether the player was successfully destroyed.
 	 * @emits {PlayerDestroy} - Emitted when the player is destroyed.
 	 * @emits {PlayerStateUpdate} - Emitted when the player state is updated.
 	 */
-	public async destroy(disconnect: boolean = true): Promise<this> {
+	public async destroy(disconnect: boolean = true): Promise<boolean> {
 		const oldPlayer = this ? { ...this } : null;
 		this.state = StateTypes.Destroying;
 
@@ -253,16 +253,20 @@ export class Player {
 		}
 
 		await this.node.rest.destroyPlayer(this.guildId);
-		this.queue.clear();
+		await this.queue.clear();
 
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, null, {
 			changeType: PlayerStateEventTypes.PlayerDestroy,
 		});
 		this.manager.emit(ManagerEventTypes.PlayerDestroy, this);
 
-		await this.manager.deletePlayer(this.guildId);
+		const deleted = this.manager.players.delete(this.guildId);
 
-		return this;
+		if (!deleted) {
+			console.warn(`Failed to delete player with guildId: ${this.guildId}`);
+		}
+
+		return deleted;
 	}
 
 	/**

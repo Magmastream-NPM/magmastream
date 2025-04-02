@@ -1,9 +1,10 @@
+// THIS WILL BE REMOVED IF YOU DONT FIND A USE FOR IT.
+
 import Redis from "ioredis";
 import { Player } from "../structures/Player";
-import { PlayerStore } from "../structures/Manager";
-
+import { Manager, PlayerStore } from "../structures/Manager";
 export class RedisPlayerStore implements PlayerStore {
-	constructor(private readonly redis: Redis, private readonly prefix: string = "magmastream:") {}
+	constructor(private readonly redis: Redis, private readonly manager: Manager, private readonly prefix: string = "magmastream:") {}
 
 	private getKey(guildId: string) {
 		return `${this.prefix}player:${guildId}`;
@@ -16,7 +17,8 @@ export class RedisPlayerStore implements PlayerStore {
 	}
 
 	async set(guildId: string, player: Player): Promise<void> {
-		await this.redis.set(this.getKey(guildId), JSON.stringify(player));
+		const serialized = this.manager.serializePlayer(player);
+		await this.redis.set(this.getKey(guildId), JSON.stringify(serialized));
 	}
 
 	async delete(guildId: string): Promise<void> {
