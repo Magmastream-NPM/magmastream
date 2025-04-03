@@ -17,7 +17,7 @@ export class Rest {
 
 	constructor(node: Node, manager: Manager) {
 		this.node = node;
-		this.url = `http${node.options.secure ? "s" : ""}://${node.options.host}:${node.options.port}`;
+		this.url = `http${node.options.useSSL ? "s" : ""}://${node.options.host}:${node.options.port}`;
 		this.sessionId = node.sessionId;
 		this.password = node.options.password;
 		this.manager = manager;
@@ -117,14 +117,14 @@ export class Rest {
 				console.error("No response from node:", error.message);
 				return null;
 			}
-		
+
 			if (error.response.data?.message === "Guild not found") {
 				return [];
 			} else if (error.response.status === 404) {
 				await this.node.destroy();
 				this.node.manager.createNode(this.node.options).connect();
 			}
-		
+
 			return null;
 		}
 	}

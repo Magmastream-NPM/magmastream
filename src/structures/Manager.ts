@@ -1,4 +1,5 @@
 import {
+	AutoPlayUtils,
 	LoadTypes,
 	SponsorBlockChaptersLoaded,
 	SponsorBlockChapterStarted,
@@ -27,6 +28,7 @@ import { ClientUser, User } from "discord.js";
 import { blockedWords } from "../config/blockedWords";
 import fs from "fs/promises";
 import path from "path";
+import Redis, { Redis as RedisClient } from "ioredis";
 
 /**
  * The main hub for interacting with Lavalink and using Magmastream,
@@ -39,15 +41,16 @@ export class Manager extends EventEmitter {
 	/** The options that were set. */
 	public readonly options: ManagerOptions;
 	public initiated = false;
+	public redis?: RedisClient;
 
 	/**
 	 * Initiates the Manager class.
 	 * @param options
-	 * @param options.plugins - An array of plugins to load.
+	 * @param options.enabledPlugins - An array of enabledPlugins to load.
 	 * @param options.nodes - An array of node options to create nodes from.
-	 * @param options.autoPlay - Whether to automatically play the first track in the queue when the player is created.
-	 * @param options.autoPlaySearchPlatform - The search platform autoplay will use. Fallback to Youtube if not found.
-	 * @param options.usePriority - Whether to use the priority when selecting a node to play on.
+	 * @param options.playNextOnEnd - Whether to automatically play the first track in the queue when the player is created.
+	 * @param options.autoPlaySearchPlatforms - The search platform autoplay will use. Fallback to Youtube if not found.
+	 * @param options.enablePriorityMode - Whether to use the priority when selecting a node to play on.
 	 * @param options.clientName - The name of the client to send to Lavalink.
 	 * @param options.defaultSearchPlatform - The default search platform to use when searching for tracks.
 	 * @param options.useNode - The strategy to use when selecting a node to play on.
@@ -63,6 +66,7 @@ export class Manager extends EventEmitter {
 		Structure.get("Player").init(this);
 		Structure.get("Node").init(this);
 		TrackUtils.init(this);
+		AutoPlayUtils.init(this);
 
 		if (options.trackPartial) {
 			TrackUtils.setTrackPartial(options.trackPartial);
@@ -70,22 +74,22 @@ export class Manager extends EventEmitter {
 		}
 
 		this.options = {
-			plugins: [],
+			enabledPlugins: [],
 			nodes: [
 				{
 					identifier: "default",
 					host: "localhost",
-					resumeStatus: false,
-					resumeTimeout: 1000,
+					enableSessionResumeOption: false,
+					sessionTimeoutMs: 1000,
 				},
 			],
-			autoPlay: true,
-			usePriority: false,
+			playNextOnEnd: true,
+			enablePriorityMode: false,
 			clientName: "Magmastream",
 			defaultSearchPlatform: SearchPlatform.YouTube,
-			autoPlaySearchPlatform: SearchPlatform.YouTube,
 			useNode: UseNodeOptions.LeastPlayers,
 			maxPreviousTracks: options.maxPreviousTracks ?? 20,
+			stateStorage: { type: StateStorageType.Collection },
 			...options,
 		};
 
@@ -148,17 +152,28 @@ export class Manager extends EventEmitter {
 
 		for (const node of this.nodes.values()) {
 			try {
-				node.connect(); // Connect the node
+				node.connect();
 			} catch (err) {
 				this.emit(ManagerEventTypes.NodeError, node, err);
 			}
 		}
 
-		if (this.options.plugins) {
-			for (const [index, plugin] of this.options.plugins.entries()) {
+		if (this.options.enabledPlugins) {
+			for (const [index, plugin] of this.options.enabledPlugins.entries()) {
 				if (!(plugin instanceof Plugin)) throw new RangeError(`Plugin at index ${index} does not extend Plugin.`);
 				plugin.load(this);
 			}
+		}
+
+		if (this.options.stateStorage?.type === StateStorageType.Redis) {
+			const config = this.options.stateStorage.redisConfig;
+
+			this.redis = new Redis({
+				host: config.host,
+				port: Number(config.port),
+				password: config.password,
+				db: config.db ?? 0,
+			});
 		}
 
 		this.initiated = true;
@@ -212,7 +227,7 @@ export class Manager extends EventEmitter {
 				}
 			}
 
-			if (this.options.replaceYouTubeCredentials) {
+			if (this.options.normalizeYouTubeTitles) {
 				const processTrack = (track: Track): Track => {
 					if (!/(youtube\.com|youtu\.be)/.test(track.uri)) return track;
 					const { cleanTitle, cleanAuthor } = this.parseYouTubeTitle(track.title, track.author);
@@ -238,6 +253,25 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
+	 * Returns a player or undefined if it does not exist.
+	 * @param guildId The guild ID of the player to retrieve.
+	 * @returns The player if it exists, undefined otherwise.
+	 */
+	public getPlayer(guildId: string): Player | undefined {
+		return this.players.get(guildId);
+	}
+
+	/**
+	 * @deprecated - Will be removed with v2.10.0 use {@link getPlayer} instead
+	 * Returns a player or undefined if it does not exist.
+	 * @param guildId The guild ID of the player to retrieve.
+	 * @returns The player if it exists, undefined otherwise.
+	 */
+	public async get(guildId: string): Promise<Player | undefined> {
+		return this.players.get(guildId);
+	}
+
+	/**
 	 * Creates a player or returns one if it already exists.
 	 * @param options The options to create the player with.
 	 * @returns The created player.
@@ -250,15 +284,6 @@ export class Manager extends EventEmitter {
 		// Create a new player with the given options
 		this.emit(ManagerEventTypes.Debug, `[MANAGER] Creating new player with options: ${JSON.stringify(options)}`);
 		return new (Structure.get("Player"))(options);
-	}
-
-	/**
-	 * Returns a player or undefined if it does not exist.
-	 * @param guildId The guild ID of the player to retrieve.
-	 * @returns The player if it exists, undefined otherwise.
-	 */
-	public get(guildId: string): Player | undefined {
-		return this.players.get(guildId);
 	}
 
 	/**
@@ -332,7 +357,7 @@ export class Manager extends EventEmitter {
 		const update = "d" in data ? data.d : data;
 		if (!this.isValidUpdate(update)) return;
 
-		const player = this.players.get(update.guild_id);
+		const player = this.getPlayer(update.guild_id);
 		if (!player) return;
 
 		this.emit(ManagerEventTypes.Debug, `[MANAGER] Updating voice state: ${JSON.stringify(update)}`);
@@ -395,7 +420,8 @@ export class Manager extends EventEmitter {
 	public async savePlayerState(guildId: string): Promise<void> {
 		try {
 			const playerStateFilePath = await this.getPlayerFilePath(guildId);
-			const player = this.players.get(guildId);
+			const player = this.getPlayer(guildId);
+
 			if (!player || player.state === StateTypes.Disconnected || !player.voiceChannelId) {
 				console.warn(`Skipping save for inactive player: ${guildId}`);
 				return;
@@ -459,6 +485,7 @@ export class Manager extends EventEmitter {
 							voiceChannelId: state.options.voiceChannelId,
 							selfDeafen: state.options.selfDeafen,
 							volume: lavaPlayer.volume || state.options.volume,
+							node: nodeId,
 						};
 
 						this.emit(ManagerEventTypes.Debug, `[MANAGER] Recreating player: ${state.guildId} from saved file: ${JSON.stringify(state.options)}`);
@@ -480,7 +507,7 @@ export class Manager extends EventEmitter {
 							if (lavaPlayer.track) {
 								tracks.push(...queueTracks);
 								if (currentTrack && currentTrack.uri === lavaPlayer.track.info.uri) {
-									player.queue.current = TrackUtils.build(lavaPlayer.track as TrackData, currentTrack.requester);
+									await player.queue.setCurrent(TrackUtils.build(lavaPlayer.track as TrackData, currentTrack.requester));
 								}
 							} else {
 								if (!currentTrack) {
@@ -504,20 +531,19 @@ export class Manager extends EventEmitter {
 						}
 
 						if (tracks.length > 0) {
-							player.queue.add(tracks as Track[]);
+							await player.queue.add(tracks as Track[]);
 						}
 
 						if (state.queue.previous.length > 0) {
-							player.queue.previous = state.queue.previous;
+							await player.queue.addPrevious(state.queue.previous);
 						} else {
-							player.queue.previous = [];
+							await player.queue.clearPrevious();
 						}
 
 						if (state.paused) {
 							await player.pause(true);
 						} else {
 							player.paused = false;
-							player.playing = true;
 						}
 
 						if (state.trackRepeat) player.setTrackRepeat(true);
@@ -604,14 +630,14 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-	 * Returns the node to use based on the configured `useNode` and `usePriority` options.
-	 * If `usePriority` is true, the node is chosen based on priority, otherwise it is chosen based on the `useNode` option.
+	 * Returns the node to use based on the configured `useNode` and `enablePriorityMode` options.
+	 * If `enablePriorityMode` is true, the node is chosen based on priority, otherwise it is chosen based on the `useNode` option.
 	 * If `useNode` is "leastLoad", the node with the lowest load is chosen, if it is "leastPlayers", the node with the fewest players is chosen.
-	 * If `usePriority` is false and `useNode` is not set, the node with the lowest load is chosen.
+	 * If `enablePriorityMode` is false and `useNode` is not set, the node with the lowest load is chosen.
 	 * @returns {Node} The node to use.
 	 */
 	public get useableNode(): Node {
-		return this.options.usePriority
+		return this.options.enablePriorityMode
 			? this.priorityNode
 			: this.options.useNode === UseNodeOptions.LeastLoad
 			? this.leastLoadNode.first()
@@ -837,7 +863,7 @@ export class Manager extends EventEmitter {
 	 * @param player The Player instance to serialize
 	 * @returns The serialized Player instance
 	 */
-	private serializePlayer(player: Player): Record<string, unknown> {
+	public serializePlayer(player: Player): Record<string, unknown> {
 		const seen = new WeakSet();
 
 		/**
@@ -861,6 +887,8 @@ export class Manager extends EventEmitter {
 				}
 
 				if (key === "filters") {
+					if (!value || typeof value !== "object") return null;
+
 					return {
 						distortion: value.distortion ?? null,
 						equalizer: value.equalizer ?? [],
@@ -871,14 +899,14 @@ export class Manager extends EventEmitter {
 						reverb: value.reverb ?? null,
 						volume: value.volume ?? 1.0,
 						bassBoostlevel: value.bassBoostlevel ?? null,
-						filterStatus: { ...value.filtersStatus },
+						filterStatus: value.filtersStatus ? { ...value.filtersStatus } : {},
 					};
 				}
 				if (key === "queue") {
 					return {
 						current: value.current || null,
-						tracks: [...value],
-						previous: [...value.previous],
+						tracks: Array.isArray(value) ? [...value] : [],
+						previous: Array.isArray(value.previous) ? [...value.previous] : [],
 					};
 				}
 
@@ -970,13 +998,13 @@ export class Manager extends EventEmitter {
 	 */
 	private get priorityNode(): Node {
 		// Filter out nodes that are not connected or have a priority of 0
-		const filteredNodes = this.nodes.filter((node) => node.connected && node.options.priority > 0);
+		const filteredNodes = this.nodes.filter((node) => node.connected && node.options.nodePriority > 0);
 		// Calculate the total weight
-		const totalWeight = filteredNodes.reduce((total, node) => total + node.options.priority, 0);
+		const totalWeight = filteredNodes.reduce((total, node) => total + node.options.nodePriority, 0);
 		// Map the nodes to their weights
 		const weightedNodes = filteredNodes.map((node) => ({
 			node,
-			weight: node.options.priority / totalWeight,
+			weight: node.options.nodePriority / totalWeight,
 		}));
 		// Generate a random number between 0 and 1
 		const randomNumber = Math.random();
@@ -1009,17 +1037,23 @@ export interface Payload {
 }
 
 export interface ManagerOptions {
-	/** Whether players should automatically play the next song. */
-	autoPlay?: boolean;
-	/** The search platform autoplay should use. Fallback to YouTube if not found.
-	 * Use enum `SearchPlatform`. */
-	autoPlaySearchPlatform?: SearchPlatform;
+	stateStorage?: StateStorageOptions;
+	/** Enable priority mode over least player count or load balancing? */
+	enablePriorityMode?: boolean;
+	/** Automatically play the next track when the current one ends. */
+	playNextOnEnd?: boolean;
+	/** An array of search platforms to use for autoplay. First to last matters
+	 * Use enum `AutoPlayPlatform`.
+	 */
+	autoPlaySearchPlatforms?: AutoPlayPlatform[];
 	/** The client ID to use. */
 	clientId?: string;
 	/** Value to use for the `Client-Name` header. */
 	clientName?: string;
 	/** The array of shard IDs connected to this manager instance. */
 	clusterId?: number;
+	/** List of plugins to load. */
+	enabledPlugins?: Plugin[];
 	/** The default search platform to use.
 	 * Use enum `SearchPlatform`. */
 	defaultSearchPlatform?: SearchPlatform;
@@ -1031,22 +1065,36 @@ export interface ManagerOptions {
 	maxPreviousTracks?: number;
 	/** The array of nodes to connect to. */
 	nodes?: NodeOptions[];
-	/** A array of plugins to use. */
-	plugins?: Plugin[];
 	/** Whether the YouTube video titles should be replaced if the Author does not exactly match. */
-	replaceYouTubeCredentials?: boolean;
+	normalizeYouTubeTitles?: boolean;
 	/** An array of track properties to keep. `track` will always be present. */
 	trackPartial?: TrackPartial[];
 	/** Use the least amount of players or least load? */
 	useNode?: UseNodeOptions.LeastLoad | UseNodeOptions.LeastPlayers;
-	/** Use priority mode over least amount of player or load? */
-	usePriority?: boolean;
 	/**
 	 * Function to send data to the websocket.
 	 * @param id The ID of the node to send the data to.
 	 * @param payload The payload to send.
 	 */
 	send(id: string, payload: Payload): void;
+}
+
+export interface RedisConfig {
+	host: string;
+	port: string;
+	password?: string;
+	db?: number;
+	prefix?: string;
+}
+
+export enum StateStorageType {
+	Collection = "collection",
+	Redis = "redis",
+}
+
+export interface StateStorageOptions {
+	type: StateStorageType;
+	redisConfig?: RedisConfig;
 }
 
 export enum TrackPartial {
@@ -1100,6 +1148,15 @@ export enum SearchPlatform {
 	VKMusic = "vksearch",
 	YouTube = "ytsearch",
 	YouTubeMusic = "ytmsearch",
+}
+
+export enum AutoPlayPlatform {
+	Spotify = "spotify",
+	Deezer = "deezer",
+	SoundCloud = "soundcloud",
+	Tidal = "tidal",
+	VKMusic = "vkmusic",
+	YouTube = "youtube",
 }
 
 export enum PlayerStateEventTypes {
@@ -1300,3 +1357,24 @@ export interface ManagerEvents {
 	[ManagerEventTypes.ChapterStarted]: [player: Player, track: Track, payload: SponsorBlockChapterStarted];
 	[ManagerEventTypes.ChaptersLoaded]: [player: Player, track: Track, payload: SponsorBlockChaptersLoaded];
 }
+
+export interface PlayerStore {
+	get(guildId: string): Promise<Player | undefined>;
+	set(guildId: string, player: Player): Promise<void>;
+	delete(guildId: string): Promise<void>;
+	keys(): Promise<string[]>;
+	has(guildId: string): Promise<boolean>;
+
+	filter(predicate: (player: Player, guildId: string) => boolean | Promise<boolean>): Promise<Map<string, Player>>;
+	find(predicate: (player: Player, guildId: string) => boolean | Promise<boolean>): Promise<Player | undefined>;
+	map<T>(callback: (player: Player, guildId: string) => T | Promise<T>): Promise<T[]>;
+	forEach(callback: (player: Player, guildId: string) => void | Promise<void>): Promise<void>;
+
+	some(predicate: (player: Player, guildId: string) => boolean | Promise<boolean>): Promise<boolean>;
+	every(predicate: (player: Player, guildId: string) => boolean | Promise<boolean>): Promise<boolean>;
+	size(): Promise<number>;
+	clear(): Promise<void>;
+	entries(): AsyncIterableIterator<[string, Player]>;
+}
+
+// PlayerStore WILL BE REMOVED IF YOU DONT FIND A USE FOR IT.

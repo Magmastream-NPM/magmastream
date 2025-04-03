@@ -1,5 +1,5 @@
 import {
-	LoadTypes,
+	AutoPlayUtils,
 	PlayerEvent,
 	PlayerEvents,
 	SponsorBlockChaptersLoaded,
@@ -14,7 +14,7 @@ import {
 	TrackStuckEvent,
 	WebSocketClosedEvent,
 } from "./Utils";
-import { Manager, ManagerEventTypes, PlayerStateEventTypes, SearchPlatform } from "./Manager";
+import { Manager, ManagerEventTypes, PlayerStateEventTypes } from "./Manager";
 import { Player, Track } from "./Player";
 import { Rest } from "./Rest";
 import nodeCheck from "../utils/nodeCheck";
@@ -22,7 +22,6 @@ import WebSocket from "ws";
 import fs from "fs";
 import path from "path";
 import { User, ClientUser } from "discord.js";
-import axios from "axios";
 
 export enum SponsorBlockSegment {
 	Sponsor = "sponsor",
@@ -80,14 +79,14 @@ export class Node {
 		this.options = {
 			port: 2333,
 			password: "youshallnotpass",
-			secure: false,
-			retryAmount: 30,
-			retryDelay: 60000,
-			priority: 0,
+			useSSL: false,
+			maxRetryAttempts: 30,
+			retryDelayMs: 60000,
+			nodePriority: 0,
 			...options,
 		};
 
-		if (this.options.secure) {
+		if (this.options.useSSL) {
 			this.options.port = 443;
 		}
 
@@ -215,7 +214,7 @@ export class Node {
 	 * @remarks
 	 * If the node is already connected, this method will do nothing.
 	 * If the node has a session ID, it will be sent in the headers of the WebSocket connection.
-	 * If the node has no session ID but the `resumeStatus` option is true, it will use the session ID
+	 * If the node has no session ID but the `enableSessionResumeOption` option is true, it will use the session ID
 	 * stored in the sessionIds.json file if it exists.
 	 */
 	public connect(): void {
@@ -231,12 +230,12 @@ export class Node {
 
 		if (this.sessionId) {
 			headers["Session-Id"] = this.sessionId;
-		} else if (this.options.resumeStatus && sessionIdsMap.has(compositeKey)) {
+		} else if (this.options.enableSessionResumeOption && sessionIdsMap.has(compositeKey)) {
 			this.sessionId = sessionIdsMap.get(compositeKey) || null;
 			headers["Session-Id"] = this.sessionId;
 		}
 
-		this.socket = new WebSocket(`ws${this.options.secure ? "s" : ""}://${this.address}/v4/websocket`, { headers });
+		this.socket = new WebSocket(`ws${this.options.useSSL ? "s" : ""}://${this.address}/v4/websocket`, { headers });
 		this.socket.on("open", this.open.bind(this));
 		this.socket.on("close", this.close.bind(this));
 		this.socket.on("message", this.message.bind(this));
@@ -249,7 +248,7 @@ export class Node {
 			options: {
 				clientId: this.manager.options.clientId,
 				clientName: this.manager.options.clientName,
-				secure: this.options.secure,
+				useSSL: this.options.useSSL,
 				identifier: this.options.identifier,
 			},
 		};
@@ -276,13 +275,13 @@ export class Node {
 			identifier: this.options.identifier,
 			address: this.address,
 			sessionId: this.sessionId,
-			playerCount: this.manager.players.filter((p) => p.node == this).size,
+			playerCount: (await this.manager.players.filter((p) => p.node == this)).size,
 		};
 
 		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Destroying node: ${JSON.stringify(debugInfo)}`);
 
 		// Automove all players connected to that node
-		const players = this.manager.players.filter((p) => p.node == this);
+		const players = await this.manager.players.filter((p) => p.node == this);
 		if (players.size) {
 			players.forEach(async (player) => {
 				await player.autoMoveNode();
@@ -328,8 +327,8 @@ export class Node {
 			identifier: this.options.identifier,
 			connected: this.connected,
 			reconnectAttempts: this.reconnectAttempts,
-			retryAmount: this.options.retryAmount,
-			retryDelay: this.options.retryDelay,
+			maxRetryAttempts: this.options.maxRetryAttempts,
+			retryDelayMs: this.options.retryDelayMs,
 		};
 
 		// Emit a debug event indicating the node is attempting to reconnect
@@ -338,9 +337,9 @@ export class Node {
 		// Schedule the reconnection attempt after the specified retry delay
 		this.reconnectTimeout = setTimeout(async () => {
 			// Check if the maximum number of retry attempts has been reached
-			if (this.reconnectAttempts >= this.options.retryAmount) {
+			if (this.reconnectAttempts >= this.options.maxRetryAttempts) {
 				// Emit an error event and destroy the node if retries are exhausted
-				const error = new Error(`Unable to connect after ${this.options.retryAmount} attempts.`);
+				const error = new Error(`Unable to connect after ${this.options.maxRetryAttempts} attempts.`);
 				this.manager.emit(ManagerEventTypes.NodeError, this, error);
 				return await this.destroy();
 			}
@@ -355,7 +354,7 @@ export class Node {
 
 			// Increment the reconnect attempts counter
 			this.reconnectAttempts++;
-		}, this.options.retryDelay);
+		}, this.options.retryDelayMs);
 	}
 
 	/**
@@ -409,7 +408,7 @@ export class Node {
 		// Try moving all players connected to that node to a useable one
 
 		if (this.manager.useableNode) {
-			const players = this.manager.players.filter((p) => p.node.options.identifier == this.options.identifier);
+			const players = await this.manager.players.filter((p) => p.node.options.identifier == this.options.identifier);
 			if (players.size) {
 				await Promise.all(Array.from(players.values(), (player) => player.autoMoveNode()));
 			}
@@ -464,14 +463,14 @@ export class Node {
 				this.stats = { ...payload } as unknown as NodeStats;
 				break;
 			case "playerUpdate":
-				player = this.manager.players.get(payload.guildId);
+				player = await this.manager.players.get(payload.guildId);
 				if (player && player.node.options.identifier !== this.options.identifier) {
 					return;
 				}
 				if (player) player.position = payload.state.position || 0;
 				break;
 			case "event":
-				player = this.manager.players.get(payload.guildId);
+				player = await this.manager.players.get(payload.guildId);
 				if (player && player.node.options.identifier !== this.options.identifier) {
 					return;
 				}
@@ -490,10 +489,10 @@ export class Node {
 					await this.manager.loadPlayerStates(this.options.identifier);
 				}
 
-				if (this.options.resumeStatus) {
+				if (this.options.enableSessionResumeOption) {
 					await this.rest.patch(`/v4/sessions/${this.sessionId}`, {
-						resuming: this.options.resumeStatus,
-						timeout: this.options.resumeTimeout,
+						resuming: this.options.enableSessionResumeOption,
+						timeout: this.options.sessionTimeoutMs,
 					});
 				}
 				break;
@@ -512,10 +511,10 @@ export class Node {
 	protected async handleEvent(payload: PlayerEvent & PlayerEvents): Promise<void> {
 		if (!payload.guildId) return;
 
-		const player = this.manager.players.get(payload.guildId);
+		const player = await this.manager.players.get(payload.guildId);
 		if (!player) return;
 
-		const track = player.queue.current;
+		const track = await player.queue.getCurrent();
 		const type = payload.type;
 
 		let error: Error;
@@ -545,16 +544,16 @@ export class Node {
 				break;
 
 			case "SegmentsLoaded":
-				this.sponsorBlockSegmentLoaded(player, player.queue.current as Track, payload);
+				this.sponsorBlockSegmentLoaded(player, track, payload);
 				break;
 			case "SegmentSkipped":
-				this.sponsorBlockSegmentSkipped(player, player.queue.current as Track, payload);
+				this.sponsorBlockSegmentSkipped(player, track, payload);
 				break;
 			case "ChaptersLoaded":
-				this.sponsorBlockChaptersLoaded(player, player.queue.current as Track, payload);
+				this.sponsorBlockChaptersLoaded(player, track, payload);
 				break;
 			case "ChapterStarted":
-				this.sponsorBlockChapterStarted(player, player.queue.current as Track, payload);
+				this.sponsorBlockChapterStarted(player, track, payload);
 				break;
 
 			default:
@@ -612,17 +611,16 @@ export class Node {
 		const { reason } = payload;
 
 		const skipFlag = player.get<boolean>("skipFlag");
-		if (
-			!skipFlag && 
-			(player.queue.previous.length === 0 || 
-			(player.queue.previous[0] && player.queue.previous[0].track !== player.queue.current?.track))
-		) {
+		const previous = await player.queue.getPrevious();
+		const current = await player.queue.getCurrent();
+
+		if (!skipFlag && (previous.length === 0 || (previous[0] && previous[0].track !== current?.track))) {
 			// Store the current track in the previous tracks queue
-			player.queue.previous.push(player.queue.current);
+			await player.queue.addPrevious(await player.queue.getCurrent());
 
 			// Limit the previous tracks queue to maxPreviousTracks
-			if (player.queue.previous.length > this.manager.options.maxPreviousTracks) {
-				player.queue.previous.shift();
+			if ((await player.queue.getPrevious()).length > this.manager.options.maxPreviousTracks) {
+				(await player.queue.getPrevious()).shift();
 			}
 		}
 
@@ -639,7 +637,7 @@ export class Node {
 				break;
 			case TrackEndReasonTypes.Stopped:
 				// If the track was forcibly replaced
-				if (player.queue.length) {
+				if (await player.queue.size()) {
 					await this.playNextTrack(player, track, payload);
 				} else {
 					await this.queueEnd(player, track, payload);
@@ -652,7 +650,7 @@ export class Node {
 					break;
 				}
 				// If there's another track in the queue
-				if (player.queue.length) {
+				if (await player.queue.size()) {
 					await this.playNextTrack(player, track, payload);
 				} else {
 					await this.queueEnd(player, track, payload);
@@ -684,222 +682,23 @@ export class Node {
 	 */
 	private async handleAutoplay(player: Player, attempt: number = 0): Promise<boolean> {
 		// If autoplay is not enabled or all attempts have failed, early exit
-		if (!player.isAutoplay || attempt === player.autoplayTries || !player.queue.previous.length) return false;
+		if (!player.isAutoplay || attempt > player.autoplayTries || !(await player.queue.getPrevious()).length) return false;
 
-		// Get the Last.fm API key and the available source managers
-		const apiKey = this.manager.options.lastFmApiKey;
-		const enabledSources = this.info.sourceManagers;
+		const lastTrack = await player.queue.getPrevious()[(await player.queue.getPrevious()).length - 1];
 
-		// Determine if YouTube should be used
-		// If Last.fm is not available, use YouTube as a fallback
-		// If YouTube is available and this is the last attempt, use YouTube
-		const shouldUseYouTube =
-			(!apiKey && enabledSources.includes("youtube")) || // Fallback to YouTube if Last.fm is not available
-			(attempt === player.autoplayTries - 1 && player.autoplayTries > 1 && enabledSources.includes("youtube")); // Use YouTube on the last attempt
+		lastTrack.requester = player.get("Internal_BotUser") as User | ClientUser;
 
-		const lastTrack = player.queue.previous[player.queue.previous.length - 1];
-		if (shouldUseYouTube) {
-			// Use YouTube-based autoplay
-			return await this.handleYouTubeAutoplay(player, lastTrack);
-		}
+		if (!lastTrack) return false;
 
-		// Handle Last.fm-based autoplay (or other platforms)
-		const selectedSource = this.selectPlatform(enabledSources);
+		const tracks = await AutoPlayUtils.getRecommendedTracks(lastTrack);
 
-		if (selectedSource) {
-			// Use the selected source to handle autoplay
-			return await this.handlePlatformAutoplay(player, lastTrack, selectedSource, apiKey);
-		}
-
-		// If no source is available, return false
-		return false;
-	}
-
-	/**
-	 * Selects a platform from the given enabled sources.
-	 * @param {string[]} enabledSources - The enabled sources to select from.
-	 * @returns {SearchPlatform | null} - The selected platform or null if none was found.
-	 */
-	public selectPlatform(enabledSources: string[]): SearchPlatform | null {
-		const { autoPlaySearchPlatform } = this.manager.options;
-		const platformMapping: { [key in SearchPlatform]: string } = {
-			[SearchPlatform.AppleMusic]: "applemusic",
-			[SearchPlatform.Bandcamp]: "bandcamp",
-			[SearchPlatform.Deezer]: "deezer",
-			[SearchPlatform.Jiosaavn]: "jiosaavn",
-			[SearchPlatform.SoundCloud]: "soundcloud",
-			[SearchPlatform.Spotify]: "spotify",
-			[SearchPlatform.Tidal]: "tidal",
-			[SearchPlatform.VKMusic]: "vkmusic",
-			[SearchPlatform.YouTube]: "youtube",
-			[SearchPlatform.YouTubeMusic]: "youtube",
-		};
-
-		// Try the autoPlaySearchPlatform first
-		if (enabledSources.includes(platformMapping[autoPlaySearchPlatform])) {
-			return autoPlaySearchPlatform;
-		}
-
-		// Fallback to other platforms in a predefined order
-		const fallbackPlatforms = [
-			SearchPlatform.Spotify,
-			SearchPlatform.Deezer,
-			SearchPlatform.SoundCloud,
-			SearchPlatform.AppleMusic,
-			SearchPlatform.Bandcamp,
-			SearchPlatform.Jiosaavn,
-			SearchPlatform.Tidal,
-			SearchPlatform.VKMusic,
-			SearchPlatform.YouTubeMusic,
-			SearchPlatform.YouTube,
-		];
-
-		for (const platform of fallbackPlatforms) {
-			if (enabledSources.includes(platformMapping[platform])) {
-				return platform;
-			}
-		}
-
-		return null;
-	}
-
-	/**
-	 * Handles Last.fm-based autoplay.
-	 * @param {Player} player - The player instance.
-	 * @param {Track} previousTrack - The previous track.
-	 * @param {SearchPlatform} platform - The selected platform.
-	 * @param {string} apiKey - The Last.fm API key.
-	 * @returns {Promise<boolean>} - Whether the autoplay was successful.
-	 */
-	private async handlePlatformAutoplay(player: Player, previousTrack: Track, platform: SearchPlatform, apiKey: string): Promise<boolean> {
-		let { author: artist } = previousTrack;
-		const { title } = previousTrack;
-
-		if (!artist || !title) {
-			if (!title) {
-				// No title provided, search for the artist's top tracks
-				const noTitleUrl = `https://ws.audioscrobbler.com/2.0/?method=artist.getTopTracks&artist=${artist}&autocorrect=1&api_key=${apiKey}&format=json`;
-				const response = await axios.get(noTitleUrl);
-
-				if (response.data.error || !response.data.toptracks?.track?.length) return false;
-
-				const randomTrack = response.data.toptracks.track[Math.floor(Math.random() * response.data.toptracks.track.length)];
-				const res = await player.search(
-					{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: platform },
-					player.get("Internal_BotUser") as User | ClientUser
-				);
-				if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
-
-				const foundTrack = res.tracks.find((t) => t.uri !== previousTrack.uri);
-				if (!foundTrack) return false;
-
-				player.queue.add(foundTrack);
-				await player.play();
-				return true;
-			}
-			if (!artist) {
-				// No artist provided, search for the track title
-				const noArtistUrl = `https://ws.audioscrobbler.com/2.0/?method=track.search&track=${title}&api_key=${apiKey}&format=json`;
-				const response = await axios.get(noArtistUrl);
-				artist = response.data.results.trackmatches?.track?.[0]?.artist;
-				if (!artist) return false;
-			}
-		}
-
-		// Search for similar tracks to the current track
-		const url = `https://ws.audioscrobbler.com/2.0/?method=track.getSimilar&artist=${artist}&track=${title}&limit=10&autocorrect=1&api_key=${apiKey}&format=json`;
-		let response: axios.AxiosResponse;
-
-		try {
-			response = await axios.get(url);
-		} catch (error) {
-			if (error) return false;
-		}
-
-		if (response.data.error || !response.data.similartracks?.track?.length) {
-			// Retry the request if the first attempt fails
-			const retryUrl = `https://ws.audioscrobbler.com/2.0/?method=artist.getTopTracks&artist=${artist}&autocorrect=1&api_key=${apiKey}&format=json`;
-			const retryResponse = await axios.get(retryUrl);
-
-			if (retryResponse.data.error || !retryResponse.data.toptracks?.track?.length) return false;
-
-			const randomTrack = retryResponse.data.toptracks.track[Math.floor(Math.random() * retryResponse.data.toptracks.track.length)];
-			const res = await player.search(
-				{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: platform },
-				player.get("Internal_BotUser") as User | ClientUser
-			);
-			if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
-
-			const foundTrack = res.tracks.find((t) => t.uri !== previousTrack.uri);
-			if (!foundTrack) return false;
-
-			player.queue.add(foundTrack);
+		if (tracks.length) {
+			await player.queue.add(tracks[0]);
 			await player.play();
 			return true;
+		} else {
+			return false;
 		}
-
-		const randomTrack = response.data.similartracks.track[Math.floor(Math.random() * response.data.similartracks.track.length)];
-		const res = await player.search(
-			{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: platform },
-			player.get("Internal_BotUser") as User | ClientUser
-		);
-		if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
-
-		const foundTrack = res.tracks.find((t) => t.uri !== previousTrack.uri);
-		if (!foundTrack) return false;
-
-		player.queue.add(foundTrack);
-		await player.play();
-		return true;
-	}
-
-	/**
-	 * Handles YouTube-based autoplay.
-	 * @param {Player} player - The player instance.
-	 * @param {Track} previousTrack - The previous track.
-	 * @returns {Promise<boolean>} - Whether the autoplay was successful.
-	 */
-	private async handleYouTubeAutoplay(player: Player, previousTrack: Track): Promise<boolean> {
-		// Check if the previous track has a YouTube URL
-		const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) => previousTrack.uri.includes(url));
-		// Get the video ID from the previous track's URL
-		const videoID = hasYouTubeURL
-			? previousTrack.uri.split("=").pop()
-			: (
-					await this.manager.search(
-						{ query: `${previousTrack.author} - ${previousTrack.title}`, source: SearchPlatform.YouTube },
-						player.get("Internal_BotUser") as User | ClientUser
-					)
-			  ).tracks[0]?.uri
-					.split("=")
-					.pop();
-
-		// If the video ID is not found, return false
-		if (!videoID) return false;
-
-		// Get a random video index between 2 and 24
-		let randomIndex: number;
-		let searchURI: string;
-		do {
-			// Generate a random index between 2 and 24
-			randomIndex = Math.floor(Math.random() * 23) + 2;
-			// Build the search URI
-			searchURI = `https://www.youtube.com/watch?v=${videoID}&list=RD${videoID}&index=${randomIndex}`;
-		} while (previousTrack.uri.includes(searchURI));
-
-		// Search for the video and return false if the search fails
-		const res = await this.manager.search({ query: searchURI, source: SearchPlatform.YouTube }, player.get("Internal_BotUser") as User | ClientUser);
-		if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
-
-		// Find a track that is not the same as the current track
-		const foundTrack = res.tracks.find((t) => t.uri !== previousTrack.uri && t.author !== previousTrack.author && t.title !== previousTrack.title);
-		// If no track is found, return false
-		if (!foundTrack) return false;
-
-		// Add the found track to the queue and play it
-		player.queue.add(foundTrack);
-		await player.play();
-		return true;
 	}
 
 	/**
@@ -915,15 +714,15 @@ export class Node {
 	 * @private
 	 */
 	private async handleFailedTrack(player: Player, track: Track, payload: TrackEndEvent): Promise<void> {
-		player.queue.current = player.queue.shift();
+		await player.queue.setCurrent(await player.queue.dequeue());
 
-		if (!player.queue.current) {
+		if (!(await player.queue.getCurrent())) {
 			await this.queueEnd(player, track, payload);
 			return;
 		}
 
 		this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
-		if (this.manager.options.autoPlay) await player.play();
+		if (this.manager.options.playNextOnEnd) await player.play();
 	}
 
 	/**
@@ -940,34 +739,39 @@ export class Node {
 	 */
 	private async handleRepeatedTrack(player: Player, track: Track, payload: TrackEndEvent): Promise<void> {
 		const { queue, trackRepeat, queueRepeat } = player;
-		const { autoPlay } = this.manager.options;
+		const { playNextOnEnd } = this.manager.options;
 
 		if (trackRepeat) {
 			// Prevent duplicate repeat insertion
-			if (queue[0] !== queue.current) {
-				queue.unshift(queue.current);
+			if (queue[0] !== (await queue.getCurrent())) {
+				await queue.enqueueFront(await queue.getCurrent());
 			}
 		} else if (queueRepeat) {
 			// Prevent duplicate queue insertion
-			if (queue[queue.length - 1] !== queue.current) {
-				queue.add(queue.current as Track);
+			if (queue[(await queue.size()) - 1] !== (await queue.getCurrent())) {
+				await queue.add(await queue.getCurrent());
 			}
 		}
 
 		// Move to the next track
-		queue.current = queue.shift() as Track;
+		await queue.setCurrent(await queue.dequeue());
 
 		// Emit track end event
 		this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
 
 		// If the track was stopped manually and no more tracks exist, end the queue
-		if (payload.reason === TrackEndReasonTypes.Stopped && !(queue.current = queue.shift())) {
-			await this.queueEnd(player, track, payload);
-			return;
+		if (payload.reason === TrackEndReasonTypes.Stopped) {
+			const next = await queue.dequeue();
+			await queue.setCurrent(next ?? null);
+
+			if (!next) {
+				await this.queueEnd(player, track, payload);
+				return;
+			}
 		}
 
 		// If autoplay is enabled, play the next track
-		if (autoPlay) await player.play();
+		if (playNextOnEnd) await player.play();
 	}
 
 	/**
@@ -983,13 +787,13 @@ export class Node {
 	 */
 	private async playNextTrack(player: Player, track: Track, payload: TrackEndEvent): Promise<void> {
 		// Shift the queue to set the next track as current
-		player.queue.current = player.queue.shift();
+		await player.queue.setCurrent(await player.queue.dequeue());
 
 		// Emit the track end event
 		this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
 
 		// If autoplay is enabled, play the next track
-		if (this.manager.options.autoPlay) await player.play();
+		if (this.manager.options.playNextOnEnd) await player.play();
 	}
 
 	/**
@@ -1002,7 +806,7 @@ export class Node {
 	 * @returns {Promise<void>} A promise that resolves when the queue end processing is complete.
 	 */
 	public async queueEnd(player: Player, track: Track, payload: TrackEndEvent): Promise<void> {
-		player.queue.current = null;
+		await player.queue.setCurrent(null);
 
 		if (!player.isAutoplay) {
 			player.playing = false;
@@ -1010,13 +814,13 @@ export class Node {
 			return;
 		}
 
-		let attempts = 1;
+		let attempt = 1;
 		let success = false;
 
-		while (attempts <= player.autoplayTries) {
-			success = await this.handleAutoplay(player, attempts);
+		while (attempt <= player.autoplayTries) {
+			success = await this.handleAutoplay(player, attempt);
 			if (success) return;
-			attempts++;
+			attempt++;
 		}
 
 		// If all attempts fail, reset the player state and emit queueEnd
@@ -1222,21 +1026,21 @@ export interface NodeOptions {
 	/** The password for the node. */
 	password?: string;
 	/** Whether the host uses SSL. */
-	secure?: boolean;
+	useSSL?: boolean;
 	/** The identifier for the node. */
 	identifier?: string;
-	/** The retryAmount for the node. */
-	retryAmount?: number;
-	/** The retryDelay for the node. */
-	retryDelay?: number;
+	/** The maxRetryAttempts for the node. */
+	maxRetryAttempts?: number;
+	/** The retryDelayMs for the node. */
+	retryDelayMs?: number;
 	/** Whether to resume the previous session. */
-	resumeStatus?: boolean;
+	enableSessionResumeOption?: boolean;
 	/** The time the lavalink server will wait before it removes the player. */
-	resumeTimeout?: number;
+	sessionTimeoutMs?: number;
 	/** The timeout used for api calls. */
-	requestTimeout?: number;
+	apiRequestTimeoutMs?: number;
 	/** Priority of the node. */
-	priority?: number;
+	nodePriority?: number;
 }
 
 export interface NodeStats {
