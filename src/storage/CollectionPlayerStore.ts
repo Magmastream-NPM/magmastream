@@ -3,12 +3,15 @@
 import { Collection } from "@discordjs/collection";
 import { Player } from "../structures/Player";
 import { PlayerStore } from "../structures/Manager";
+import { logExecutionTime } from "../utils/logExecutionTime";
 
 export class CollectionPlayerStore implements PlayerStore {
 	private store: Collection<string, Player> = new Collection();
 
 	async get(guildId: string): Promise<Player | undefined> {
-		return this.store.get(guildId);
+		return logExecutionTime("CollectionStore.get", async () => {
+			return this.store.get(guildId);
+		});
 	}
 
 	async set(guildId: string, player: Player): Promise<void> {
