@@ -684,8 +684,8 @@ export class Node {
 		// If autoplay is not enabled or all attempts have failed, early exit
 		if (!player.isAutoplay || attempt > player.autoplayTries || !(await player.queue.getPrevious()).length) return false;
 
-		const lastTrack = await player.queue.getPrevious()[(await player.queue.getPrevious()).length - 1];
-
+		const PreviousQueue = await player.queue.getPrevious();
+		const lastTrack = PreviousQueue?.at(-1);
 		lastTrack.requester = player.get("Internal_BotUser") as User | ClientUser;
 
 		if (!lastTrack) return false;
