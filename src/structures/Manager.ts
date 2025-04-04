@@ -1037,6 +1037,10 @@ export interface Payload {
 }
 
 export interface ManagerOptions {
+	/** The state storage options.
+	 * 
+	 * @default { type: StateStorageType.Collection }
+	 */
 	stateStorage?: StateStorageOptions;
 	/** Enable priority mode over least player count or load balancing? */
 	enablePriorityMode?: boolean;
