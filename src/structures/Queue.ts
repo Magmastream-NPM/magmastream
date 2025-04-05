@@ -2,6 +2,7 @@ import { Track } from "./Player";
 import { Manager, ManagerEventTypes, PlayerStateEventTypes } from "./Manager"; // Import Manager to access emit method
 import { ClientUser, User } from "discord.js";
 import { IQueue } from "./Utils";
+import { logExecutionTime } from "../utils/logExecutionTime";
 
 /**
  * The player's queue, the `current` property is the currently playing track, think of the rest as the up-coming tracks.
@@ -33,27 +34,34 @@ export class Queue extends Array<Track> implements IQueue {
 	}
 
 	async getCurrent(): Promise<Track | null> {
-		return this.current;
+		return logExecutionTime("getCurrent (Collection)", async () => {
+			return this.current;
+		});
 	}
 
 	async setCurrent(track: Track | null): Promise<void> {
-		this.current = track;
+		return logExecutionTime("setCurrent (Collection)", async () => {
+			this.current = track;
+		});
 	}
-
 	async getPrevious(): Promise<Track[]> {
-		return this.previous;
+		return logExecutionTime("getPrevious (Collection)", async () => {
+			return this.previous;
+		});
 	}
-
 	public async addPrevious(track: Track | Track[]): Promise<void> {
-		if (Array.isArray(track)) {
-			this.previous.unshift(...track);
-		} else {
-			this.previous.unshift(track);
-		}
+		return logExecutionTime("addPrevious (Collection)", async () => {
+			if (Array.isArray(track)) {
+				this.previous.unshift(...track);
+			} else {
+				this.previous.unshift(track);
+			}
+		});
 	}
-
 	public async clearPrevious(): Promise<void> {
-		this.previous = [];
+		return logExecutionTime("clearPrevious (Collection)", async () => {
+			this.previous = [];
+		});
 	}
 
 	/**
@@ -61,8 +69,10 @@ export class Queue extends Array<Track> implements IQueue {
 	 * This includes the duration of the currently playing track.
 	 */
 	public async duration(): Promise<number> {
-		const current = this.current?.duration ?? 0;
-		return this.reduce((acc, cur) => acc + (cur.duration || 0), current);
+		return logExecutionTime("duration (Collection)", async () => {
+			const current = this.current?.duration ?? 0;
+			return this.reduce((acc, cur) => acc + (cur.duration || 0), current);
+		});
 	}
 
 	/**
@@ -71,16 +81,19 @@ export class Queue extends Array<Track> implements IQueue {
 	 * @returns The total size of tracks in the queue including the current track.
 	 */
 	public async totalSize(): Promise<number> {
-		return this.length + (this.current ? 1 : 0);
+		return logExecutionTime("totalSize (Collection)", async () => {
+			return this.length + (this.current ? 1 : 0);
+		});
 	}
-
 	/**
 	 * The size of tracks in the queue.
 	 * This does not include the currently playing track.
 	 * @returns The size of tracks in the queue.
 	 */
 	public async size(): Promise<number> {
-		return this.length;
+		return logExecutionTime("size (Collection)", async () => {
+			return this.length;
+		});
 	}
 
 	/**
@@ -89,76 +102,76 @@ export class Queue extends Array<Track> implements IQueue {
 	 * @param [offset=null] The position to add the track(s) at. If not provided, the track(s) will be added at the end of the queue.
 	 */
 	public async add(track: Track | Track[], offset?: number): Promise<void> {
-		// Get the track info as a string
-		const trackInfo = Array.isArray(track) ? track.map((t) => JSON.stringify(t, null, 2)).join(", ") : JSON.stringify(track, null, 2);
+		return logExecutionTime("add (Collection)", async () => {
+			// Get the track info as a string
+			const trackInfo = Array.isArray(track) ? track.map((t) => JSON.stringify(t, null, 2)).join(", ") : JSON.stringify(track, null, 2);
 
-		// Emit a debug message
-		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Added ${Array.isArray(track) ? track.length : 1} track(s) to queue: ${trackInfo}`);
+			// Emit a debug message
+			this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Added ${Array.isArray(track) ? track.length : 1} track(s) to queue: ${trackInfo}`);
 
-		const oldPlayer = (await this.manager.players.get(this.guildId)) ? { ...(await this.manager.players.get(this.guildId)) } : null;
+			const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
-		// If the track is valid, add it to the queue
-
-		// If the queue is empty, set the track as the current track
-		if (!this.current) {
-			if (Array.isArray(track)) {
-				this.current = (track.shift() as Track) || null;
-				this.push(...track);
-			} else {
-				this.current = track;
-			}
-		} else {
-			// If an offset is provided, add the track(s) at that position
-			if (typeof offset !== "undefined" && typeof offset === "number") {
-				// Validate the offset
-				if (isNaN(offset)) {
-					throw new RangeError("Offset must be a number.");
-				}
-
-				// Make sure the offset is between 0 and the length of the queue
-				if (offset < 0 || offset > this.length) {
-					throw new RangeError(`Offset must be between 0 and ${this.length}.`);
-				}
-
-				// Add the track(s) at the offset position
+			// If the queue is empty, set the track as the current track
+			if (!this.current) {
 				if (Array.isArray(track)) {
-					this.splice(offset, 0, ...track);
-				} else {
-					this.splice(offset, 0, track);
-				}
-			} else {
-				// If no offset is provided, add the track(s) at the end of the queue
-				if (Array.isArray(track)) {
+					this.current = (track.shift() as Track) || null;
 					this.push(...track);
 				} else {
-					this.push(track);
+					this.current = track;
+				}
+			} else {
+				// If an offset is provided, add the track(s) at that position
+				if (typeof offset !== "undefined" && typeof offset === "number") {
+					// Validate the offset
+					if (isNaN(offset)) {
+						throw new RangeError("Offset must be a number.");
+					}
+
+					// Make sure the offset is between 0 and the length of the queue
+					if (offset < 0 || offset > this.length) {
+						throw new RangeError(`Offset must be between 0 and ${this.length}.`);
+					}
+
+					// Add the track(s) at the offset position
+					if (Array.isArray(track)) {
+						this.splice(offset, 0, ...track);
+					} else {
+						this.splice(offset, 0, track);
+					}
+				} else {
+					// If no offset is provided, add the track(s) at the end of the queue
+					if (Array.isArray(track)) {
+						this.push(...track);
+					} else {
+						this.push(track);
+					}
 				}
 			}
-		}
 
-		if ((await this.manager.players.has(this.guildId)) && (await this.manager.players.get(this.guildId)).isAutoplay) {
-			if (!Array.isArray(track)) {
-				const botUser = (await (await this.manager.players.get(this.guildId)).get("Internal_BotUser")) as User | ClientUser;
-				if (botUser && botUser.id === track.requester.id) {
-					this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
-						changeType: PlayerStateEventTypes.QueueChange,
-						details: {
-							changeType: "autoPlayAdd",
-							tracks: Array.isArray(track) ? track : [track],
-						},
-					});
+			if (this.manager.players.has(this.guildId) && this.manager.players.get(this.guildId).isAutoplay) {
+				if (!Array.isArray(track)) {
+					const botUser = this.manager.players.get(this.guildId).get("Internal_BotUser") as User | ClientUser;
+					if (botUser && botUser.id === track.requester.id) {
+						this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+							changeType: PlayerStateEventTypes.QueueChange,
+							details: {
+								changeType: "autoPlayAdd",
+								tracks: Array.isArray(track) ? track : [track],
+							},
+						});
 
-					return;
+						return;
+					}
 				}
 			}
-		}
-		// Emit a player state update event with the added track(s)
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
-			changeType: PlayerStateEventTypes.QueueChange,
-			details: {
-				changeType: "add",
-				tracks: Array.isArray(track) ? track : [track],
-			},
+			// Emit a player state update event with the added track(s)
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+				changeType: PlayerStateEventTypes.QueueChange,
+				details: {
+					changeType: "add",
+					tracks: Array.isArray(track) ? track : [track],
+				},
+			});
 		});
 	}
 
@@ -172,54 +185,56 @@ export class Queue extends Array<Track> implements IQueue {
 	public async remove(position?: number): Promise<Track[]>;
 	public async remove(start: number, end: number): Promise<Track[]>;
 	public async remove(startOrPosition = 0, end?: number): Promise<Track[]> {
-		const oldPlayer = (await this.manager.players.get(this.guildId)) ? { ...(await this.manager.players.get(this.guildId)) } : null;
+		return logExecutionTime("remove (Collection)", async () => {
+			const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
-		if (typeof end !== "undefined") {
-			// Validate input for `start` and `end`
-			if (isNaN(Number(startOrPosition)) || isNaN(Number(end))) {
-				throw new RangeError(`Invalid "start" or "end" parameter: start = ${startOrPosition}, end = ${end}`);
+			if (typeof end !== "undefined") {
+				// Validate input for `start` and `end`
+				if (isNaN(Number(startOrPosition)) || isNaN(Number(end))) {
+					throw new RangeError(`Invalid "start" or "end" parameter: start = ${startOrPosition}, end = ${end}`);
+				}
+
+				if (startOrPosition >= end || startOrPosition >= this.length) {
+					throw new RangeError("Invalid range: start should be less than end and within queue length.");
+				}
+
+				const removedTracks = this.splice(startOrPosition, end - startOrPosition);
+				this.manager.emit(
+					ManagerEventTypes.Debug,
+					`[QUEUE] Removed ${removedTracks.length} track(s) from player: ${this.guildId} from position ${startOrPosition} to ${end}.`
+				);
+
+				this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+					changeType: PlayerStateEventTypes.QueueChange,
+					details: {
+						changeType: "remove",
+						tracks: removedTracks,
+					},
+				});
+
+				return removedTracks;
 			}
 
-			if (startOrPosition >= end || startOrPosition >= this.length) {
-				throw new RangeError("Invalid range: start should be less than end and within queue length.");
-			}
-
-			const removedTracks = this.splice(startOrPosition, end - startOrPosition);
+			// Single item removal when no end specified
+			const removedTrack = this.splice(startOrPosition, 1);
 			this.manager.emit(
 				ManagerEventTypes.Debug,
-				`[QUEUE] Removed ${removedTracks.length} track(s) from player: ${this.guildId} from position ${startOrPosition} to ${end}.`
+				`[QUEUE] Removed 1 track from player: ${this.guildId} from position ${startOrPosition}: ${JSON.stringify(removedTrack[0], null, 2)}`
 			);
 
-			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
+			// Ensure removedTrack is an array for consistency
+			const tracksToEmit = removedTrack.length > 0 ? removedTrack : [];
+
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 				changeType: PlayerStateEventTypes.QueueChange,
 				details: {
 					changeType: "remove",
-					tracks: removedTracks,
+					tracks: tracksToEmit,
 				},
 			});
 
-			return removedTracks;
-		}
-
-		// Single item removal when no end specified
-		const removedTrack = this.splice(startOrPosition, 1);
-		this.manager.emit(
-			ManagerEventTypes.Debug,
-			`[QUEUE] Removed 1 track from player: ${this.guildId} from position ${startOrPosition}: ${JSON.stringify(removedTrack[0], null, 2)}`
-		);
-
-		// Ensure removedTrack is an array for consistency
-		const tracksToEmit = removedTrack.length > 0 ? removedTrack : [];
-
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
-			changeType: PlayerStateEventTypes.QueueChange,
-			details: {
-				changeType: "remove",
-				tracks: tracksToEmit,
-			},
+			return removedTrack;
 		});
-
-		return removedTrack;
 	}
 
 	/**
@@ -227,23 +242,25 @@ export class Queue extends Array<Track> implements IQueue {
 	 * This will remove all tracks from the queue and emit a state update event.
 	 */
 	public async clear(): Promise<void> {
-		// Capture the current state of the player for event emission.
-		const oldPlayer = (await this.manager.players.get(this.guildId)) ? { ...(await this.manager.players.get(this.guildId)) } : null;
+		return logExecutionTime("clear (Collection)", async () => {
+			// Capture the current state of the player for event emission.
+			const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
-		// Remove all items from the queue.
-		this.splice(0);
+			// Remove all items from the queue.
+			this.splice(0);
 
-		// Emit an event to update the player state indicating the queue has been cleared.
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
-			changeType: PlayerStateEventTypes.QueueChange,
-			details: {
-				changeType: "clear",
-				tracks: [], // No tracks are left after clearing
-			},
+			// Emit an event to update the player state indicating the queue has been cleared.
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
+				changeType: PlayerStateEventTypes.QueueChange,
+				details: {
+					changeType: "clear",
+					tracks: [], // No tracks are left after clearing
+				},
+			});
+
+			// Emit a debug message indicating the queue has been cleared for a specific guild ID.
+			this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Cleared the queue for: ${this.guildId}`);
 		});
-
-		// Emit a debug message indicating the queue has been cleared for a specific guild ID.
-		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Cleared the queue for: ${this.guildId}`);
 	}
 
 	/**
@@ -251,176 +268,201 @@ export class Queue extends Array<Track> implements IQueue {
 	 * This will randomize the order of the tracks in the queue and emit a state update event.
 	 */
 	public async shuffle(): Promise<void> {
-		// Capture the current state of the player for event emission.
-		const oldPlayer = (await this.manager.players.get(this.guildId)) ? { ...(await this.manager.players.get(this.guildId)) } : null;
+		return logExecutionTime("shuffle (Collection)", async () => {
+			// Capture the current state of the player for event emission.
+			const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
-		// Shuffle the queue.
-		for (let i = this.length - 1; i > 0; i--) {
-			const j = Math.floor(Math.random() * (i + 1));
-			[this[i], this[j]] = [this[j], this[i]];
-		}
+			// Shuffle the queue.
+			for (let i = this.length - 1; i > 0; i--) {
+				const j = Math.floor(Math.random() * (i + 1));
+				[this[i], this[j]] = [this[j], this[i]];
+			}
 
-		// Emit an event to update the player state indicating the queue has been shuffled.
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
-			changeType: PlayerStateEventTypes.QueueChange,
-			details: {
-				changeType: "shuffle",
-			},
+			// Emit an event to update the player state indicating the queue has been shuffled.
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
+				changeType: PlayerStateEventTypes.QueueChange,
+				details: {
+					changeType: "shuffle",
+				},
+			});
+
+			// Emit a debug message indicating the queue has been shuffled for a specific guild ID.
+			this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Shuffled the queue for: ${this.guildId}`);
 		});
-
-		// Emit a debug message indicating the queue has been shuffled for a specific guild ID.
-		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Shuffled the queue for: ${this.guildId}`);
 	}
 
 	/**
 	 * Shuffles the queue to play tracks requested by each user one block at a time.
 	 */
 	public async userBlockShuffle(): Promise<void> {
-		// Capture the current state of the player for event emission.
-		const oldPlayer = (await this.manager.players.get(this.guildId)) ? { ...(await this.manager.players.get(this.guildId)) } : null;
+		return logExecutionTime("userBlockShuffle (Collection)", async () => {
+			// Capture the current state of the player for event emission.
+			const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
-		// Group the tracks in the queue by the user that requested them.
-		const userTracks = new Map<string, Array<Track>>();
-		this.forEach((track) => {
-			const user = track.requester.id;
+			// Group the tracks in the queue by the user that requested them.
+			const userTracks = new Map<string, Array<Track>>();
+			this.forEach((track) => {
+				const user = track.requester.id;
 
-			if (!userTracks.has(user)) {
-				userTracks.set(user, []);
+				if (!userTracks.has(user)) {
+					userTracks.set(user, []);
+				}
+
+				userTracks.get(user).push(track);
+			});
+
+			// Create a new array for the shuffled queue.
+			const shuffledQueue: Array<Track> = [];
+
+			// Iterate over the user tracks and add one track from each user to the shuffled queue.
+			// This will ensure that all the tracks requested by each user are played in a block order.
+			while (shuffledQueue.length < this.length) {
+				userTracks.forEach((tracks) => {
+					const track = tracks.shift();
+					if (track) {
+						shuffledQueue.push(track);
+					}
+				});
 			}
 
-			userTracks.get(user).push(track);
-		});
+			// Clear the queue and add the shuffled tracks.
+			this.splice(0);
+			this.add(shuffledQueue);
 
-		// Create a new array for the shuffled queue.
-		const shuffledQueue: Array<Track> = [];
-
-		// Iterate over the user tracks and add one track from each user to the shuffled queue.
-		// This will ensure that all the tracks requested by each user are played in a block order.
-		while (shuffledQueue.length < this.length) {
-			userTracks.forEach((tracks) => {
-				const track = tracks.shift();
-				if (track) {
-					shuffledQueue.push(track);
-				}
+			// Emit an event to update the player state indicating the queue has been shuffled.
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
+				changeType: PlayerStateEventTypes.QueueChange,
+				details: {
+					changeType: "userBlock",
+				},
 			});
-		}
 
-		// Clear the queue and add the shuffled tracks.
-		this.splice(0);
-		this.add(shuffledQueue);
-
-		// Emit an event to update the player state indicating the queue has been shuffled.
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
-			changeType: PlayerStateEventTypes.QueueChange,
-			details: {
-				changeType: "userBlock",
-			},
+			// Emit a debug message indicating the queue has been shuffled for a specific guild ID.
+			this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] userBlockShuffled the queue for: ${this.guildId}`);
 		});
-
-		// Emit a debug message indicating the queue has been shuffled for a specific guild ID.
-		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] userBlockShuffled the queue for: ${this.guildId}`);
 	}
 
 	/**
 	 * Shuffles the queue to play tracks requested by each user one by one.
 	 */
 	public async roundRobinShuffle() {
-		const oldPlayer = (await this.manager.players.get(this.guildId)) ? { ...(await this.manager.players.get(this.guildId)) } : null;
-		const userTracks = new Map<string, Array<Track>>();
+		return logExecutionTime("roundRobinShuffle (Collection)", async () => {
+			// Capture the current state of the player for event emission.
+			const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
-		// Group the tracks in the queue by the user that requested them.
-		this.forEach((track) => {
-			const user = track.requester.id;
+			// Group the tracks in the queue by the user that requested them.
+			const userTracks = new Map<string, Array<Track>>();
 
-			if (!userTracks.has(user)) {
-				userTracks.set(user, []);
-			}
+			// Group the tracks in the queue by the user that requested them.
+			this.forEach((track) => {
+				const user = track.requester.id;
 
-			userTracks.get(user).push(track);
-		});
+				if (!userTracks.has(user)) {
+					userTracks.set(user, []);
+				}
 
-		// Shuffle the tracks of each user.
-		userTracks.forEach((tracks) => {
-			for (let i = tracks.length - 1; i > 0; i--) {
-				const j = Math.floor(Math.random() * (i + 1));
-				[tracks[i], tracks[j]] = [tracks[j], tracks[i]];
-			}
-		});
+				userTracks.get(user).push(track);
+			});
 
-		// Create a new array for the shuffled queue.
-		const shuffledQueue: Array<Track> = [];
+			// Shuffle the tracks of each user.
+			userTracks.forEach((tracks) => {
+				for (let i = tracks.length - 1; i > 0; i--) {
+					const j = Math.floor(Math.random() * (i + 1));
+					[tracks[i], tracks[j]] = [tracks[j], tracks[i]];
+				}
+			});
 
-		// Add the shuffled tracks to the queue in a round-robin fashion.
-		const users = Array.from(userTracks.keys());
-		const userQueues = users.map((user) => userTracks.get(user)!);
-		const userCount = users.length;
+			// Create a new array for the shuffled queue.
+			const shuffledQueue: Array<Track> = [];
 
-		while (userQueues.some((queue) => queue.length > 0)) {
-			for (let i = 0; i < userCount; i++) {
-				const queue = userQueues[i];
-				if (queue.length > 0) {
-					shuffledQueue.push(queue.shift()!);
+			// Add the shuffled tracks to the queue in a round-robin fashion.
+			const users = Array.from(userTracks.keys());
+			const userQueues = users.map((user) => userTracks.get(user)!);
+			const userCount = users.length;
+
+			while (userQueues.some((queue) => queue.length > 0)) {
+				for (let i = 0; i < userCount; i++) {
+					const queue = userQueues[i];
+					if (queue.length > 0) {
+						shuffledQueue.push(queue.shift()!);
+					}
 				}
 			}
-		}
 
-		// Clear the queue and add the shuffled tracks.
-		this.splice(0);
-		this.add(shuffledQueue);
+			// Clear the queue and add the shuffled tracks.
+			this.splice(0);
+			this.add(shuffledQueue);
 
-		// Emit an event to update the player state indicating the queue has been shuffled.
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
-			changeType: PlayerStateEventTypes.QueueChange,
-			details: {
-				changeType: "roundRobin",
-			},
+			// Emit an event to update the player state indicating the queue has been shuffled.
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
+				changeType: PlayerStateEventTypes.QueueChange,
+				details: {
+					changeType: "roundRobin",
+				},
+			});
+
+			// Emit a debug message indicating the queue has been shuffled for a specific guild ID.
+			this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] roundRobinShuffled the queue for: ${this.guildId}`);
 		});
-
-		// Emit a debug message indicating the queue has been shuffled for a specific guild ID.
-		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] roundRobinShuffled the queue for: ${this.guildId}`);
 	}
 
 	public async dequeue(): Promise<Track | undefined> {
-		return super.shift();
+		return logExecutionTime("dequeue (Collection)", async () => {
+			return super.shift();
+		});
 	}
 
 	public async enqueueFront(track: Track | Track[]): Promise<void> {
-		if (Array.isArray(track)) {
-			this.unshift(...track);
-		} else {
-			this.unshift(track);
-		}
+		return logExecutionTime("enqueueFront (Collection)", async () => {
+			if (Array.isArray(track)) {
+				this.unshift(...track);
+			} else {
+				this.unshift(track);
+			}
+		});
 	}
 
 	public async getTracks(): Promise<Track[]> {
-		return [...this]; // clone to avoid direct mutation
+		return logExecutionTime("getTracks (Collection)", async () => {
+			return [...this]; // clone to avoid direct mutation
+		});
 	}
-
 	public async getSlice(start?: number, end?: number): Promise<Track[]> {
-		return this.slice(start, end); // Native sync method, still wrapped in a Promise
+		return logExecutionTime("getSlice (Collection)", async () => {
+			return this.slice(start, end); // Native sync method, still wrapped in a Promise
+		});
 	}
 
 	public async modifyAt(start: number, deleteCount = 0, ...items: Track[]): Promise<Track[]> {
-		return super.splice(start, deleteCount, ...items);
+		return logExecutionTime("modifyAt (Collection)", async () => {
+			return super.splice(start, deleteCount, ...items);
+		});
 	}
 
 	public async mapAsync<T>(callback: (track: Track, index: number, array: Track[]) => T): Promise<T[]> {
-		return this.map(callback);
+		return logExecutionTime("mapAsync (Collection)", async () => {
+			return this.map(callback);
+		});
 	}
 
 	public async filterAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<Track[]> {
-		return this.filter(callback);
+		return logExecutionTime("filterAsync (Collection)", async () => {
+			return this.filter(callback);
+		});
 	}
-
 	public async findAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<Track | undefined> {
-		return this.find(callback);
+		return logExecutionTime("findAsync (Collection)", async () => {
+			return this.find(callback);
+		});
 	}
-
 	public async someAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<boolean> {
-		return this.some(callback);
+		return logExecutionTime("someAsync (Collection)", async () => {
+			return this.some(callback);
+		});
 	}
-
 	public async everyAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<boolean> {
-		return this.every(callback);
+		return logExecutionTime("everyAsync (Collection)", async () => {
+			return this.every(callback);
+		});
 	}
 }
