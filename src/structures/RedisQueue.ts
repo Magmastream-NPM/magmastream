@@ -6,9 +6,6 @@ import { IQueue } from "./Utils";
 import { logExecutionTime } from "../utils/logExecutionTime";
 
 export class RedisQueue implements IQueue {
-	public current: Track | null = null;
-	public previous: Track[] = [];
-
 	private redis: Redis;
 	private redisPrefix: string;
 
@@ -89,11 +86,10 @@ export class RedisQueue implements IQueue {
 			const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
 			// If there's no current track, pop one from the list
-			if (!this.current) {
+			if (!(await this.getCurrent())) {
 				const current = serialized.shift();
 				if (current) {
-					await this.redis.set(this.currentKey, current);
-					this.current = this.deserialize(current);
+					await this.setCurrent(this.deserialize(current));
 				}
 			}
 
@@ -204,14 +200,14 @@ export class RedisQueue implements IQueue {
 	public async totalSize(): Promise<number> {
 		return logExecutionTime("totalSize (RedisQueue)", async () => {
 			const size = await this.size();
-			return this.current ? size + 1 : size;
+			return (await this.getCurrent()) ? size + 1 : size;
 		});
 	}
 
 	public async duration(): Promise<number> {
 		return logExecutionTime("duration (RedisQueue)", async () => {
 			const tracks = await this.redis.lrange(this.queueKey, 0, -1);
-			const currentDuration = this.current?.duration || 0;
+			const currentDuration = (await this.getCurrent())?.duration || 0;
 
 			const total = tracks.reduce((acc, raw) => {
 				try {
