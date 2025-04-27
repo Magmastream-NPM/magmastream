@@ -250,7 +250,7 @@ export class Queue extends Array<Track> implements IQueue {
 			this.splice(0);
 
 			// Emit an event to update the player state indicating the queue has been cleared.
-			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 				changeType: PlayerStateEventTypes.QueueChange,
 				details: {
 					changeType: "clear",
@@ -279,7 +279,7 @@ export class Queue extends Array<Track> implements IQueue {
 			}
 
 			// Emit an event to update the player state indicating the queue has been shuffled.
-			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 				changeType: PlayerStateEventTypes.QueueChange,
 				details: {
 					changeType: "shuffle",
@@ -330,7 +330,7 @@ export class Queue extends Array<Track> implements IQueue {
 			this.add(shuffledQueue);
 
 			// Emit an event to update the player state indicating the queue has been shuffled.
-			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 				changeType: PlayerStateEventTypes.QueueChange,
 				details: {
 					changeType: "userBlock",
@@ -394,7 +394,7 @@ export class Queue extends Array<Track> implements IQueue {
 			this.add(shuffledQueue);
 
 			// Emit an event to update the player state indicating the queue has been shuffled.
-			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, await this.manager.players.get(this.guildId), {
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 				changeType: PlayerStateEventTypes.QueueChange,
 				details: {
 					changeType: "roundRobin",

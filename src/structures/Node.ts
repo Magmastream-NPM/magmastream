@@ -619,8 +619,12 @@ export class Node {
 			await player.queue.addPrevious(await player.queue.getCurrent());
 
 			// Limit the previous tracks queue to maxPreviousTracks
-			if ((await player.queue.getPrevious()).length > this.manager.options.maxPreviousTracks) {
-				(await player.queue.getPrevious()).shift();
+			const previous = await player.queue.getPrevious();
+
+			if (previous.length > this.manager.options.maxPreviousTracks) {
+				previous.shift();
+				await player.queue.clearPrevious();
+				await player.queue.addPrevious(previous);
 			}
 		}
 

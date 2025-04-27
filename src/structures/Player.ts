@@ -921,7 +921,7 @@ export class Player {
 		if (!newOptions.textChannelId) throw new Error("Text channel ID is required");
 
 		// Check if a player already exists for the new guild
-		let newPlayer = await this.manager.getPlayer(newOptions.guildId);
+		let newPlayer = this.manager.getPlayer(newOptions.guildId);
 
 		// If the player already exists and force is false, return the existing player
 		if (newPlayer && !force) return newPlayer;
@@ -958,7 +958,7 @@ export class Player {
 		newOptions.volume = newOptions.volume ?? oldPlayerProperties.volume;
 
 		// Deep clone the current player
-		const clonedPlayer = await this.manager.create(newOptions);
+		const clonedPlayer = this.manager.create(newOptions);
 
 		// Connect the cloned player to the new voice channel
 		clonedPlayer.connect();
