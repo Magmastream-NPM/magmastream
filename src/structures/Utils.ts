@@ -749,6 +749,80 @@ export abstract class AutoPlayUtils {
 					return result.tracks;
 				}
 				break;
+			case "qobuz":
+				{
+					if (!track.uri.includes("qobuz.com")) {
+						const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.Qobuz }, track.requester);
+
+						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
+							return [];
+						}
+
+						if (res.loadType === LoadTypes.Playlist) {
+							res.tracks = res.playlist.tracks;
+						}
+
+						if (!res.tracks.length) {
+							return [];
+						}
+
+						track = res.tracks[0];
+					}
+
+					const identifier = `qbrec:${track.identifier}`;
+
+					const recommendedResult = (await this.manager.useableNode.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(identifier)}`)) as LavalinkResponse;
+
+					if (!recommendedResult) {
+						return [];
+					}
+
+					let tracks: Track[] = [];
+					let playlist: SearchResult["playlist"] = null;
+
+					const requester = track.requester;
+
+					switch (recommendedResult.loadType) {
+						case LoadTypes.Search:
+							tracks = (recommendedResult.data as TrackData[]).map((track) => TrackUtils.build(track, requester));
+							break;
+
+						case LoadTypes.Track:
+							tracks = [TrackUtils.build(recommendedResult.data as unknown as TrackData, requester)];
+							break;
+
+						case LoadTypes.Playlist: {
+							const playlistData = recommendedResult.data as PlaylistRawData;
+							tracks = playlistData.tracks.map((track) => TrackUtils.build(track, requester));
+
+							playlist = {
+								name: playlistData.info.name,
+								playlistInfo: playlistData.pluginInfo as PlaylistInfoData[],
+								requester: requester as User,
+								tracks,
+								duration: tracks.reduce((acc, cur) => acc + ((cur as unknown as Track).duration || 0), 0),
+							};
+							break;
+						}
+					}
+
+					const result: SearchResult = { loadType: recommendedResult.loadType, tracks, playlist };
+
+					if (result.loadType === LoadTypes.Empty || result.loadType === LoadTypes.Error) {
+						return [];
+					}
+
+					if (result.loadType === LoadTypes.Playlist) {
+						result.tracks = result.playlist.tracks;
+					}
+
+					if (!result.tracks.length) {
+						return [];
+					}
+
+					return result.tracks;
+				}
+				break;
 			default:
 				return [];
 		}

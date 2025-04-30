@@ -1161,6 +1161,7 @@ export enum AutoPlayPlatform {
 	SoundCloud = "soundcloud",
 	Tidal = "tidal",
 	VKMusic = "vkmusic",
+	Qobuz = "qobuz",
 	YouTube = "youtube",
 }
 
