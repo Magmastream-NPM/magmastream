@@ -1146,6 +1146,7 @@ export enum SearchPlatform {
 	Bandcamp = "bcsearch",
 	Deezer = "dzsearch",
 	Jiosaavn = "jssearch",
+	Qobuz = "qbsearch",
 	SoundCloud = "scsearch",
 	Spotify = "spsearch",
 	Tidal = "tdsearch",
