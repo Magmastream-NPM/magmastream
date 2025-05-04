@@ -438,6 +438,15 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
+	 * Sleeps for a specified amount of time.
+	 * @param ms The amount of time to sleep in milliseconds.
+	 * @returns A promise that resolves after the specified amount of time.
+	 */
+	private async sleep(ms: number) {
+		return new Promise((resolve) => setTimeout(resolve, ms));
+	}
+
+	/**
 	 * Loads player states from the JSON file.
 	 * @param nodeId The ID of the node to load player states from.
 	 * @returns A promise that resolves when the player states have been loaded.
@@ -600,6 +609,7 @@ export class Manager extends EventEmitter {
 											filterActions[filter](true);
 										}
 									}
+									await this.sleep(1000);
 								}
 							} catch (error) {
 								this.emit(ManagerEventTypes.Debug, `[MANAGER] Error processing file ${filePath}: ${error}`);
