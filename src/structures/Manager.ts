@@ -418,22 +418,55 @@ export class Manager extends EventEmitter {
 	 * @param {string} guildId - The guild ID of the player to save
 	 */
 	public async savePlayerState(guildId: string): Promise<void> {
-		try {
-			const playerStateFilePath = await this.getPlayerFilePath(guildId);
-			const player = this.getPlayer(guildId);
+		switch (this.options.stateStorage.type) {
+			case StateStorageType.Collection:
+				{
+					try {
+						const playerStateFilePath = await this.getPlayerFilePath(guildId);
+						const player = this.getPlayer(guildId);
 
-			if (!player || player.state === StateTypes.Disconnected || !player.voiceChannelId) {
-				console.warn(`Skipping save for inactive player: ${guildId}`);
+						if (!player || player.state === StateTypes.Disconnected || !player.voiceChannelId) {
+							console.warn(`Skipping save for inactive player: ${guildId}`);
+							return;
+						}
+
+						const serializedPlayer = this.serializePlayer(player);
+
+						await fs.writeFile(playerStateFilePath, JSON.stringify(serializedPlayer, null, 2), "utf-8");
+
+						this.emit(ManagerEventTypes.Debug, `[MANAGER] Player state saved: ${guildId}`);
+					} catch (error) {
+						console.error(`Error saving player state for guild ${guildId}:`, error);
+					}
+				}
+				break;
+			case StateStorageType.Redis:
+				{
+					try {
+						const player = this.getPlayer(guildId);
+
+						if (!player || player.state === StateTypes.Disconnected || !player.voiceChannelId) {
+							console.warn(`Skipping save for inactive player: ${guildId}`);
+							return;
+						}
+
+						const serializedPlayer = this.serializePlayer(player);
+						const redisKey = `${
+							this.options.stateStorage.redisConfig.prefix?.endsWith(":")
+								? this.options.stateStorage.redisConfig.prefix
+								: this.options.stateStorage.redisConfig.prefix ?? "magmastream:"
+						}playerstore:${guildId}`;
+
+						await this.redis.set(redisKey, JSON.stringify(serializedPlayer));
+
+						this.emit(ManagerEventTypes.Debug, `[MANAGER] Player state saved to Redis: ${guildId}`);
+					} catch (error) {
+						console.error(`Error saving player state to Redis for guild ${guildId}:`, error);
+					}
+				}
+				break;
+			default:
 				return;
-			}
-
-			const serializedPlayer = this.serializePlayer(player);
-
-			await fs.writeFile(playerStateFilePath, JSON.stringify(serializedPlayer, null, 2), "utf-8");
-
-			this.emit(ManagerEventTypes.Debug, `[MANAGER] Player state saved: ${guildId}`);
-		} catch (error) {
-			console.error(`Error saving player state for guild ${guildId}:`, error);
 		}
 	}
 
@@ -479,9 +512,7 @@ export class Manager extends EventEmitter {
 
 							try {
 								// Check if the file exists (though readdir should only return valid files)
-								await fs.access(filePath);
-
-								// Read the file asynchronously
+								await fs.access(filePath); // Check if the file exists
 								const data = await fs.readFile(filePath, "utf-8");
 								const state = JSON.parse(data);
 
@@ -643,6 +674,167 @@ export class Manager extends EventEmitter {
 
 			case StateStorageType.Redis:
 				{
+					try {
+						// Get all keys matching our pattern
+						const redisKeyPattern = `${
+							this.options.stateStorage.redisConfig.prefix?.endsWith(":")
+								? this.options.stateStorage.redisConfig.prefix
+								: this.options.stateStorage.redisConfig.prefix ?? "magmastream:"
+						}playerstore:*`;
+						const keys = await this.redis.keys(redisKeyPattern);
+
+						for (const key of keys) {
+							try {
+								const data = await this.redis.get(key);
+								if (!data) continue;
+
+								const state = JSON.parse(data);
+								if (!state || typeof state !== "object") continue;
+
+								const guildId = key.split(":").pop();
+								if (!guildId) continue;
+
+								if (state.node?.options?.identifier === nodeId) {
+									const lavaPlayer = info.find((player) => player.guildId === guildId);
+									if (!lavaPlayer) {
+										await this.destroy(guildId);
+									}
+
+									const playerOptions: PlayerOptions = {
+										guildId: state.options.guildId,
+										textChannelId: state.options.textChannelId,
+										voiceChannelId: state.options.voiceChannelId,
+										selfDeafen: state.options.selfDeafen,
+										volume: lavaPlayer?.volume || state.options.volume,
+										node: nodeId,
+									};
+
+									this.emit(ManagerEventTypes.Debug, `[MANAGER] Recreating player: ${guildId} from Redis`);
+									const player = this.create(playerOptions);
+
+									await player.node.rest.updatePlayer({
+										guildId: state.options.guildId,
+										data: { voice: { token: state.voiceState.event.token, endpoint: state.voiceState.event.endpoint, sessionId: state.voiceState.sessionId } },
+									});
+
+									player.connect();
+
+									// Rest of the player state restoration code (tracks, filters, etc.)
+									const tracks = [];
+
+									const currentTrack = state.queue.current;
+									const queueTracks = state.queue.tracks;
+
+									if (lavaPlayer) {
+										if (lavaPlayer.track) {
+											tracks.push(...queueTracks);
+											if (currentTrack && currentTrack.uri === lavaPlayer.track.info.uri) {
+												await player.queue.setCurrent(TrackUtils.build(lavaPlayer.track as TrackData, currentTrack.requester));
+											}
+										} else {
+											if (!currentTrack) {
+												const payload = {
+													reason: TrackEndReasonTypes.Finished,
+												};
+												await node.queueEnd(player, currentTrack, payload as TrackEndEvent);
+											} else {
+												tracks.push(currentTrack, ...queueTracks);
+											}
+										}
+									} else {
+										if (!currentTrack) {
+											const payload = {
+												reason: TrackEndReasonTypes.Finished,
+											};
+											await node.queueEnd(player, currentTrack, payload as TrackEndEvent);
+										} else {
+											tracks.push(currentTrack, ...queueTracks);
+										}
+									}
+
+									if (tracks.length > 0) {
+										await player.queue.add(tracks as Track[]);
+									}
+
+									if (state.queue.previous.length > 0) {
+										await player.queue.addPrevious(state.queue.previous);
+									} else {
+										await player.queue.clearPrevious();
+									}
+
+									if (state.paused) {
+										await player.pause(true);
+									} else {
+										player.paused = false;
+									}
+
+									if (state.trackRepeat) player.setTrackRepeat(true);
+									if (state.queueRepeat) player.setQueueRepeat(true);
+
+									if (state.dynamicRepeat) {
+										player.setDynamicRepeat(state.dynamicRepeat, state.dynamicLoopInterval._idleTimeout);
+									}
+									if (state.isAutoplay) {
+										Object.setPrototypeOf(state.data.clientUser, { constructor: { name: "User" } });
+										player.setAutoplay(true, state.data.clientUser, state.autoplayTries);
+									}
+									if (state.data) {
+										for (const [name, value] of Object.entries(state.data)) {
+											player.set(name, value);
+										}
+									}
+
+									const filterActions: Record<string, (enabled: boolean) => void> = {
+										bassboost: () => player.filters.bassBoost(state.filters.bassBoostlevel),
+										distort: (enabled) => player.filters.distort(enabled),
+										setDistortion: () => player.filters.setDistortion(state.filters.distortion),
+										eightD: (enabled) => player.filters.eightD(enabled),
+										setKaraoke: () => player.filters.setKaraoke(state.filters.karaoke),
+										nightcore: (enabled) => player.filters.nightcore(enabled),
+										slowmo: (enabled) => player.filters.slowmo(enabled),
+										soft: (enabled) => player.filters.soft(enabled),
+										trebleBass: (enabled) => player.filters.trebleBass(enabled),
+										setTimescale: () => player.filters.setTimescale(state.filters.timescale),
+										tv: (enabled) => player.filters.tv(enabled),
+										vibrato: () => player.filters.setVibrato(state.filters.vibrato),
+										vaporwave: (enabled) => player.filters.vaporwave(enabled),
+										pop: (enabled) => player.filters.pop(enabled),
+										party: (enabled) => player.filters.party(enabled),
+										earrape: (enabled) => player.filters.earrape(enabled),
+										electronic: (enabled) => player.filters.electronic(enabled),
+										radio: (enabled) => player.filters.radio(enabled),
+										setRotation: () => player.filters.setRotation(state.filters.rotation),
+										tremolo: (enabled) => player.filters.tremolo(enabled),
+										china: (enabled) => player.filters.china(enabled),
+										chipmunk: (enabled) => player.filters.chipmunk(enabled),
+										darthvader: (enabled) => player.filters.darthvader(enabled),
+										daycore: (enabled) => player.filters.daycore(enabled),
+										doubletime: (enabled) => player.filters.doubletime(enabled),
+										demon: (enabled) => player.filters.demon(enabled),
+									};
+
+									// Iterate through filterStatus and apply the enabled filters
+									for (const [filter, isEnabled] of Object.entries(state.filters.filterStatus)) {
+										if (isEnabled && filterActions[filter]) {
+											filterActions[filter](true);
+										}
+									}
+
+									// After processing, delete the Redis key
+									await this.redis.del(key);
+
+									this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleted player state from Redis: ${key}`);
+
+									await this.sleep(1000);
+								}
+							} catch (error) {
+								this.emit(ManagerEventTypes.Debug, `[MANAGER] Error processing Redis key ${key}: ${error}`);
+								continue;
+							}
+						}
+					} catch (error) {
+						this.emit(ManagerEventTypes.Debug, `[MANAGER] Error loading player states from Redis: ${error}`);
+					}
 				}
 				break;
 			default:

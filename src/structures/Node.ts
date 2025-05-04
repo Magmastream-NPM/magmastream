@@ -408,7 +408,7 @@ export class Node {
 		// Try moving all players connected to that node to a useable one
 
 		if (this.manager.useableNode) {
-			const players = await this.manager.players.filter((p) => p.node.options.identifier == this.options.identifier);
+			const players = this.manager.players.filter((p) => p.node.options.identifier == this.options.identifier);
 			if (players.size) {
 				await Promise.all(Array.from(players.values(), (player) => player.autoMoveNode()));
 			}

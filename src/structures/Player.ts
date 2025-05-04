@@ -262,10 +262,6 @@ export class Player {
 
 		const deleted = this.manager.players.delete(this.guildId);
 
-		if (!deleted) {
-			console.warn(`Failed to delete player with guildId: ${this.guildId}`);
-		}
-
 		return deleted;
 	}
 

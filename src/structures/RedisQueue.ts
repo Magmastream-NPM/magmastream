@@ -7,7 +7,7 @@ import { logExecutionTime } from "../utils/logExecutionTime";
 
 export class RedisQueue implements IQueue {
 	private redis: Redis;
-	private redisPrefix: string;
+	public redisPrefix: string;
 
 	constructor(public readonly guildId: string, public readonly manager: Manager) {
 		this.redis = manager.redis;
