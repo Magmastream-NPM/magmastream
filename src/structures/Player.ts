@@ -254,6 +254,8 @@ export class Player {
 
 		await this.node.rest.destroyPlayer(this.guildId);
 		await this.queue.clear();
+		await this.queue.clearPrevious();
+		await this.queue.setCurrent(null);
 
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, null, {
 			changeType: PlayerStateEventTypes.PlayerDestroy,
