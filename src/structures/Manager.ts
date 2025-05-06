@@ -368,8 +368,9 @@ export class Manager extends EventEmitter {
 
 		if (update.user_id !== this.options.clientId) return;
 
-		if (!player.voiceState.sessionId && player.voiceState.event) {
-			if (player.state !== StateTypes.Disconnected) {
+		const missingSessionButHasEvent = !player.voiceState.sessionId && player.voiceState.event;
+		if (missingSessionButHasEvent) {
+			if (player.state !== StateTypes.Destroying && player.state !== StateTypes.Disconnected) {
 				await player.destroy();
 			}
 			return;

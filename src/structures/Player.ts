@@ -246,13 +246,24 @@ export class Player {
 	 */
 	public async destroy(disconnect: boolean = true): Promise<boolean> {
 		const oldPlayer = this ? { ...this } : null;
+
+		if (this.state === StateTypes.Destroying || this.state === StateTypes.Disconnected) {
+			console.debug(`[Player#destroy] Already destroying/destroyed for ${this.guildId}`);
+			return false;
+		}
+
 		this.state = StateTypes.Destroying;
 
 		if (disconnect) {
-			await this.disconnect();
+			await this.disconnect().catch((err) => {
+				console.warn(`[Player#destroy] Failed to disconnect player ${this.guildId}:`, err);
+			});
 		}
 
-		await this.node.rest.destroyPlayer(this.guildId);
+		await this.node.rest.destroyPlayer(this.guildId).catch((err) => {
+			console.warn(`[Player#destroy] REST failed to destroy player ${this.guildId}:`, err);
+		});
+
 		await this.queue.clear();
 		await this.queue.clearPrevious();
 		await this.queue.setCurrent(null);
@@ -263,7 +274,6 @@ export class Player {
 		this.manager.emit(ManagerEventTypes.PlayerDestroy, this);
 
 		const deleted = this.manager.players.delete(this.guildId);
-
 		return deleted;
 	}
 
