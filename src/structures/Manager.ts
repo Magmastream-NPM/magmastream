@@ -1128,7 +1128,7 @@ export class Manager extends EventEmitter {
 
 				if (key === "data") {
 					return {
-						clientUser: value.Internal_BotUser ?? null,
+						clientUser: value?.Internal_BotUser ?? null,
 					};
 				}
 
