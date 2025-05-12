@@ -1026,7 +1026,7 @@ export interface ManagerOptions {
 	/** The last.fm API key.
 	 * If you need to create one go here: https://www.last.fm/api/account/create.
 	 * If you already have one, get it from here: https://www.last.fm/api/accounts. */
-	lastFmApiKey: string;
+	lastFmApiKey?: string;
 	/** The maximum number of previous tracks to store. */
 	maxPreviousTracks?: number;
 	/** The array of nodes to connect to. */
