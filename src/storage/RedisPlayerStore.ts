@@ -3,7 +3,6 @@
 import Redis from "ioredis";
 import { Player } from "../structures/Player";
 import { Manager, PlayerStore } from "../structures/Manager";
-import { logExecutionTime } from "../utils/logExecutionTime";
 
 export class RedisPlayerStore implements PlayerStore {
 	constructor(private readonly redis: Redis, private readonly manager: Manager, private readonly prefix: string = "magmastream:") {}
@@ -13,11 +12,9 @@ export class RedisPlayerStore implements PlayerStore {
 	}
 
 	async get(guildId: string): Promise<Player | undefined> {
-		return logExecutionTime("RedisStore.get", async () => {
-			const raw = await this.redis.get(this.getKey(guildId));
-			if (!raw) return undefined;
-			return JSON.parse(raw);
-		});
+		const raw = await this.redis.get(this.getKey(guildId));
+		if (!raw) return undefined;
+		return JSON.parse(raw);
 	}
 
 	async set(guildId: string, player: Player): Promise<void> {
