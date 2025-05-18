@@ -761,32 +761,21 @@ export class Player {
 	 * @emits {PlayerStateUpdate} - With {@link PlayerStateEventTypes.TrackChange} as the change type.
 	 */
 	public async previous(): Promise<this> {
-		// Check if there are previous tracks in the queue.
-		if (!(await this.queue.getPrevious()).length) {
+		// Get and remove the most recent previous track
+		const lastTrack = await this.queue.popPrevious();
+
+		if (!lastTrack) {
 			throw new Error("No previous track available.");
 		}
 
 		// Capture the current state of the player before making changes.
 		const oldPlayer = { ...this };
 
-		// Store the current track before changing it.
-		// let currentTrackBeforeChange: Track | null = this.queue.current ? (this.queue.current as Track) : null;
-
-		// Get the last played track and remove it from the history
-		const previousTracks = await this.queue.getPrevious();
-		const lastTrack = previousTracks.pop();
-
-		await this.queue.clearPrevious();
-		await this.queue.addPrevious(previousTracks);
-
-		// Set the skip flag to true to prevent the onTrackEnd event from playing the next track.
+		// Set skip flag so trackEnd doesn't add current to previous
 		this.set("skipFlag", true);
 		await this.play(lastTrack);
 
-		// Add the current track back to the end of the previous queue
-		// if (currentTrackBeforeChange) this.queue.push(currentTrackBeforeChange);
-
-		// Emit a player state update event indicating the track change to previous.
+		// Emit state update
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.TrackChange,
 			details: {
@@ -795,7 +784,6 @@ export class Player {
 			},
 		});
 
-		// Reset the skip flag.
 		this.set("skipFlag", false);
 		return this;
 	}

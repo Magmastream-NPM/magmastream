@@ -1111,6 +1111,8 @@ export interface IQueue {
 	getPrevious(): Promise<Track[]>;
 	addPrevious(track: Track | Track[]): Promise<void>;
 	setPrevious(track: Track | Track[]): Promise<void>;
+	/** Get newest track (index 0) */
+	popPrevious(): Promise<Track | null>;
 	clearPrevious(): Promise<void>;
 
 	size(): Promise<number>;

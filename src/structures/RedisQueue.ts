@@ -76,6 +76,11 @@ export class RedisQueue implements IQueue {
 		await this.redis.rpush(this.previousKey, ...tracks.map(this.serialize));
 	}
 
+	public async popPrevious(): Promise<Track | null> {
+		const raw = await this.redis.lpop(this.previousKey); // get newest track (index 0)
+		return raw ? this.deserialize(raw) : null;
+	}
+
 	public async clearPrevious(): Promise<void> {
 		await this.redis.del(this.previousKey);
 	}

@@ -56,6 +56,10 @@ export class Queue extends Array<Track> implements IQueue {
 		this.previous = [...tracks];
 	}
 
+	public async popPrevious(): Promise<Track | null> {
+		return this.previous.shift() || null; // get newest track
+	}
+
 	public async clearPrevious(): Promise<void> {
 		this.previous = [];
 	}
