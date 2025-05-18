@@ -46,9 +46,13 @@ export class Queue extends Array<Track> implements IQueue {
 
 	public async addPrevious(track: Track | Track[]): Promise<void> {
 		if (Array.isArray(track)) {
-			this.previous.unshift(...track);
+			const newTracks = track.filter((t) => !this.previous.some((p) => p.identifier === t.identifier));
+			this.previous.unshift(...newTracks);
 		} else {
-			this.previous.unshift(track);
+			const exists = this.previous.some((p) => p.identifier === track.identifier);
+			if (!exists) {
+				this.previous.unshift(track);
+			}
 		}
 	}
 
