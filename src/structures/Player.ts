@@ -773,7 +773,11 @@ export class Player {
 		// let currentTrackBeforeChange: Track | null = this.queue.current ? (this.queue.current as Track) : null;
 
 		// Get the last played track and remove it from the history
-		const lastTrack = (await this.queue.getPrevious()).pop();
+		const previousTracks = await this.queue.getPrevious();
+		const lastTrack = previousTracks.pop();
+
+		await this.queue.clearPrevious();
+		await this.queue.addPrevious(previousTracks);
 
 		// Set the skip flag to true to prevent the onTrackEnd event from playing the next track.
 		this.set("skipFlag", true);
