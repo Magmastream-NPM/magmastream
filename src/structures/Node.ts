@@ -624,6 +624,8 @@ export class Node {
 			}
 		}
 
+		player.set("skipFlag", false);
+
 		const oldPlayer = player;
 		// Handle track end events
 		switch (reason) {

@@ -784,7 +784,6 @@ export class Player {
 			},
 		});
 
-		this.set("skipFlag", false);
 		return this;
 	}
 
