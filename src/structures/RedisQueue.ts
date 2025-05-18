@@ -51,15 +51,29 @@ export class RedisQueue implements IQueue {
 
 	async getPrevious(): Promise<Track[]> {
 		const raw = await this.redis.lrange(this.previousKey, 0, -1);
+
 		return raw.map(this.deserialize);
 	}
+
 	public async addPrevious(track: Track | Track[]): Promise<void> {
 		const tracks = Array.isArray(track) ? track : [track];
+
 		if (!tracks.length) return;
+
 		const serialized = tracks.map(this.serialize);
-		if (!serialized.length) return; // avoid lpush with no values
+
+		if (!serialized.length) return;
 
 		await this.redis.lpush(this.previousKey, ...serialized.reverse());
+	}
+
+	public async setPrevious(track: Track | Track[]): Promise<void> {
+		const tracks = Array.isArray(track) ? track : [track];
+
+		if (!tracks.length) return;
+
+		await this.redis.del(this.previousKey);
+		await this.redis.rpush(this.previousKey, ...tracks.map(this.serialize));
 	}
 
 	public async clearPrevious(): Promise<void> {

@@ -52,6 +52,10 @@ export class Queue extends Array<Track> implements IQueue {
 		}
 	}
 
+	public async setPrevious(tracks: Track[]): Promise<void> {
+		this.previous = [...tracks];
+	}
+
 	public async clearPrevious(): Promise<void> {
 		this.previous = [];
 	}

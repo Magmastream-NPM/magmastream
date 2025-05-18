@@ -1110,6 +1110,7 @@ export interface IQueue {
 
 	getPrevious(): Promise<Track[]>;
 	addPrevious(track: Track | Track[]): Promise<void>;
+	setPrevious(track: Track | Track[]): Promise<void>;
 	clearPrevious(): Promise<void>;
 
 	size(): Promise<number>;

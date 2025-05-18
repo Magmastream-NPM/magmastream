@@ -615,16 +615,13 @@ export class Node {
 		const current = await player.queue.getCurrent();
 
 		if (!skipFlag && (previous.length === 0 || (previous[0] && previous[0].track !== current?.track))) {
-			// Store the current track in the previous tracks queue
-			await player.queue.addPrevious(await player.queue.getCurrent());
+			await player.queue.addPrevious(current);
 
-			// Limit the previous tracks queue to maxPreviousTracks
-			const previous = await player.queue.getPrevious();
+			let previous = await player.queue.getPrevious();
 
 			if (previous.length > this.manager.options.maxPreviousTracks) {
-				previous.shift();
-				await player.queue.clearPrevious();
-				await player.queue.addPrevious(previous);
+				previous = previous.slice(0, this.manager.options.maxPreviousTracks); // drop oldest
+				await player.queue.setPrevious(previous);
 			}
 		}
 
