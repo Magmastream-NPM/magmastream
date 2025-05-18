@@ -41,7 +41,7 @@ export class Queue extends Array<Track> implements IQueue {
 	}
 
 	async getPrevious(): Promise<Track[]> {
-		return this.previous;
+		return [...this.previous];
 	}
 
 	public async addPrevious(track: Track | Track[]): Promise<void> {

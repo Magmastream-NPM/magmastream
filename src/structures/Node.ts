@@ -616,12 +616,11 @@ export class Node {
 
 		if (!skipFlag && (previous.length === 0 || (previous[0] && previous[0].track !== current?.track))) {
 			await player.queue.addPrevious(current);
+			const updated = await player.queue.getPrevious();
 
-			let previous = await player.queue.getPrevious();
-
-			if (previous.length > this.manager.options.maxPreviousTracks) {
-				previous = previous.slice(0, this.manager.options.maxPreviousTracks); // drop oldest
-				await player.queue.setPrevious(previous);
+			if (updated.length > this.manager.options.maxPreviousTracks) {
+				const trimmed = updated.slice(0, this.manager.options.maxPreviousTracks);
+				await player.queue.setPrevious(trimmed);
 			}
 		}
 
