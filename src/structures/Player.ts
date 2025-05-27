@@ -52,6 +52,7 @@ export class Player {
 
 	private static _manager: Manager;
 	private readonly data: Record<string, unknown> = {};
+	private volumeFadeInProgress: boolean = false;
 	private dynamicLoopInterval: NodeJS.Timeout | null = null;
 	public dynamicRepeatIntervalMs: number | null = null;
 
@@ -460,32 +461,75 @@ export class Player {
 	/**
 	 * Sets the volume of the player.
 	 * @param {number} volume - The new volume. Must be between 0 and 1000.
+	 * @param {GradualOptions} options - The options to use for the gradual change.
 	 * @returns {Promise<Player>} - The updated player.
 	 * @throws {TypeError} If the volume is not a number.
 	 * @throws {RangeError} If the volume is not between 0 and 1000.
 	 * @emits {PlayerStateUpdate} - Emitted when the volume is changed.
 	 * @example
 	 * player.setVolume(50);
+	 * player.setVolume(50, { gradual: true, interval: 50, step: 5 });
 	 */
-	public async setVolume(volume: number): Promise<this> {
+	public async setVolume(volume: number, options?: GradualOptions): Promise<this> {
 		if (isNaN(volume)) throw new TypeError("Volume must be a number.");
-
 		if (volume < 0 || volume > 1000) throw new RangeError("Volume must be between 0 and 1000.");
 
-		const oldPlayer = this ? { ...this } : null;
-		await this.node.rest.updatePlayer({
-			guildId: this.options.guildId,
-			data: {
-				volume,
-			},
-		});
+		const oldVolume = this.volume;
 
-		this.volume = volume;
+		if (options?.gradual) {
+			if (this.volumeFadeInProgress) {
+				throw new Error("A volume fade is already in progress.");
+			}
 
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
-			changeType: PlayerStateEventTypes.VolumeChange,
-			details: { previousVolume: oldPlayer.volume || null, currentVolume: this.volume },
-		});
+			this.volumeFadeInProgress = true;
+			const interval = options.interval ?? 100;
+			const step = options.step ?? 5;
+
+			const direction = volume > this.volume ? 1 : -1;
+			let currentVolume = this.volume;
+
+			while (currentVolume !== volume) {
+				currentVolume = direction > 0 ? Math.min(currentVolume + step, volume) : Math.max(currentVolume - step, volume);
+
+				await this.node.rest.updatePlayer({
+					guildId: this.options.guildId,
+					data: { volume: currentVolume },
+				});
+
+				this.volume = currentVolume;
+
+				this.manager.emit(ManagerEventTypes.PlayerStateUpdate, {
+					changeType: PlayerStateEventTypes.VolumeChange,
+					details: {
+						previousVolume: oldVolume,
+						currentVolume: this.volume,
+						isGradual: true,
+					},
+				});
+
+				if (currentVolume !== volume) {
+					await this.sleep(interval);
+				}
+			}
+
+			this.volumeFadeInProgress = false;
+		} else {
+			await this.node.rest.updatePlayer({
+				guildId: this.options.guildId,
+				data: { volume },
+			});
+
+			this.volume = volume;
+
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, {
+				changeType: PlayerStateEventTypes.VolumeChange,
+				details: {
+					previousVolume: oldVolume,
+					currentVolume: this.volume,
+					isGradual: false,
+				},
+			});
+		}
 
 		return this;
 	}
@@ -1038,6 +1082,15 @@ export class Player {
 
 		return result;
 	}
+
+	/**
+	 * Sleeps for a specified amount of time.
+	 * @param ms The amount of time to sleep in milliseconds.
+	 * @returns A promise that resolves after the specified amount of time.
+	 */
+	private sleep(ms: number): Promise<void> {
+		return new Promise((resolve) => setTimeout(resolve, ms));
+	}
 }
 
 export interface PlayerOptions {
@@ -1055,6 +1108,15 @@ export interface PlayerOptions {
 	selfMute?: boolean;
 	/** If the player should deaf itself. */
 	selfDeafen?: boolean;
+}
+
+export interface GradualOptions {
+	/** If the change should be gradual. */
+	gradual?: boolean;
+	/** The duration of the gradual change. */
+	interval?: number;
+	/** The step of the gradual change. */
+	step?: number;
 }
 
 /** If track partials are set some of these will be `undefined` as they were removed. */
