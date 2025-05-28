@@ -248,11 +248,6 @@ export class Player {
 	public async destroy(disconnect: boolean = true): Promise<boolean> {
 		const oldPlayer = this ? { ...this } : null;
 
-		if (this.state === StateTypes.Destroying || this.state === StateTypes.Disconnected) {
-			console.debug(`[Player#destroy] Already destroying/destroyed for ${this.guildId}`);
-			return false;
-		}
-
 		this.state = StateTypes.Destroying;
 
 		if (disconnect) {

@@ -292,13 +292,13 @@ export class Manager extends EventEmitter {
 	 * @returns A promise that resolves when the player has been destroyed.
 	 */
 	public async destroy(guildId: string): Promise<void> {
-		// Emit debug message for player destruction
 		this.emit(ManagerEventTypes.Debug, `[MANAGER] Destroying player: ${guildId}`);
 
-		// Remove the player from the manager's collection
-		this.players.delete(guildId);
+		const player = this.getPlayer(guildId);
 
-		// Clean up any inactive players
+		if (!player) return;
+
+		await player.destroy();
 		await this.cleanupInactivePlayers();
 	}
 
@@ -367,14 +367,6 @@ export class Manager extends EventEmitter {
 		}
 
 		if (update.user_id !== this.options.clientId) return;
-
-		const missingSessionButHasEvent = !player.voiceState.sessionId && player.voiceState.event;
-		if (missingSessionButHasEvent) {
-			if (player.state !== StateTypes.Destroying && player.state !== StateTypes.Disconnected) {
-				await player.destroy();
-			}
-			return;
-		}
 
 		return await this.handleVoiceStateUpdate(player, update);
 	}
