@@ -921,11 +921,16 @@ export class Player {
 
 		try {
 			const playerPosition = this.position;
-			const {
-				sessionId,
-				event: { token, endpoint },
-			} = this.voiceState;
 			const currentTrack = (await this.queue.getCurrent()) ? await this.queue.getCurrent() : null;
+
+			// Safely get voice state properties with null checks
+			const sessionId = this.voiceState?.sessionId;
+			const token = this.voiceState?.event?.token;
+			const endpoint = this.voiceState?.event?.endpoint;
+
+			if (!sessionId || !token || !endpoint) {
+				throw new Error(`Voice state is not properly initialized for player ${this.guildId}. The bot might not be connected to a voice channel.`);
+			}
 
 			await this.node.rest.destroyPlayer(this.guildId).catch(() => {});
 
