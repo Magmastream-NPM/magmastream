@@ -633,6 +633,8 @@ export class Manager extends EventEmitter {
 											filterActions[filter](true);
 										}
 									}
+
+									this.emit(ManagerEventTypes.PlayerRestored, player, node);
 									await this.sleep(1000);
 								}
 							} catch (error) {
@@ -818,6 +820,7 @@ export class Manager extends EventEmitter {
 
 									this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleted player state from Redis: ${key}`);
 
+									this.emit(ManagerEventTypes.PlayerRestored, player, node);
 									await this.sleep(1000);
 								}
 							} catch (error) {
@@ -835,6 +838,7 @@ export class Manager extends EventEmitter {
 		}
 
 		this.emit(ManagerEventTypes.Debug, "[MANAGER] Finished loading saved players.");
+		this.emit(ManagerEventTypes.RestoreComplete, node);
 	}
 
 	/**
@@ -1522,54 +1526,59 @@ export interface PlaylistData {
 }
 
 export enum ManagerEventTypes {
+	ChapterStarted = "chapterStarted",
+	ChaptersLoaded = "chaptersLoaded",
 	Debug = "debug",
+	NodeConnect = "nodeConnect",
 	NodeCreate = "nodeCreate",
 	NodeDestroy = "nodeDestroy",
-	NodeConnect = "nodeConnect",
-	NodeReconnect = "nodeReconnect",
 	NodeDisconnect = "nodeDisconnect",
 	NodeError = "nodeError",
 	NodeRaw = "nodeRaw",
+	NodeReconnect = "nodeReconnect",
 	PlayerCreate = "playerCreate",
 	PlayerDestroy = "playerDestroy",
-	PlayerStateUpdate = "playerStateUpdate",
-	PlayerMove = "playerMove",
 	PlayerDisconnect = "playerDisconnect",
+	PlayerMove = "playerMove",
+	PlayerRestored = "playerRestored",
+	PlayerStateUpdate = "playerStateUpdate",
 	QueueEnd = "queueEnd",
-	SocketClosed = "socketClosed",
-	TrackStart = "trackStart",
-	TrackEnd = "trackEnd",
-	TrackStuck = "trackStuck",
-	TrackError = "trackError",
-	SegmentsLoaded = "segmentsLoaded",
+	RestoreComplete = "restoreComplete",
 	SegmentSkipped = "segmentSkipped",
-	ChapterStarted = "chapterStarted",
-	ChaptersLoaded = "chaptersLoaded",
+	SegmentsLoaded = "segmentsLoaded",
+	SocketClosed = "socketClosed",
+	TrackEnd = "trackEnd",
+	TrackError = "trackError",
+	TrackStart = "trackStart",
+	TrackStuck = "trackStuck",
 }
+
 export interface ManagerEvents {
+	[ManagerEventTypes.ChapterStarted]: [player: Player, track: Track, payload: SponsorBlockChapterStarted];
+	[ManagerEventTypes.ChaptersLoaded]: [player: Player, track: Track, payload: SponsorBlockChaptersLoaded];
 	[ManagerEventTypes.Debug]: [info: string];
+	[ManagerEventTypes.NodeConnect]: [node: Node];
 	[ManagerEventTypes.NodeCreate]: [node: Node];
 	[ManagerEventTypes.NodeDestroy]: [node: Node];
-	[ManagerEventTypes.NodeConnect]: [node: Node];
-	[ManagerEventTypes.NodeReconnect]: [node: Node];
 	[ManagerEventTypes.NodeDisconnect]: [node: Node, reason: { code?: number; reason?: string }];
 	[ManagerEventTypes.NodeError]: [node: Node, error: Error];
 	[ManagerEventTypes.NodeRaw]: [payload: unknown];
+	[ManagerEventTypes.NodeReconnect]: [node: Node];
 	[ManagerEventTypes.PlayerCreate]: [player: Player];
 	[ManagerEventTypes.PlayerDestroy]: [player: Player];
-	[ManagerEventTypes.PlayerStateUpdate]: [oldPlayer: Player, newPlayer: Player, changeType: PlayerStateUpdateEvent];
-	[ManagerEventTypes.PlayerMove]: [player: Player, initChannel: string, newChannel: string];
 	[ManagerEventTypes.PlayerDisconnect]: [player: Player, oldChannel: string];
+	[ManagerEventTypes.PlayerMove]: [player: Player, initChannel: string, newChannel: string];
+	[ManagerEventTypes.PlayerRestored]: [player: Player, node: Node];
+	[ManagerEventTypes.PlayerStateUpdate]: [oldPlayer: Player, newPlayer: Player, changeType: PlayerStateUpdateEvent];
 	[ManagerEventTypes.QueueEnd]: [player: Player, track: Track, payload: TrackEndEvent];
-	[ManagerEventTypes.SocketClosed]: [player: Player, payload: WebSocketClosedEvent];
-	[ManagerEventTypes.TrackStart]: [player: Player, track: Track, payload: TrackStartEvent];
-	[ManagerEventTypes.TrackEnd]: [player: Player, track: Track, payload: TrackEndEvent];
-	[ManagerEventTypes.TrackStuck]: [player: Player, track: Track, payload: TrackStuckEvent];
-	[ManagerEventTypes.TrackError]: [player: Player, track: Track, payload: TrackExceptionEvent];
-	[ManagerEventTypes.SegmentsLoaded]: [player: Player, track: Track, payload: SponsorBlockSegmentsLoaded];
+	[ManagerEventTypes.RestoreComplete]: [node: Node];
 	[ManagerEventTypes.SegmentSkipped]: [player: Player, track: Track, payload: SponsorBlockSegmentSkipped];
-	[ManagerEventTypes.ChapterStarted]: [player: Player, track: Track, payload: SponsorBlockChapterStarted];
-	[ManagerEventTypes.ChaptersLoaded]: [player: Player, track: Track, payload: SponsorBlockChaptersLoaded];
+	[ManagerEventTypes.SegmentsLoaded]: [player: Player, track: Track, payload: SponsorBlockSegmentsLoaded];
+	[ManagerEventTypes.SocketClosed]: [player: Player, payload: WebSocketClosedEvent];
+	[ManagerEventTypes.TrackEnd]: [player: Player, track: Track, payload: TrackEndEvent];
+	[ManagerEventTypes.TrackError]: [player: Player, track: Track, payload: TrackExceptionEvent];
+	[ManagerEventTypes.TrackStart]: [player: Player, track: Track, payload: TrackStartEvent];
+	[ManagerEventTypes.TrackStuck]: [player: Player, track: Track, payload: TrackStuckEvent];
 }
 
 export interface PlayerStore {
