@@ -109,7 +109,7 @@ Want to showcase your bot? Feel free to create a pull request and add it to our 
 
 <div align="center">
 
-<!-- ALL-CONTRIBUTORS-LIST:START -->
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section!! -->
 <table>
   <tbody>
     <tr>
@@ -146,6 +146,8 @@ Want to showcase your bot? Feel free to create a pull request and add it to our 
 </table>
 
 <br />
+
+<!-- ALL-CONTRIBUTORS-LIST:END -->
 
 <img src="https://contributers.code-fy.tech/Magmastream-NPM?yousuck" alt="Contributors" />
 
