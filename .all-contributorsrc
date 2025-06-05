@@ -35,6 +35,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "Yanishamburger",
+      "name": "Yanis_Hamburger",
+      "avatar_url": "https://avatars.githubusercontent.com/u/121449519?v=4",
+      "profile": "https://github.com/Yanishamburger",
+      "contributions": [
+        "bug"
+      ]
     }
   ]
 }
