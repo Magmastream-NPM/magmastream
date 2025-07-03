@@ -1,6 +1,7 @@
 import { Node } from "./Node";
 import axios, { AxiosRequestConfig } from "axios";
-import { Manager, ManagerEventTypes } from "./Manager";
+import { Manager } from "./Manager";
+import { ManagerEventTypes } from "./Enums";
 
 /** Handles the requests sent to the Lavalink REST API. */
 export class Rest {

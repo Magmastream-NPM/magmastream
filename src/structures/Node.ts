@@ -1,38 +1,31 @@
-import {
-	AutoPlayUtils,
-	PlayerEvent,
-	PlayerEvents,
-	SponsorBlockChaptersLoaded,
-	SponsorBlockChapterStarted,
-	SponsorBlockSegmentSkipped,
-	SponsorBlockSegmentsLoaded,
-	Structure,
-	TrackEndEvent,
-	TrackEndReasonTypes,
-	TrackExceptionEvent,
-	TrackStartEvent,
-	TrackStuckEvent,
-	WebSocketClosedEvent,
-} from "./Utils";
-import { Manager, ManagerEventTypes, PlayerStateEventTypes } from "./Manager";
-import { Player, Track } from "./Player";
+import { AutoPlayUtils } from "./Utils";
+import { Manager } from "./Manager";
+import { Player } from "./Player";
 import { Rest } from "./Rest";
 import nodeCheck from "../utils/nodeCheck";
 import WebSocket from "ws";
 import fs from "fs";
 import path from "path";
 import { User, ClientUser } from "discord.js";
-
-export enum SponsorBlockSegment {
-	Sponsor = "sponsor",
-	SelfPromo = "selfpromo",
-	Interaction = "interaction",
-	Intro = "intro",
-	Outro = "outro",
-	Preview = "preview",
-	MusicOfftopic = "music_offtopic",
-	Filler = "filler",
-}
+import {
+	LavalinkInfo,
+	Lyrics,
+	NodeOptions,
+	NodeStats,
+	PlayerEvent,
+	PlayerEvents,
+	SponsorBlockChaptersLoaded,
+	SponsorBlockChapterStarted,
+	SponsorBlockSegmentSkipped,
+	SponsorBlockSegmentsLoaded,
+	Track,
+	TrackEndEvent,
+	TrackExceptionEvent,
+	TrackStartEvent,
+	TrackStuckEvent,
+	WebSocketClosedEvent,
+} from "./Types";
+import { ManagerEventTypes, PlayerStateEventTypes, SponsorBlockSegment, TrackEndReasonTypes } from "./Enums";
 
 const validSponsorBlocks = Object.values(SponsorBlockSegment).map((v) => v.toLowerCase());
 
@@ -50,7 +43,7 @@ export class Node {
 	/** The stats for the node. */
 	public stats: NodeStats;
 	/** The manager for the node */
-	public manager: Manager;
+	// public manager: Manager;
 	/** The node's session ID. */
 	public sessionId: string | null;
 	/** The REST instance. */
@@ -58,7 +51,6 @@ export class Node {
 	/** Actual Lavalink information of the node. */
 	public info: LavalinkInfo | null = null;
 
-	private static _manager: Manager;
 	private reconnectTimeout?: NodeJS.Timeout;
 	private reconnectAttempts = 1;
 
@@ -66,9 +58,8 @@ export class Node {
 	 * Creates an instance of Node.
 	 * @param options
 	 */
-	constructor(public options: NodeOptions) {
-		if (!this.manager) this.manager = Structure.get("Node")._manager;
-		if (!this.manager) throw new RangeError("Manager has not been initiated.");
+	constructor(public manager: Manager, public options: NodeOptions) {
+		if (!this.manager) throw new RangeError("Manager instance is required.");
 
 		if (this.manager.nodes.has(options.identifier || options.host)) {
 			return this.manager.nodes.get(options.identifier || options.host);
@@ -133,11 +124,6 @@ export class Node {
 	/** Returns the address for this node. */
 	public get address(): string {
 		return `${this.options.host}:${this.options.port}`;
-	}
-
-	/** @hidden */
-	public static init(manager: Manager): void {
-		this._manager = manager;
 	}
 
 	/**
@@ -275,17 +261,17 @@ export class Node {
 			identifier: this.options.identifier,
 			address: this.address,
 			sessionId: this.sessionId,
-			playerCount: (await this.manager.players.filter((p) => p.node == this)).size,
+			playerCount: this.manager.players.filter((p) => p.node == this).size,
 		};
 
 		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Destroying node: ${JSON.stringify(debugInfo)}`);
 
 		// Automove all players connected to that node
-		const players = await this.manager.players.filter((p) => p.node == this);
+		const players = this.manager.players.filter((p) => p.node == this);
 		if (players.size) {
-			players.forEach(async (player) => {
+			for (const player of players.values()) {
 				await player.autoMoveNode();
-			});
+			}
 		}
 
 		// Close the WebSocket connection
@@ -301,8 +287,8 @@ export class Node {
 		// Emit a "nodeDestroy" event with the node as the argument
 		this.manager.emit(ManagerEventTypes.NodeDestroy, this);
 
-		// Destroy the node from the manager
-		await this.manager.destroyNode(this.options.identifier);
+		// Remove the node from the manager
+		this.manager.nodes.delete(this.options.identifier);
 	}
 
 	/**
@@ -1018,99 +1004,4 @@ export class Node {
 			this.manager.emit(ManagerEventTypes.Debug, `[NODE] Created README file at: ${readmeFilePath}`);
 		}
 	}
-}
-
-export interface NodeOptions {
-	/** The host for the node. */
-	host: string;
-	/** The port for the node. */
-	port?: number;
-	/** The password for the node. */
-	password?: string;
-	/** Whether the host uses SSL. */
-	useSSL?: boolean;
-	/** The identifier for the node. */
-	identifier?: string;
-	/** The maxRetryAttempts for the node. */
-	maxRetryAttempts?: number;
-	/** The retryDelayMs for the node. */
-	retryDelayMs?: number;
-	/** Whether to resume the previous session. */
-	enableSessionResumeOption?: boolean;
-	/** The time the lavalink server will wait before it removes the player. */
-	sessionTimeoutMs?: number;
-	/** The timeout used for api calls. */
-	apiRequestTimeoutMs?: number;
-	/** Priority of the node. */
-	nodePriority?: number;
-}
-
-export interface NodeStats {
-	/** The amount of players on the node. */
-	players: number;
-	/** The amount of playing players on the node. */
-	playingPlayers: number;
-	/** The uptime for the node. */
-	uptime: number;
-	/** The memory stats for the node. */
-	memory: MemoryStats;
-	/** The cpu stats for the node. */
-	cpu: CPUStats;
-	/** The frame stats for the node. */
-	frameStats: FrameStats;
-}
-
-export interface MemoryStats {
-	/** The free memory of the allocated amount. */
-	free: number;
-	/** The used memory of the allocated amount. */
-	used: number;
-	/** The total allocated memory. */
-	allocated: number;
-	/** The reservable memory. */
-	reservable: number;
-}
-
-export interface CPUStats {
-	/** The core amount the host machine has. */
-	cores: number;
-	/** The system load. */
-	systemLoad: number;
-	/** The lavalink load. */
-	lavalinkLoad: number;
-}
-
-export interface FrameStats {
-	/** The amount of sent frames. */
-	sent?: number;
-	/** The amount of nulled frames. */
-	nulled?: number;
-	/** The amount of deficit frames. */
-	deficit?: number;
-}
-
-export interface LavalinkInfo {
-	version: { semver: string; major: number; minor: number; patch: number; preRelease: string };
-	buildTime: number;
-	git: { branch: string; commit: string; commitTime: number };
-	jvm: string;
-	lavaplayer: string;
-	sourceManagers: string[];
-	filters: string[];
-	plugins: { name: string; version: string }[];
-}
-
-export interface LyricsLine {
-	timestamp: number;
-	duration: number;
-	line: string;
-	plugin: object;
-}
-
-export interface Lyrics {
-	source: string;
-	provider: string;
-	text?: string;
-	lines: LyricsLine[];
-	plugin: object[];
 }

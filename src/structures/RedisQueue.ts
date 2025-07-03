@@ -1,8 +1,8 @@
-import { Track } from "./Player";
-import { Manager, ManagerEventTypes, PlayerStateEventTypes } from "./Manager";
+import { Manager } from "./Manager";
 import { ClientUser, User } from "discord.js";
 import { Redis } from "ioredis";
-import { IQueue } from "./Utils";
+import { ManagerEventTypes, PlayerStateEventTypes } from "./Enums";
+import { IQueue, Track } from "./Types";
 
 export class RedisQueue implements IQueue {
 	private redis: Redis;

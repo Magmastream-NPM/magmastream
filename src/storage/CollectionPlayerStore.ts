@@ -2,7 +2,7 @@
 
 import { Collection } from "@discordjs/collection";
 import { Player } from "../structures/Player";
-import { PlayerStore } from "../structures/Manager";
+import { PlayerStore } from "../structures/Types";
 
 export class CollectionPlayerStore implements PlayerStore {
 	private store: Collection<string, Player> = new Collection();

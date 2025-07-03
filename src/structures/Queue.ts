@@ -1,7 +1,7 @@
-import { Track } from "./Player";
-import { Manager, ManagerEventTypes, PlayerStateEventTypes } from "./Manager"; // Import Manager to access emit method
+import { Manager } from "./Manager"; // Import Manager to access emit method
 import { ClientUser, User } from "discord.js";
-import { IQueue } from "./Utils";
+import { ManagerEventTypes, PlayerStateEventTypes } from "./Enums";
+import { IQueue, Track } from "./Types";
 
 /**
  * The player's queue, the `current` property is the currently playing track, think of the rest as the up-coming tracks.

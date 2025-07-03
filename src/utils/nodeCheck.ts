@@ -1,4 +1,4 @@
-import { NodeOptions } from "../structures/Node";
+import { NodeOptions } from "../structures/Types";
 
 /**
  * Validates the provided NodeOptions object.

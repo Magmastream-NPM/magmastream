@@ -2,7 +2,8 @@
 
 import Redis from "ioredis";
 import { Player } from "../structures/Player";
-import { Manager, PlayerStore } from "../structures/Manager";
+import { Manager } from "../structures/Manager";
+import { PlayerStore } from "../structures/Types";
 
 export class RedisPlayerStore implements PlayerStore {
 	constructor(private readonly redis: Redis, private readonly manager: Manager, private readonly prefix: string = "magmastream:") {}

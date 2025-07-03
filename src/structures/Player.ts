@@ -1,12 +1,15 @@
 import { Filters } from "./Filters";
-import { Manager, ManagerEventTypes, PlayerStateEventTypes, SearchQuery, SearchResult, StateStorageType } from "./Manager";
-import { Lyrics, Node, SponsorBlockSegment } from "./Node";
+import { Manager } from "./Manager";
+import { Node } from "./Node";
 import { Queue } from "./Queue";
-import { AutoPlayUtils, IQueue, Sizes, StateTypes, Structure, TrackSourceName, TrackUtils, VoiceState } from "./Utils";
+import { AutoPlayUtils, Structure, TrackUtils } from "./Utils";
 import * as _ from "lodash";
 import playerCheck from "../utils/playerCheck";
 import { ClientUser, Message, User } from "discord.js";
 import { RedisQueue } from "./RedisQueue";
+import { IQueue, Lyrics, PlayerOptions, PlayOptions, SearchQuery, SearchResult, Track, VoiceState } from "./Types";
+// import { IQueue, Lyrics, PlayerOptions, PlayerUpdateVoiceState, PlayOptions, SearchQuery, SearchResult, Track, VoiceState } from "./Types";
+import { ManagerEventTypes, PlayerStateEventTypes, SponsorBlockSegment, StateStorageType, StateTypes } from "./Enums";
 
 export class Player {
 	/** The Queue for the Player. */
@@ -50,11 +53,10 @@ export class Player {
 	/** The number of times to try autoplay before emitting queueEnd. */
 	public autoplayTries: number = 3;
 
-	private static _manager: Manager;
 	private readonly data: Record<string, unknown> = {};
-	private volumeFadeInProgress: boolean = false;
 	private dynamicLoopInterval: NodeJS.Timeout | null = null;
 	public dynamicRepeatIntervalMs: number | null = null;
+	private static _manager: Manager;
 
 	/**
 	 * Creates a new player, returns one if it already exists.
@@ -112,6 +114,16 @@ export class Player {
 	}
 
 	/**
+	 * Initializes the static properties of the Player class.
+	 * @hidden
+	 * @param manager The Manager to use.
+	 */
+	public static init(manager: Manager): void {
+		// Set the Manager to use.
+		this._manager = manager;
+	}
+
+	/**
 	 * Set custom data.
 	 * @param key - The key to set the data for.
 	 * @param value - The value to set the data to.
@@ -133,16 +145,6 @@ export class Player {
 	}
 
 	/**
-	 * Initializes the static properties of the Player class.
-	 * @hidden
-	 * @param manager The Manager to use.
-	 */
-	public static init(manager: Manager): void {
-		// Set the Manager to use.
-		this._manager = manager;
-	}
-
-	/**
 	 * Same as Manager#search() but a shortcut on the player itself.
 	 * @param query
 	 * @param requester
@@ -156,7 +158,7 @@ export class Player {
 	 * @throws {RangeError} If no voice channel has been set.
 	 * @returns {void}
 	 */
-	public connect(): void {
+	public async connect(): Promise<void> {
 		// Check if the voice channel has been set.
 		if (!this.voiceChannelId) {
 			throw new RangeError("No voice channel has been set. You must use the `setVoiceChannelId()` method to set the voice channel before connecting.");
@@ -168,8 +170,7 @@ export class Player {
 		// Clone the current player state for comparison.
 		const oldPlayer = this ? { ...this } : null;
 
-		// Send the voice state update to the gateway.
-		this.manager.options.send(this.guildId, {
+		this.manager.sendPacket({
 			op: 4,
 			d: {
 				guild_id: this.guildId,
@@ -195,8 +196,7 @@ export class Player {
 
 	/**
 	 * Disconnects the player from the voice channel.
-	 * @throws {TypeError} If the player is not connected.
-	 * @returns {this} - The current instance of the Player class for method chaining.
+	 * @returns {this} The player instance.
 	 */
 	public async disconnect(): Promise<this> {
 		// Set the player state to disconnecting.
@@ -209,13 +209,13 @@ export class Player {
 		await this.pause(true);
 
 		// Send the voice state update to the gateway.
-		this.manager.options.send(this.guildId, {
+		this.manager.sendPacket({
 			op: 4,
 			d: {
 				guild_id: this.guildId,
 				channel_id: null,
-				self_mute: false,
-				self_deaf: false,
+				self_mute: null,
+				self_deaf: null,
 			},
 		});
 
@@ -456,7 +456,6 @@ export class Player {
 	/**
 	 * Sets the volume of the player.
 	 * @param {number} volume - The new volume. Must be between 0 and 1000.
-	 * @param {GradualOptions} options - The options to use for the gradual change.
 	 * @returns {Promise<Player>} - The updated player.
 	 * @throws {TypeError} If the volume is not a number.
 	 * @throws {RangeError} If the volume is not between 0 and 1000.
@@ -465,66 +464,27 @@ export class Player {
 	 * player.setVolume(50);
 	 * player.setVolume(50, { gradual: true, interval: 50, step: 5 });
 	 */
-	public async setVolume(volume: number, options?: GradualOptions): Promise<this> {
+	public async setVolume(volume: number): Promise<this> {
 		if (isNaN(volume)) throw new TypeError("Volume must be a number.");
 		if (volume < 0 || volume > 1000) throw new RangeError("Volume must be between 0 and 1000.");
 
 		const oldVolume = this.volume;
 
-		if (options?.gradual) {
-			if (this.volumeFadeInProgress) {
-				throw new Error("A volume fade is already in progress.");
-			}
+		await this.node.rest.updatePlayer({
+			guildId: this.options.guildId,
+			data: { volume },
+		});
 
-			this.volumeFadeInProgress = true;
-			const interval = options.interval ?? 100;
-			const step = options.step ?? 5;
+		this.volume = volume;
 
-			const direction = volume > this.volume ? 1 : -1;
-			let currentVolume = this.volume;
-
-			while (currentVolume !== volume) {
-				currentVolume = direction > 0 ? Math.min(currentVolume + step, volume) : Math.max(currentVolume - step, volume);
-
-				await this.node.rest.updatePlayer({
-					guildId: this.options.guildId,
-					data: { volume: currentVolume },
-				});
-
-				this.volume = currentVolume;
-
-				this.manager.emit(ManagerEventTypes.PlayerStateUpdate, {
-					changeType: PlayerStateEventTypes.VolumeChange,
-					details: {
-						previousVolume: oldVolume,
-						currentVolume: this.volume,
-						isGradual: true,
-					},
-				});
-
-				if (currentVolume !== volume) {
-					await this.sleep(interval);
-				}
-			}
-
-			this.volumeFadeInProgress = false;
-		} else {
-			await this.node.rest.updatePlayer({
-				guildId: this.options.guildId,
-				data: { volume },
-			});
-
-			this.volume = volume;
-
-			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, {
-				changeType: PlayerStateEventTypes.VolumeChange,
-				details: {
-					previousVolume: oldVolume,
-					currentVolume: this.volume,
-					isGradual: false,
-				},
-			});
-		}
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, {
+			changeType: PlayerStateEventTypes.VolumeChange,
+			details: {
+				previousVolume: oldVolume,
+				currentVolume: this.volume,
+				isGradual: false,
+			},
+		});
 
 		return this;
 	}
@@ -915,6 +875,10 @@ export class Player {
 
 		if (!node) throw new Error(`Node with identifier ${identifier} not found`);
 
+		if (this.state !== StateTypes.Connected) {
+			return this;
+		}
+
 		if (node.options.identifier === this.node.options.identifier) {
 			return this;
 		}
@@ -1091,91 +1055,4 @@ export class Player {
 	private sleep(ms: number): Promise<void> {
 		return new Promise((resolve) => setTimeout(resolve, ms));
 	}
-}
-
-export interface PlayerOptions {
-	/** The guild ID the Player belongs to. */
-	guildId: string;
-	/** The text channel the Player belongs to. */
-	textChannelId: string;
-	/** The voice channel the Player belongs to. */
-	voiceChannelId?: string;
-	/** The node the Player uses. */
-	node?: string;
-	/** The initial volume the Player will use. */
-	volume?: number;
-	/** If the player should mute itself. */
-	selfMute?: boolean;
-	/** If the player should deaf itself. */
-	selfDeafen?: boolean;
-}
-
-export interface GradualOptions {
-	/** If the change should be gradual. */
-	gradual?: boolean;
-	/** The duration of the gradual change. */
-	interval?: number;
-	/** The step of the gradual change. */
-	step?: number;
-}
-
-/** If track partials are set some of these will be `undefined` as they were removed. */
-export interface Track {
-	/** The base64 encoded track. */
-	readonly track: string;
-	/** The artwork url of the track. */
-	readonly artworkUrl: string;
-	/** The track source name. */
-	readonly sourceName: TrackSourceName;
-	/** The title of the track. */
-	title: string;
-	/** The identifier of the track. */
-	readonly identifier: string;
-	/** The author of the track. */
-	author: string;
-	/** The duration of the track. */
-	readonly duration: number;
-	/** The ISRC of the track. */
-	readonly isrc: string;
-	/** If the track is seekable. */
-	readonly isSeekable: boolean;
-	/** If the track is a stream.. */
-	readonly isStream: boolean;
-	/** The uri of the track. */
-	readonly uri: string;
-	/** The thumbnail of the track or null if it's a unsupported source. */
-	readonly thumbnail: string | null;
-	/** The user that requested the track. */
-	requester?: User | ClientUser;
-	/** Displays the track thumbnail with optional size or null if it's a unsupported source. */
-	displayThumbnail(size?: Sizes): string;
-	/** Additional track info provided by plugins. */
-	pluginInfo: TrackPluginInfo;
-	/** Add your own data to the track. */
-	customData: Record<string, unknown>;
-}
-
-export interface TrackPluginInfo {
-	albumName?: string;
-	albumUrl?: string;
-	artistArtworkUrl?: string;
-	artistUrl?: string;
-	isPreview?: string;
-	previewUrl?: string;
-}
-
-export interface PlayOptions {
-	/** The position to start the track. */
-	readonly startTime?: number;
-	/** The position to end the track. */
-	readonly endTime?: number;
-	/** Whether to not replace the track if a play payload is sent. */
-	readonly noReplace?: boolean;
-}
-
-export interface EqualizerBand {
-	/** The band number being 0 to 14. */
-	band: number;
-	/** The gain amount being -0.25 to 1.00, 0.25 being double. */
-	gain: number;
 }

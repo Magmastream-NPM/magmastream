@@ -1,4 +1,5 @@
-import { AutoPlayPlatform, ManagerOptions, SearchPlatform, TrackPartial, UseNodeOptions } from "../structures/Manager";
+import { AutoPlayPlatform, SearchPlatform, TrackPartial, UseNodeOptions } from "../structures/Enums";
+import { ManagerOptions } from "../structures/Types";
 
 /**
  * Validates the provided ManagerOptions object.
@@ -65,8 +66,8 @@ export default function managerCheck(options: ManagerOptions) {
 	}
 
 	// Validate send option
-	if (typeof send !== "function") {
-		throw new TypeError('Manager option "send" must be present and a function.');
+	if (typeof send !== "undefined" && typeof send !== "function") {
+		throw new TypeError('Manager option "send" must be a function.');
 	}
 
 	// Validate trackPartial option

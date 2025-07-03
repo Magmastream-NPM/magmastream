@@ -1,4 +1,4 @@
-import { PlayerOptions } from "../structures/Player";
+import { PlayerOptions } from "../structures/Types";
 
 /**
  * Validates the provided PlayerOptions object.

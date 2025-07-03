@@ -1,13 +1,12 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 import { ClientUser, User } from "discord.js";
-import { AutoPlayPlatform, LavalinkResponse, Manager, PlaylistInfoData, PlaylistRawData, SearchPlatform, SearchResult, TrackPartial } from "./Manager";
-import { Node, NodeStats } from "./Node";
-import { Player, Track } from "./Player";
-import { Queue } from "./Queue";
+import { Manager } from "./Manager";
 import axios from "axios";
 import { JSDOM } from "jsdom";
 import crypto from "crypto";
 import cheerio from "cheerio";
+import { AutoPlayPlatform, LoadTypes, SearchPlatform, TrackPartial } from "./Enums";
+import { Extendable, LavalinkResponse, PlaylistInfoData, PlaylistRawData, SearchResult, Track, TrackData, TrackSourceName } from "./Types";
 
 /** @hidden */
 const SIZES = ["0", "1", "2", "3", "default", "mqdefault", "hqdefault", "maxresdefault"];
@@ -339,19 +338,14 @@ export abstract class AutoPlayUtils {
 
 						async function getSpotifyTotpParams() {
 							try {
-								// Step 1: Fetch the secret bytes from Spotify dynamically
 								const secretBuffer = await AutoPlayUtils.fetchSecretArray();
 
-								// Step 2: Transform the secret (XOR)
 								const transformedSecret = AutoPlayUtils.transformSecret(secretBuffer);
 
-								// Step 3: Generate the TOTP string
 								const totp = AutoPlayUtils.generateTotp(transformedSecret);
 
-								// Step 4: Calculate the timestamp aligned with period (like your old counter * 30000)
 								const timestamp = Math.floor(Date.now() / periodMs) * periodMs;
 
-								// Step 5: Compose params object just like your old code
 								const params = {
 									reason: "transport",
 									productType: "embed",
@@ -363,7 +357,7 @@ export abstract class AutoPlayUtils {
 								return params;
 							} catch (error) {
 								console.error("Failed to generate Spotify TOTP params:", error);
-								throw error; // or handle error accordingly
+								throw error;
 							}
 						}
 
@@ -937,277 +931,3 @@ const structures = {
 	Rest: require("./Rest").Rest,
 	Utils: require("./Utils"),
 };
-
-export type Sizes = "0" | "1" | "2" | "3" | "default" | "mqdefault" | "hqdefault" | "maxresdefault";
-
-export enum LoadTypes {
-	Track = "track",
-	Playlist = "playlist",
-	Search = "search",
-	Empty = "empty",
-	Error = "error",
-}
-
-export type LoadType = keyof typeof LoadTypes;
-
-export enum StateTypes {
-	Connected = "CONNECTED",
-	Connecting = "CONNECTING",
-	Disconnected = "DISCONNECTED",
-	Disconnecting = "DISCONNECTING",
-	Destroying = "DESTROYING",
-}
-
-export type State = keyof typeof StateTypes;
-
-export type SponsorBlockSegmentEvents = SponsorBlockSegmentSkipped | SponsorBlockSegmentsLoaded | SponsorBlockChapterStarted | SponsorBlockChaptersLoaded;
-
-export type SponsorBlockSegmentEventType = "SegmentSkipped" | "SegmentsLoaded" | "ChapterStarted" | "ChaptersLoaded";
-
-export type PlayerEvents = TrackStartEvent | TrackEndEvent | TrackStuckEvent | TrackExceptionEvent | WebSocketClosedEvent | SponsorBlockSegmentEvents;
-
-export type PlayerEventType =
-	| "TrackStartEvent"
-	| "TrackEndEvent"
-	| "TrackExceptionEvent"
-	| "TrackStuckEvent"
-	| "WebSocketClosedEvent"
-	| "SegmentSkipped"
-	| "SegmentsLoaded"
-	| "ChaptersLoaded"
-	| "ChapterStarted";
-
-export enum TrackEndReasonTypes {
-	Finished = "finished",
-	LoadFailed = "loadFailed",
-	Stopped = "stopped",
-	Replaced = "replaced",
-	Cleanup = "cleanup",
-}
-export type TrackEndReason = keyof typeof TrackEndReasonTypes;
-
-export enum SeverityTypes {
-	Common = "common",
-	Suspicious = "suspicious",
-	Fault = "fault",
-}
-export type Severity = keyof typeof SeverityTypes;
-
-export interface TrackData {
-	/** The track information. */
-	encoded: string;
-	/** The detailed information of the track. */
-	info: TrackDataInfo;
-	/** Additional track info provided by plugins. */
-	pluginInfo: Record<string, string>;
-}
-
-export interface TrackDataInfo {
-	identifier: string;
-	isSeekable: boolean;
-	author: string;
-	length: number;
-	isrc?: string;
-	isStream: boolean;
-	title: string;
-	uri?: string;
-	artworkUrl?: string;
-	sourceName?: TrackSourceName;
-}
-
-export enum TrackSourceTypes {
-	AppleMusic = "applemusic",
-	Bandcamp = "bandcamp",
-	Deezer = "deezer",
-	Jiosaavn = "jiosaavn",
-	SoundCloud = "soundcloud",
-	Spotify = "spotify",
-	Tidal = "tidal",
-	VKMusic = "vkmusic",
-	YouTube = "youtube",
-}
-
-export type TrackSourceName = keyof typeof TrackSourceTypes;
-
-export interface Extendable {
-	Player: typeof Player;
-	Queue: typeof Queue;
-	Node: typeof Node;
-}
-
-export interface VoiceState {
-	op: "voiceUpdate";
-	guildId: string;
-	event: VoiceServer;
-	sessionId?: string;
-}
-
-export interface VoiceServer {
-	token: string;
-	guild_id: string;
-	endpoint: string;
-}
-
-export interface VoiceState {
-	guild_id: string;
-	user_id: string;
-	session_id: string;
-	channel_id: string;
-}
-
-export interface VoicePacket {
-	t?: "VOICE_SERVER_UPDATE" | "VOICE_STATE_UPDATE";
-	d: VoiceState | VoiceServer;
-}
-
-export interface NodeMessage extends NodeStats {
-	type: PlayerEventType;
-	op: "stats" | "playerUpdate" | "event";
-	guildId: string;
-}
-
-export interface PlayerEvent {
-	op: "event";
-	type: PlayerEventType;
-	guildId: string;
-}
-
-export interface Exception {
-	message: string;
-	severity: SeverityTypes;
-	cause: string;
-}
-
-export interface TrackStartEvent extends PlayerEvent {
-	type: "TrackStartEvent";
-	track: TrackData;
-}
-
-export interface TrackEndEvent extends PlayerEvent {
-	type: "TrackEndEvent";
-	track: TrackData;
-	reason: TrackEndReasonTypes;
-}
-
-export interface TrackExceptionEvent extends PlayerEvent {
-	exception?: Exception;
-	guildId: string;
-	type: "TrackExceptionEvent";
-}
-
-export interface TrackStuckEvent extends PlayerEvent {
-	type: "TrackStuckEvent";
-	thresholdMs: number;
-}
-
-export interface WebSocketClosedEvent extends PlayerEvent {
-	type: "WebSocketClosedEvent";
-	code: number;
-	reason: string;
-	byRemote: boolean;
-}
-
-export interface SponsorBlockSegmentsLoaded extends PlayerEvent {
-	type: "SegmentsLoaded";
-	/* The loaded segments */
-	segments: {
-		/* The category name */
-		category: string;
-		/* In milliseconds */
-		start: number;
-		/* In milliseconds */
-		end: number;
-	}[];
-}
-export interface SponsorBlockSegmentSkipped extends PlayerEvent {
-	type: "SegmentSkipped";
-	/* The skipped segment*/
-	segment: {
-		/* The category name */
-		category: string;
-		/* In milliseconds */
-		start: number;
-		/* In milliseconds */
-		end: number;
-	};
-}
-
-export interface SponsorBlockChapterStarted extends PlayerEvent {
-	type: "ChapterStarted";
-	/** The chapter which started */
-	chapter: {
-		/** The name of the chapter */
-		name: string;
-		/* In milliseconds */
-		start: number;
-		/* In milliseconds */
-		end: number;
-		/* In milliseconds */
-		duration: number;
-	};
-}
-
-export interface SponsorBlockChaptersLoaded extends PlayerEvent {
-	type: "ChaptersLoaded";
-	/** All chapters loaded */
-	chapters: {
-		/** The name of the chapter */
-		name: string;
-		/* In milliseconds */
-		start: number;
-		/* In milliseconds */
-		end: number;
-		/* In milliseconds */
-		duration: number;
-	}[];
-}
-
-export interface PlayerUpdate {
-	op: "playerUpdate";
-	/** The guild id of the player. */
-	guildId: string;
-	state: {
-		/** Unix timestamp in milliseconds. */
-		time: number;
-		/** The position of the track in milliseconds. */
-		position: number;
-		/** Whether Lavalink is connected to the voice gateway. */
-		connected: boolean;
-		/** The ping of the node to the Discord voice server in milliseconds (-1 if not connected). */
-		ping: number;
-	};
-}
-export interface IQueue {
-	getCurrent(): Promise<Track | null>;
-	setCurrent(track: Track | null): Promise<void>;
-
-	getPrevious(): Promise<Track[]>;
-	addPrevious(track: Track | Track[]): Promise<void>;
-	setPrevious(track: Track | Track[]): Promise<void>;
-	/** Get newest track (index 0) */
-	popPrevious(): Promise<Track | null>;
-	clearPrevious(): Promise<void>;
-
-	size(): Promise<number>;
-	totalSize(): Promise<number>;
-	duration(): Promise<number>;
-
-	add(track: Track | Track[], offset?: number): Promise<void>;
-	remove(start?: number, end?: number): Promise<Track[]>;
-	clear(): Promise<void>;
-	dequeue(): Promise<Track | undefined>;
-	enqueueFront(track: Track | Track[]): Promise<void>;
-	getTracks(): Promise<Track[]>;
-	getSlice(start?: number, end?: number): Promise<Track[]>;
-	modifyAt(start: number, deleteCount?: number, ...items: Track[]): Promise<Track[]>;
-
-	shuffle(): Promise<void>;
-	userBlockShuffle(): Promise<void>;
-	roundRobinShuffle(): Promise<void>;
-
-	mapAsync<T>(callback: (track: Track, index: number, array: Track[]) => T): Promise<T[]>;
-	filterAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<Track[]>;
-	findAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<Track | undefined>;
-	someAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<boolean>;
-	everyAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<boolean>;
-}

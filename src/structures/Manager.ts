@@ -1,34 +1,36 @@
-import {
-	AutoPlayUtils,
-	LoadTypes,
-	SponsorBlockChaptersLoaded,
-	SponsorBlockChapterStarted,
-	SponsorBlockSegmentSkipped,
-	SponsorBlockSegmentsLoaded,
-	StateTypes,
-	Structure,
-	TrackData,
-	TrackEndEvent,
-	TrackEndReasonTypes,
-	TrackExceptionEvent,
-	TrackStartEvent,
-	TrackStuckEvent,
-	TrackUtils,
-	VoicePacket,
-	VoiceServer,
-	WebSocketClosedEvent,
-} from "./Utils";
+import { AutoPlayUtils, Structure, TrackUtils } from "./Utils";
 import { Collection } from "@discordjs/collection";
+import { GatewayVoiceStateUpdate } from "discord-api-types/v10";
 import { EventEmitter } from "events";
-import { Node, NodeOptions } from "./Node";
-import { Player, PlayerOptions, Track } from "./Player";
-import { VoiceState, Plugin } from "..";
+import { Node } from "./Node";
+import { Player } from "./Player";
+import { Plugin } from "..";
 import managerCheck from "../utils/managerCheck";
-import { ClientUser, User } from "discord.js";
+import { User } from "discord.js";
 import { blockedWords } from "../config/blockedWords";
 import fs from "fs/promises";
 import path from "path";
 import Redis, { Redis as RedisClient } from "ioredis";
+import {
+	LavalinkResponse,
+	LavaPlayer,
+	ManagerEvents,
+	ManagerInitOptions,
+	ManagerOptions,
+	NodeOptions,
+	PlayerOptions,
+	PlaylistInfoData,
+	PlaylistRawData,
+	SearchQuery,
+	SearchResult,
+	Track,
+	TrackData,
+	TrackEndEvent,
+	VoicePacket,
+	VoiceServer,
+	VoiceState,
+} from "./Types";
+import { LoadTypes, ManagerEventTypes, SearchPlatform, StateStorageType, StateTypes, TrackEndReasonTypes, UseNodeOptions } from "./Enums";
 
 /**
  * The main hub for interacting with Lavalink and using Magmastream,
@@ -42,6 +44,7 @@ export class Manager extends EventEmitter {
 	public readonly options: ManagerOptions;
 	public initiated = false;
 	public redis?: RedisClient;
+	private _send?: (packet: GatewayVoiceStateUpdate) => unknown;
 
 	/**
 	 * Initiates the Manager class.
@@ -63,8 +66,8 @@ export class Manager extends EventEmitter {
 
 		managerCheck(options);
 
+		// Initialize structures
 		Structure.get("Player").init(this);
-		Structure.get("Node").init(this);
 		TrackUtils.init(this);
 		AutoPlayUtils.init(this);
 
@@ -72,6 +75,10 @@ export class Manager extends EventEmitter {
 			TrackUtils.setTrackPartial(options.trackPartial);
 			delete options.trackPartial;
 		}
+
+		if (options.clientId) this.options.clientId = options.clientId;
+		if (options.clusterId) this.options.clusterId = options.clusterId;
+		if (options.send && !this._send) this._send = options.send;
 
 		this.options = {
 			enabledPlugins: [],
@@ -94,7 +101,7 @@ export class Manager extends EventEmitter {
 		};
 
 		if (this.options.nodes) {
-			for (const nodeOptions of this.options.nodes) new (Structure.get("Node"))(nodeOptions);
+			for (const nodeOptions of this.options.nodes) new Node(this, nodeOptions);
 		}
 
 		process.on("SIGINT", async () => {
@@ -130,25 +137,30 @@ export class Manager extends EventEmitter {
 
 	/**
 	 * Initiates the Manager.
-	 * @param clientId - The Discord client ID (required).
+	 * @param clientId - The Discord client ID (only required when not using any of the magmastream wrappers).
 	 * @param clusterId - The cluster ID which runs the current process (required).
 	 * @returns The manager instance.
 	 */
-	public init(clientId: string, clusterId: number = 0): this {
+	public init(options: ManagerInitOptions = {}): this {
 		if (this.initiated) {
 			return this;
 		}
 
-		if (typeof clientId !== "string" || !/^\d+$/.test(clientId)) {
-			throw new Error('"clientId" must be a valid Discord client ID.');
+		const { clientId, clusterId = 0 } = options;
+
+		if (clientId !== undefined) {
+			if (typeof clientId !== "string" || !/^\d+$/.test(clientId)) {
+				throw new Error('"clientId" must be a valid Discord client ID.');
+			}
+			this.options.clientId = clientId;
 		}
 
-		this.options.clientId = clientId;
 		if (typeof clusterId !== "number") {
 			console.warn('"clusterId" is not a valid number, defaulting to 0.');
-			clusterId = 0;
+			this.options.clusterId = 0;
+		} else {
+			this.options.clusterId = clusterId;
 		}
-		this.options.clusterId = clusterId;
 
 		for (const node of this.nodes.values()) {
 			try {
@@ -308,17 +320,23 @@ export class Manager extends EventEmitter {
 	 * @returns The created node.
 	 */
 	public createNode(options: NodeOptions): Node {
+		const key = options.identifier || options.host;
+
 		// Check if the node already exists in the manager's collection
-		if (this.nodes.has(options.identifier || options.host)) {
+		if (this.nodes.has(key)) {
 			// Return the existing node if it does
-			return this.nodes.get(options.identifier || options.host);
+			return this.nodes.get(key);
 		}
+
+		const node = new Node(this, options);
+		// Set the node in the manager's collection
+		this.nodes.set(key, node);
 
 		// Emit a debug event for node creation
 		this.emit(ManagerEventTypes.Debug, `[MANAGER] Creating new node with options: ${JSON.stringify(options)}`);
 
-		// Create a new node with the given options
-		return new (Structure.get("Node"))(options);
+		// Return the created node
+		return node;
 	}
 
 	/**
@@ -329,10 +347,13 @@ export class Manager extends EventEmitter {
 	 */
 	public async destroyNode(identifier: string): Promise<void> {
 		const node = this.nodes.get(identifier);
-		if (!node) return;
+		if (!node) {
+			this.emit(ManagerEventTypes.Debug, `[MANAGER] Tried to destroy non-existent node: ${identifier}`);
+			return;
+		}
 		this.emit(ManagerEventTypes.Debug, `[MANAGER] Destroying node: ${identifier}`);
-		await node.destroy();
 		this.nodes.delete(identifier);
+		await node.destroy();
 	}
 
 	/**
@@ -1235,369 +1256,12 @@ export class Manager extends EventEmitter {
 		// If no node has a cumulative weight greater than or equal to the random number, return the node with the lowest load
 		return this.options.useNode === UseNodeOptions.LeastLoad ? this.leastLoadNode.first() : this.leastPlayersNode.first();
 	}
+
+	protected send(packet: GatewayVoiceStateUpdate): unknown {
+		return this._send(packet);
+	}
+
+	public sendPacket(packet: GatewayVoiceStateUpdate): unknown {
+		return this.send(packet);
+	}
 }
-
-export interface Payload {
-	/** The OP code */
-	op: number;
-	d: {
-		guild_id: string;
-		channel_id: string | null;
-		self_mute: boolean;
-		self_deaf: boolean;
-	};
-}
-
-export interface ManagerOptions {
-	/** The state storage options.
-	 *
-	 * @default { type: StateStorageType.Collection }
-	 */
-	stateStorage?: StateStorageOptions;
-	/** Enable priority mode over least player count or load balancing? */
-	enablePriorityMode?: boolean;
-	/** Automatically play the next track when the current one ends. */
-	playNextOnEnd?: boolean;
-	/** An array of search platforms to use for autoplay. First to last matters
-	 * Use enum `AutoPlayPlatform`.
-	 */
-	autoPlaySearchPlatforms?: AutoPlayPlatform[];
-	/** The client ID to use. */
-	clientId?: string;
-	/** Value to use for the `Client-Name` header. */
-	clientName?: string;
-	/** The array of shard IDs connected to this manager instance. */
-	clusterId?: number;
-	/** List of plugins to load. */
-	enabledPlugins?: Plugin[];
-	/** The default search platform to use.
-	 * Use enum `SearchPlatform`. */
-	defaultSearchPlatform?: SearchPlatform;
-	/** The last.fm API key.
-	 * If you need to create one go here: https://www.last.fm/api/account/create.
-	 * If you already have one, get it from here: https://www.last.fm/api/accounts. */
-	lastFmApiKey?: string;
-	/** The maximum number of previous tracks to store. */
-	maxPreviousTracks?: number;
-	/** The array of nodes to connect to. */
-	nodes?: NodeOptions[];
-	/** Whether the YouTube video titles should be replaced if the Author does not exactly match. */
-	normalizeYouTubeTitles?: boolean;
-	/** An array of track properties to keep. `track` will always be present. */
-	trackPartial?: TrackPartial[];
-	/** Use the least amount of players or least load? */
-	useNode?: UseNodeOptions.LeastLoad | UseNodeOptions.LeastPlayers;
-	/**
-	 * Function to send data to the websocket.
-	 * @param id The ID of the node to send the data to.
-	 * @param payload The payload to send.
-	 */
-	send(id: string, payload: Payload): void;
-}
-
-export interface RedisConfig {
-	host: string;
-	port: string;
-	password?: string;
-	db?: number;
-	prefix?: string;
-}
-
-export enum StateStorageType {
-	Collection = "collection",
-	Redis = "redis",
-}
-
-export interface StateStorageOptions {
-	type: StateStorageType;
-	redisConfig?: RedisConfig;
-}
-
-export enum TrackPartial {
-	/** The base64 encoded string of the track */
-	Track = "track",
-	/** The title of the track */
-	Title = "title",
-	/** The track identifier */
-	Identifier = "identifier",
-	/** The author of the track */
-	Author = "author",
-	/** The length of the track in milliseconds */
-	Duration = "duration",
-	/** The ISRC of the track */
-	Isrc = "isrc",
-	/** Whether the track is seekable */
-	IsSeekable = "isSeekable",
-	/** Whether the track is a stream */
-	IsStream = "isStream",
-	/** The URI of the track */
-	Uri = "uri",
-	/** The artwork URL of the track */
-	ArtworkUrl = "artworkUrl",
-	/** The source name of the track */
-	SourceName = "sourceName",
-	/** The thumbnail of the track */
-	ThumbNail = "thumbnail",
-	/** The requester of the track */
-	Requester = "requester",
-	/** The plugin info of the track */
-	PluginInfo = "pluginInfo",
-	/** The custom data of the track */
-	CustomData = "customData",
-}
-
-export enum UseNodeOptions {
-	LeastLoad = "leastLoad",
-	LeastPlayers = "leastPlayers",
-}
-
-export type UseNodeOption = keyof typeof UseNodeOptions;
-
-export enum SearchPlatform {
-	AppleMusic = "amsearch",
-	Bandcamp = "bcsearch",
-	Deezer = "dzsearch",
-	Jiosaavn = "jssearch",
-	Qobuz = "qbsearch",
-	SoundCloud = "scsearch",
-	Spotify = "spsearch",
-	Tidal = "tdsearch",
-	VKMusic = "vksearch",
-	YouTube = "ytsearch",
-	YouTubeMusic = "ytmsearch",
-}
-
-export enum AutoPlayPlatform {
-	Spotify = "spotify",
-	Deezer = "deezer",
-	SoundCloud = "soundcloud",
-	Tidal = "tidal",
-	VKMusic = "vkmusic",
-	Qobuz = "qobuz",
-	YouTube = "youtube",
-}
-
-export enum PlayerStateEventTypes {
-	AutoPlayChange = "playerAutoplay",
-	ConnectionChange = "playerConnection",
-	RepeatChange = "playerRepeat",
-	PauseChange = "playerPause",
-	QueueChange = "queueChange",
-	TrackChange = "trackChange",
-	VolumeChange = "volumeChange",
-	ChannelChange = "channelChange",
-	PlayerCreate = "playerCreate",
-	PlayerDestroy = "playerDestroy",
-}
-
-interface PlayerStateUpdateEvent {
-	changeType: PlayerStateEventTypes;
-	details?:
-		| AutoplayChangeEvent
-		| ConnectionChangeEvent
-		| RepeatChangeEvent
-		| PauseChangeEvent
-		| QueueChangeEvent
-		| TrackChangeEvent
-		| VolumeChangeEvent
-		| ChannelChangeEvent;
-}
-
-interface AutoplayChangeEvent {
-	previousAutoplay: boolean;
-	currentAutoplay: boolean;
-}
-
-interface ConnectionChangeEvent {
-	changeType: "connect" | "disconnect";
-	previousConnection: boolean;
-	currentConnection: boolean;
-}
-
-interface RepeatChangeEvent {
-	changeType: "dynamic" | "track" | "queue" | null;
-	previousRepeat: string | null;
-	currentRepeat: string | null;
-}
-
-interface PauseChangeEvent {
-	previousPause: boolean | null;
-	currentPause: boolean | null;
-}
-
-interface QueueChangeEvent {
-	changeType: "add" | "remove" | "clear" | "shuffle" | "roundRobin" | "userBlock" | "autoPlayAdd";
-	tracks?: Track[];
-}
-
-interface TrackChangeEvent {
-	changeType: "start" | "end" | "previous" | "timeUpdate" | "autoPlay";
-	track: Track;
-	previousTime?: number | null;
-	currentTime?: number | null;
-}
-
-interface VolumeChangeEvent {
-	previousVolume: number | null;
-	currentVolume: number | null;
-}
-
-interface ChannelChangeEvent {
-	changeType: "text" | "voice";
-	previousChannel: string | null;
-	currentChannel: string | null;
-}
-
-export interface SearchQuery {
-	/** The source to search from. */
-	source?: SearchPlatform;
-	/** The query to search for. */
-	query: string;
-}
-
-export interface LavalinkResponse {
-	loadType: LoadTypes;
-	data: TrackData[] | PlaylistRawData;
-}
-
-interface LavaPlayer {
-	guildId: string;
-	track: TrackData;
-	volume: number;
-	paused: boolean;
-	state: {
-		time: number;
-		position: number;
-		connected: boolean;
-		ping: number;
-	};
-	voice: {
-		token: string;
-		endpoint: string;
-		sessionId: string;
-	};
-	filters: Record<string, unknown>;
-}
-
-export interface SearchResult {
-	/** The load type of the result. */
-	loadType: LoadTypes;
-	/** The array of tracks from the result. */
-	tracks: Track[];
-	/** The playlist info if the load type is 'playlist'. */
-	playlist?: PlaylistData;
-}
-
-export interface PlaylistRawData {
-	info: {
-		/** The playlist name. */
-		name: string;
-	};
-	/** Addition info provided by plugins. */
-	pluginInfo: object;
-	/** The tracks of the playlist */
-	tracks: TrackData[];
-}
-
-export interface PlaylistInfoData {
-	/** Url to playlist. */
-	url: string;
-	/** Type is always playlist in that case. */
-	type: string;
-	/** ArtworkUrl of playlist */
-	artworkUrl: string;
-	/** Number of total tracks in playlist */
-	totalTracks: number;
-	/** Author of playlist */
-	author: string;
-}
-
-export interface PlaylistData {
-	/** The playlist name. */
-	name: string;
-	/** Requester of playlist. */
-	requester: User | ClientUser;
-	/** More playlist information. */
-	playlistInfo: PlaylistInfoData[];
-	/** The length of the playlist. */
-	duration: number;
-	/** The songs of the playlist. */
-	tracks: Track[];
-}
-
-export enum ManagerEventTypes {
-	ChapterStarted = "chapterStarted",
-	ChaptersLoaded = "chaptersLoaded",
-	Debug = "debug",
-	NodeConnect = "nodeConnect",
-	NodeCreate = "nodeCreate",
-	NodeDestroy = "nodeDestroy",
-	NodeDisconnect = "nodeDisconnect",
-	NodeError = "nodeError",
-	NodeRaw = "nodeRaw",
-	NodeReconnect = "nodeReconnect",
-	PlayerCreate = "playerCreate",
-	PlayerDestroy = "playerDestroy",
-	PlayerDisconnect = "playerDisconnect",
-	PlayerMove = "playerMove",
-	PlayerRestored = "playerRestored",
-	PlayerStateUpdate = "playerStateUpdate",
-	QueueEnd = "queueEnd",
-	RestoreComplete = "restoreComplete",
-	SegmentSkipped = "segmentSkipped",
-	SegmentsLoaded = "segmentsLoaded",
-	SocketClosed = "socketClosed",
-	TrackEnd = "trackEnd",
-	TrackError = "trackError",
-	TrackStart = "trackStart",
-	TrackStuck = "trackStuck",
-}
-
-export interface ManagerEvents {
-	[ManagerEventTypes.ChapterStarted]: [player: Player, track: Track, payload: SponsorBlockChapterStarted];
-	[ManagerEventTypes.ChaptersLoaded]: [player: Player, track: Track, payload: SponsorBlockChaptersLoaded];
-	[ManagerEventTypes.Debug]: [info: string];
-	[ManagerEventTypes.NodeConnect]: [node: Node];
-	[ManagerEventTypes.NodeCreate]: [node: Node];
-	[ManagerEventTypes.NodeDestroy]: [node: Node];
-	[ManagerEventTypes.NodeDisconnect]: [node: Node, reason: { code?: number; reason?: string }];
-	[ManagerEventTypes.NodeError]: [node: Node, error: Error];
-	[ManagerEventTypes.NodeRaw]: [payload: unknown];
-	[ManagerEventTypes.NodeReconnect]: [node: Node];
-	[ManagerEventTypes.PlayerCreate]: [player: Player];
-	[ManagerEventTypes.PlayerDestroy]: [player: Player];
-	[ManagerEventTypes.PlayerDisconnect]: [player: Player, oldChannel: string];
-	[ManagerEventTypes.PlayerMove]: [player: Player, initChannel: string, newChannel: string];
-	[ManagerEventTypes.PlayerRestored]: [player: Player, node: Node];
-	[ManagerEventTypes.PlayerStateUpdate]: [oldPlayer: Player, newPlayer: Player, changeType: PlayerStateUpdateEvent];
-	[ManagerEventTypes.QueueEnd]: [player: Player, track: Track, payload: TrackEndEvent];
-	[ManagerEventTypes.RestoreComplete]: [node: Node];
-	[ManagerEventTypes.SegmentSkipped]: [player: Player, track: Track, payload: SponsorBlockSegmentSkipped];
-	[ManagerEventTypes.SegmentsLoaded]: [player: Player, track: Track, payload: SponsorBlockSegmentsLoaded];
-	[ManagerEventTypes.SocketClosed]: [player: Player, payload: WebSocketClosedEvent];
-	[ManagerEventTypes.TrackEnd]: [player: Player, track: Track, payload: TrackEndEvent];
-	[ManagerEventTypes.TrackError]: [player: Player, track: Track, payload: TrackExceptionEvent];
-	[ManagerEventTypes.TrackStart]: [player: Player, track: Track, payload: TrackStartEvent];
-	[ManagerEventTypes.TrackStuck]: [player: Player, track: Track, payload: TrackStuckEvent];
-}
-
-export interface PlayerStore {
-	get(guildId: string): Promise<Player | undefined>;
-	set(guildId: string, player: Player): Promise<void>;
-	delete(guildId: string): Promise<void>;
-	keys(): Promise<string[]>;
-	has(guildId: string): Promise<boolean>;
-
-	filter(predicate: (player: Player, guildId: string) => boolean | Promise<boolean>): Promise<Map<string, Player>>;
-	find(predicate: (player: Player, guildId: string) => boolean | Promise<boolean>): Promise<Player | undefined>;
-	map<T>(callback: (player: Player, guildId: string) => T | Promise<T>): Promise<T[]>;
-	forEach(callback: (player: Player, guildId: string) => void | Promise<void>): Promise<void>;
-
-	some(predicate: (player: Player, guildId: string) => boolean | Promise<boolean>): Promise<boolean>;
-	every(predicate: (player: Player, guildId: string) => boolean | Promise<boolean>): Promise<boolean>;
-	size(): Promise<number>;
-	clear(): Promise<void>;
-	entries(): AsyncIterableIterator<[string, Player]>;
-}
-
-// PlayerStore WILL BE REMOVED IF YOU DONT FIND A USE FOR IT.
