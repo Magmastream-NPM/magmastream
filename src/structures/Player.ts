@@ -52,6 +52,8 @@ export class Player {
 	public isAutoplay: boolean = false;
 	/** The number of times to try autoplay before emitting queueEnd. */
 	public autoplayTries: number = 3;
+	/** The cluster ID for the player. */
+	public clusterId: number = 0;
 
 	private readonly data: Record<string, unknown> = {};
 	private dynamicLoopInterval: NodeJS.Timeout | null = null;
@@ -68,6 +70,7 @@ export class Player {
 		if (!this.manager) this.manager = Structure.get("Player")._manager;
 		if (!this.manager) throw new RangeError("Manager has not been initiated.");
 
+		this.clusterId = this.manager.options.clusterId || 0;
 		// Check the player options for errors.
 		playerCheck(options);
 

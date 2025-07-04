@@ -530,6 +530,8 @@ export class Manager extends EventEmitter {
 								const data = await fs.readFile(filePath, "utf-8");
 								const state = JSON.parse(data);
 
+								if (state.clusterId !== this.options.clusterId) continue;
+								
 								if (state && typeof state === "object" && state.guildId && state.node.options.identifier === nodeId) {
 									const lavaPlayer = info.find((player) => player.guildId === state.guildId);
 									if (!lavaPlayer) {
@@ -705,7 +707,7 @@ export class Manager extends EventEmitter {
 								if (!data) continue;
 
 								const state = JSON.parse(data);
-								if (!state || typeof state !== "object") continue;
+								if (!state || typeof state !== "object" || state.clusterId !== this.options.clusterId) continue;
 
 								const guildId = key.split(":").pop();
 								if (!guildId) continue;
