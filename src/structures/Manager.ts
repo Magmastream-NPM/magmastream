@@ -531,7 +531,7 @@ export class Manager extends EventEmitter {
 								const state = JSON.parse(data);
 
 								if (state.clusterId !== this.options.clusterId) continue;
-								
+
 								if (state && typeof state === "object" && state.guildId && state.node.options.identifier === nodeId) {
 									const lavaPlayer = info.find((player) => player.guildId === state.guildId);
 									if (!lavaPlayer) {
@@ -1072,7 +1072,7 @@ export class Manager extends EventEmitter {
 
 		player.voiceChannelId = null;
 		player.voiceState = Object.assign({});
-		await player.destroy();
+		await player.pause(true);
 		return;
 	}
 
