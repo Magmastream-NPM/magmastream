@@ -890,6 +890,9 @@ export class Manager extends EventEmitter {
 		console.warn("\x1b[31m%s\x1b[0m", "MAGMASTREAM WARNING: Shutting down! Please wait, saving active players...");
 
 		try {
+			if (this.options.stateStorage.type === StateStorageType.Collection) {
+				await this.clearAllPlayerStates();
+			}
 			const savePromises = Array.from(this.players.keys()).map(async (guildId) => {
 				try {
 					await this.savePlayerState(guildId);
@@ -1199,6 +1202,74 @@ export class Manager extends EventEmitter {
 			}
 		} catch (error) {
 			this.emit(ManagerEventTypes.Debug, `[MANAGER] Error cleaning up inactive players: ${error}`);
+		}
+	}
+
+	/**
+	 * Clears all player states from the file system.
+	 * This is done to prevent stale state files from accumulating on the file system.
+	 */
+	private async clearAllPlayerStates(): Promise<void> {
+		switch (this.options.stateStorage.type) {
+			case StateStorageType.Collection: {
+				const configDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
+
+				try {
+					// Check if the directory exists, and create it if it doesn't
+					await fs.access(configDir).catch(async () => {
+						await fs.mkdir(configDir, { recursive: true });
+						this.emit(ManagerEventTypes.Debug, `[MANAGER] Created directory: ${configDir}`);
+					});
+
+					const files = await fs.readdir(configDir);
+
+					await Promise.all(files.map((file) => fs.unlink(path.join(configDir, file)).catch((err) => console.warn(`Failed to delete file ${file}:`, err))));
+
+					this.emit(ManagerEventTypes.Debug, `[MANAGER] Cleared all player state files in ${configDir}`);
+				} catch (err) {
+					console.error("Error clearing player state files:", err);
+				}
+				break;
+			}
+
+			case StateStorageType.Redis: {
+				const prefix = this.options.stateStorage.redisConfig.prefix?.endsWith(":")
+					? this.options.stateStorage.redisConfig.prefix
+					: this.options.stateStorage.redisConfig.prefix ?? "magmastream:";
+
+				const pattern = `${prefix}playerstore:*`;
+
+				try {
+					const stream = this.redis.scanStream({
+						match: pattern,
+						count: 100,
+					});
+
+					let totalDeleted = 0;
+
+					stream.on("data", async (keys: string[]) => {
+						if (keys.length) {
+							const pipeline = this.redis.pipeline();
+							keys.forEach((key) => pipeline.unlink(key));
+							await pipeline.exec();
+							totalDeleted += keys.length;
+						}
+					});
+
+					stream.on("end", () => {
+						this.emit(ManagerEventTypes.Debug, `[MANAGER] Cleared ${totalDeleted} Redis player state keys (pattern: ${pattern})`);
+					});
+
+					stream.on("error", (err) => {
+						console.error("Error during Redis SCAN stream:", err);
+					});
+				} catch (err) {
+					console.error("Failed to clear Redis player state keys:", err);
+				}
+				break;
+			}
+			default:
+				console.warn("[MANAGER] No valid stateStorage.type set, skipping state clearing.");
 		}
 	}
 
