@@ -7,9 +7,10 @@ import * as _ from "lodash";
 import playerCheck from "../utils/playerCheck";
 import { ClientUser, Message, User } from "discord.js";
 import { RedisQueue } from "./RedisQueue";
-import { IQueue, Lyrics, PlayerOptions, PlayOptions, SearchQuery, SearchResult, Track, VoiceState } from "./Types";
+import { IQueue, Lyrics, PlayerOptions, PlayOptions, SearchQuery, SearchResult, Track, VoiceReceiverEvent, VoiceState } from "./Types";
 // import { IQueue, Lyrics, PlayerOptions, PlayerUpdateVoiceState, PlayOptions, SearchQuery, SearchResult, Track, VoiceState } from "./Types";
 import { ManagerEventTypes, PlayerStateEventTypes, SponsorBlockSegment, StateStorageType, StateTypes } from "./Enums";
+import { WebSocket } from "ws";
 
 export class Player {
 	/** The Queue for the Player. */
@@ -59,6 +60,13 @@ export class Player {
 	private dynamicLoopInterval: NodeJS.Timeout | null = null;
 	public dynamicRepeatIntervalMs: number | null = null;
 	private static _manager: Manager;
+
+	/** Should only be used when the node is a NodeLink */
+	protected voiceReceiverWsClient: WebSocket | null;
+	protected isConnectToVoiceReceiver: boolean;
+	protected voiceReceiverReconnectTimeout: NodeJS.Timeout | null;
+	protected voiceReceiverAttempt: number;
+	protected voiceReceiverReconnectTries: number;
 
 	/**
 	 * Creates a new player, returns one if it already exists.
@@ -1051,11 +1059,146 @@ export class Player {
 	}
 
 	/**
-	 * Sleeps for a specified amount of time.
-	 * @param ms The amount of time to sleep in milliseconds.
-	 * @returns A promise that resolves after the specified amount of time.
+	 * Sets up the voice receiver for the player.
+	 * @returns {Promise<void>} - A promise that resolves when the voice receiver is set up.
+	 * @throws {Error} - If the node is not a NodeLink.
 	 */
-	private sleep(ms: number): Promise<void> {
-		return new Promise((resolve) => setTimeout(resolve, ms));
+	public async setupVoiceReceiver(): Promise<void> {
+		if (!this.node.isNodeLink) throw new Error("This function is only available for NodeLinks");
+
+		if (this.voiceReceiverWsClient) await this.removeVoiceReceiver();
+
+		const headers: { [key: string]: string } = {
+			Authorization: this.node.options.password,
+			"User-Id": this.manager.options.clientId,
+			"Guild-Id": this.guildId,
+			"Client-Name": this.manager.options.clientName,
+		};
+
+		const { host, useSSL, port } = this.node.options;
+
+		this.voiceReceiverWsClient = new WebSocket(`${useSSL ? "wss" : "ws"}://${host}:${port}/connection/data`, { headers });
+		this.voiceReceiverWsClient.on("open", () => this.openVoiceReceiver());
+		this.voiceReceiverWsClient.on("error", (err) => this.onVoiceReceiverError(err));
+		this.voiceReceiverWsClient.on("message", (data) => this.onVoiceReceiverMessage(data.toString()));
+		this.voiceReceiverWsClient.on("close", (code, reason) => this.closeVoiceReceiver(code, reason.toString()));
+	}
+
+	/**
+	 * Removes the voice receiver for the player.
+	 * @returns {Promise<void>} - A promise that resolves when the voice receiver is removed.
+	 * @throws {Error} - If the node is not a NodeLink.
+	 */
+	public async removeVoiceReceiver(): Promise<void> {
+		if (!this.node.isNodeLink) throw new Error("This function is only available for NodeLinks");
+
+		if (this.voiceReceiverWsClient) {
+			this.voiceReceiverWsClient.close(1000, "destroy");
+			this.voiceReceiverWsClient.removeAllListeners();
+			this.voiceReceiverWsClient = null;
+		}
+
+		this.isConnectToVoiceReceiver = false;
+	}
+
+	/**
+	 * Closes the voice receiver for the player.
+	 * @param {number} code - The code to close the voice receiver with.
+	 * @param {string} reason - The reason to close the voice receiver with.
+	 * @returns {Promise<void>} - A promise that resolves when the voice receiver is closed.
+	 */
+	private async closeVoiceReceiver(code: number, reason: string): Promise<void> {
+		await this.disconnectVoiceReceiver();
+
+		this.manager.emit(ManagerEventTypes.Debug, `[PLAYER] Closed voice receiver for player ${this.guildId} with code ${code} and reason ${reason}`);
+
+		if (code !== 1000) await this.reconnectVoiceReceiver();
+	}
+
+	/**
+	 * Reconnects the voice receiver for the player.
+	 * @returns {Promise<void>} - A promise that resolves when the voice receiver is reconnected.
+	 */
+	private async reconnectVoiceReceiver(): Promise<void> {
+		this.voiceReceiverReconnectTimeout = setTimeout(async () => {
+			if (this.voiceReceiverAttempt > this.voiceReceiverReconnectTries) throw new Error("Failed to reconnect to voice receiver");
+
+			this.voiceReceiverWsClient?.removeAllListeners();
+			this.voiceReceiverWsClient = null;
+
+			this.manager.emit(ManagerEventTypes.Debug, `[PLAYER] Reconnecting to voice receiver for player ${this.guildId}`);
+
+			await this.setupVoiceReceiver();
+			this.voiceReceiverAttempt++;
+		}, this.node.options.retryDelayMs);
+	}
+
+	/**
+	 * Disconnects the voice receiver for the player.
+	 * @returns {Promise<void>} - A promise that resolves when the voice receiver is disconnected.
+	 */
+	private async disconnectVoiceReceiver(): Promise<void> {
+		if (!this.isConnectToVoiceReceiver) return;
+
+		this.voiceReceiverWsClient?.close(1000, "destroy");
+		this.voiceReceiverWsClient?.removeAllListeners();
+		this.voiceReceiverWsClient = null;
+
+		this.manager.emit(ManagerEventTypes.Debug, `[PLAYER] Disconnected from voice receiver for player ${this.guildId}`);
+		this.manager.emit(ManagerEventTypes.VoiceReceiverDisconnect, this);
+	}
+
+	/**
+	 * Opens the voice receiver for the player.
+	 * @returns {Promise<void>} - A promise that resolves when the voice receiver is opened.
+	 */
+	private async openVoiceReceiver(): Promise<void> {
+		if (this.voiceReceiverReconnectTimeout) clearTimeout(this.voiceReceiverReconnectTimeout);
+		this.voiceReceiverReconnectTimeout = null;
+		this.isConnectToVoiceReceiver = true;
+		this.manager.emit(ManagerEventTypes.Debug, `[PLAYER] Opened voice receiver for player ${this.guildId}`);
+		this.manager.emit(ManagerEventTypes.VoiceReceiverConnect, this);
+	}
+
+	/**
+	 * Handles a voice receiver message.
+	 * @param {string} payload - The payload to handle.
+	 * @returns {Promise<void>} - A promise that resolves when the voice receiver message is handled.
+	 */
+	private async onVoiceReceiverMessage(payload: string): Promise<void> {
+		const packet = JSON.parse(payload) as VoiceReceiverEvent;
+		if (!packet?.op) return;
+
+		this.manager.emit(ManagerEventTypes.Debug, `VoiceReceiver recieved a payload: ${JSON.stringify(payload)}`);
+
+		switch (packet.type) {
+			case "startSpeakingEvent": {
+				this.manager.emit(ManagerEventTypes.VoiceReceiverStartSpeaking, this, packet.data);
+				break;
+			}
+			case "endSpeakingEvent": {
+				const data = {
+					...packet.data,
+					data: Buffer.from(packet.data.data, "base64"),
+				};
+
+				this.manager.emit(ManagerEventTypes.VoiceReceiverEndSpeaking, this, data);
+				break;
+			}
+			default: {
+				this.manager.emit(ManagerEventTypes.Debug, `VoiceReceiver recieved an unknown payload: ${JSON.stringify(payload)}`);
+				break;
+			}
+		}
+	}
+
+	/**
+	 * Handles a voice receiver error.
+	 * @param {Error} error - The error to handle.
+	 * @returns {Promise<void>} - A promise that resolves when the voice receiver error is handled.
+	 */
+	private async onVoiceReceiverError(error: Error): Promise<void> {
+		this.manager.emit(ManagerEventTypes.Debug, `VoiceReceiver error for player ${this.guildId}: ${error.message}`);
+		this.manager.emit(ManagerEventTypes.VoiceReceiverError, this, error);
 	}
 }

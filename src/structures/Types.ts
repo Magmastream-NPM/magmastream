@@ -112,6 +112,8 @@ export interface NodeOptions {
 	apiRequestTimeoutMs?: number;
 	/** Priority of the node. */
 	nodePriority?: number;
+	/** Whether the node is a NodeLink. */
+	isNodeLink?: boolean;
 }
 
 /**
@@ -470,6 +472,11 @@ export interface ManagerEvents {
 	[ManagerEventTypes.TrackError]: [player: Player, track: Track, payload: TrackExceptionEvent];
 	[ManagerEventTypes.TrackStart]: [player: Player, track: Track, payload: TrackStartEvent];
 	[ManagerEventTypes.TrackStuck]: [player: Player, track: Track, payload: TrackStuckEvent];
+	[ManagerEventTypes.VoiceReceiverDisconnect]: [player: Player];
+	[ManagerEventTypes.VoiceReceiverConnect]: [player: Player];
+	[ManagerEventTypes.VoiceReceiverError]: [player: Player, error: Error];
+	[ManagerEventTypes.VoiceReceiverStartSpeaking]: [player: Player, data: unknown];
+	[ManagerEventTypes.VoiceReceiverEndSpeaking]: [player: Player, data: unknown];
 }
 
 /**
@@ -811,6 +818,111 @@ export interface Lyrics {
 }
 
 /**
+ * NodeLink Get Lyrics Multiple interface
+ */
+export interface NodeLinkGetLyricsMultiple {
+	loadType: "lyricsMultiple";
+	data: NodeLinkGetLyricsData[];
+}
+
+/**
+ * NodeLink Get Lyrics Empty interface
+ */
+export interface NodeLinkGetLyricsEmpty {
+	loadType: "empty";
+	data: Record<never, never>;
+}
+
+/**
+ * NodeLink Get Lyrics Data interface
+ */
+interface NodeLinkGetLyricsData {
+	name: string;
+	synced: boolean;
+	data: {
+		startTime?: number;
+		endTime?: number;
+		text: string;
+	}[];
+	rtl: boolean;
+}
+
+/**
+ * NodeLink Get Lyrics Single interface
+ */
+export interface NodeLinkGetLyricsSingle {
+	loadType: "lyricsSingle";
+	data: NodeLinkGetLyricsData;
+}
+
+/**
+ * NodeLink Get Lyrics Error interface
+ */
+export interface NodeLinkGetLyricsError {
+	loadType: "error";
+	data: {
+		message: string;
+		severity: Severity;
+		cause: string;
+		trace?: string;
+	};
+}
+
+export interface StartSpeakingEventVoiceReceiverData {
+	/**
+	 * The user ID of the user who started speaking.
+	 */
+	userId: string;
+
+	/**
+	 * The guild ID of the guild where the user started speaking.
+	 */
+	guildId: string;
+}
+
+export interface EndSpeakingEventVoiceReceiverData {
+	/**
+	 * The user ID of the user who stopped speaking.
+	 */
+	userId: string;
+	/**
+	 * The guild ID of the guild where the user stopped speaking.
+	 */
+	guildId: string;
+	/**
+	 * The audio data received from the user in base64.
+	 */
+	data: string;
+	/**
+	 * The type of the audio data. Can be either opus or pcm. Older versions may include ogg/opus.
+	 */
+	type: "opus" | "pcm";
+}
+
+/**
+ * Base Voice Receiver Event interface
+ */
+interface BaseVoiceReceiverEvent {
+	op: "speak";
+}
+
+/**
+ * Start Speaking Event Voice Receiver interface
+ */
+export interface StartSpeakingEventVoiceReceiver extends BaseVoiceReceiverEvent {
+	type: "startSpeakingEvent";
+	data: StartSpeakingEventVoiceReceiverData;
+}
+
+/**
+ * End Speaking Event Voice Receiver interface
+ */
+export interface EndSpeakingEventVoiceReceiver extends BaseVoiceReceiverEvent {
+	type: "endSpeakingEvent";
+	data: EndSpeakingEventVoiceReceiverData;
+}
+
+/**
  * PlayerOptions interface
  */
 export interface PlayerOptions {
@@ -972,3 +1084,13 @@ export type PlayerEvents = TrackStartEvent | TrackEndEvent | TrackStuckEvent | T
  * Load Type Enum type
  */
 export type LoadType = keyof typeof LoadTypes;
+
+/**
+ * NodeLink Get Lyrics Enum type
+ */
+export type NodeLinkGetLyrics = NodeLinkGetLyricsSingle | NodeLinkGetLyricsMultiple | NodeLinkGetLyricsEmpty | NodeLinkGetLyricsError;
+
+/**
+ * Voice Receiver Event Enum type
+ */
+export type VoiceReceiverEvent = StartSpeakingEventVoiceReceiver | EndSpeakingEventVoiceReceiver;

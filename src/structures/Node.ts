@@ -10,6 +10,7 @@ import { User, ClientUser } from "discord.js";
 import {
 	LavalinkInfo,
 	Lyrics,
+	NodeLinkGetLyrics,
 	NodeOptions,
 	NodeStats,
 	PlayerEvent,
@@ -26,6 +27,7 @@ import {
 	WebSocketClosedEvent,
 } from "./Types";
 import { ManagerEventTypes, PlayerStateEventTypes, SponsorBlockSegment, TrackEndReasonTypes } from "./Enums";
+import { IncomingMessage } from "http";
 
 const validSponsorBlocks = Object.values(SponsorBlockSegment).map((v) => v.toLowerCase());
 
@@ -50,13 +52,16 @@ export class Node {
 	public readonly rest: Rest;
 	/** Actual Lavalink information of the node. */
 	public info: LavalinkInfo | null = null;
+	/** Whether the node is a NodeLink. */
+	public isNodeLink: boolean = false;
 
 	private reconnectTimeout?: NodeJS.Timeout;
 	private reconnectAttempts = 1;
 
 	/**
 	 * Creates an instance of Node.
-	 * @param options
+	 * @param manager - The manager for the node.
+	 * @param options - The options for the node.
 	 */
 	constructor(public manager: Manager, public options: NodeOptions) {
 		if (!this.manager) throw new RangeError("Manager instance is required.");
@@ -224,6 +229,7 @@ export class Node {
 		this.socket = new WebSocket(`ws${this.options.useSSL ? "s" : ""}://${this.address}/v4/websocket`, { headers });
 		this.socket.on("open", this.open.bind(this));
 		this.socket.on("close", this.close.bind(this));
+		this.socket.on("upgrade", (request: IncomingMessage) => this.upgrade(request));
 		this.socket.on("message", this.message.bind(this));
 		this.socket.on("error", this.error.bind(this));
 
@@ -341,6 +347,15 @@ export class Node {
 			// Increment the reconnect attempts counter
 			this.reconnectAttempts++;
 		}, this.options.retryDelayMs);
+	}
+
+	/**
+	 * Upgrades the node to a NodeLink.
+	 *
+	 * @param request - The incoming message.
+	 */
+	private upgrade(request: IncomingMessage) {
+		this.isNodeLink = this.options.isNodeLink ?? Boolean(request.headers.isnodelink) ?? false;
 	}
 
 	/**
@@ -823,14 +838,15 @@ export class Node {
 	 *
 	 * @param {Track} track - The track to fetch the lyrics for.
 	 * @param {boolean} [skipTrackSource=false] - Whether to skip using the track's source URL.
-	 * @returns {Promise<Lyrics>} A promise that resolves with the lyrics data.
+	 * @returns {Promise<Lyrics | NodeLinkGetLyrics>} A promise that resolves with the lyrics data.
 	 */
-	public async getLyrics(track: Track, skipTrackSource: boolean = false): Promise<Lyrics> {
+	public async getLyrics(track: Track, skipTrackSource: boolean = false): Promise<Lyrics | NodeLinkGetLyrics> {
+		if (this.isNodeLink) {
+			return (await this.rest.get(`/v4/lyrics?track=${encodeURIComponent(track.track)}&skipTrackSource=${skipTrackSource}`)) as NodeLinkGetLyrics;
+		}
 		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "lavalyrics-plugin"))
 			throw new RangeError(`there is no lavalyrics-plugin available in the lavalink node: ${this.options.identifier}`);
 
-		// Make a GET request to the Lavalink node to fetch the lyrics
-		// The request includes the track URL and the skipTrackSource parameter
 		return (
 			((await this.rest.get(`/v4/lyrics?track=${encodeURIComponent(track.track)}&skipTrackSource=${skipTrackSource}`)) as Lyrics) || {
 				source: null,

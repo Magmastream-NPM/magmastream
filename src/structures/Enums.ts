@@ -159,6 +159,11 @@ export enum ManagerEventTypes {
 	TrackError = "trackError",
 	TrackStart = "trackStart",
 	TrackStuck = "trackStuck",
+	VoiceReceiverDisconnect = "voiceReceiverDisconnect",
+	VoiceReceiverConnect = "voiceReceiverConnect",
+	VoiceReceiverError = "voiceReceiverError",
+	VoiceReceiverStartSpeaking = "voiceReceiverStartSpeaking",
+	VoiceReceiverEndSpeaking = "voiceReceiverEndSpeaking",
 }
 
 /**

@@ -1047,6 +1047,11 @@ export class Manager extends EventEmitter {
 			guildId: player.guildId,
 			data: { voice: { token, endpoint, sessionId } },
 		});
+
+		this.emit(
+			ManagerEventTypes.Debug,
+			`Updated voice server for player ${player.guildId} with token ${token} and endpoint ${endpoint} and sessionId ${sessionId}`
+		);
 		return;
 	}
 
@@ -1058,6 +1063,10 @@ export class Manager extends EventEmitter {
 	 * @emits {playerDisconnect} - Emits a player disconnect event if the channel ID is null.
 	 */
 	private async handleVoiceStateUpdate(player: Player, update: VoiceState): Promise<void> {
+		this.emit(
+			ManagerEventTypes.Debug,
+			`Updated voice state for player ${player.guildId} with channel id ${update.channel_id} and session id ${update.session_id}`
+		);
 		if (update.channel_id) {
 			if (player.voiceChannelId !== update.channel_id) {
 				this.emit(ManagerEventTypes.PlayerMove, player, player.voiceChannelId, update.channel_id);

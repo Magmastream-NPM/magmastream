@@ -15,6 +15,8 @@ export class Rest {
 	private readonly url: string;
 	/** The Manager instance. */
 	public manager: Manager;
+	/** Whether the node is a NodeLink. */
+	public isNodeLink: boolean = false;
 
 	constructor(node: Node, manager: Manager) {
 		this.node = node;
@@ -22,6 +24,7 @@ export class Rest {
 		this.sessionId = node.sessionId;
 		this.password = node.options.password;
 		this.manager = manager;
+		this.isNodeLink = node.isNodeLink;
 	}
 
 	/**
