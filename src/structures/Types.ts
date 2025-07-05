@@ -967,28 +967,6 @@ export interface EqualizerBand {
 }
 
 /**
- * PlayerStore interface
- */
-export interface PlayerStore {
-	get(guildId: string): Promise<Player | undefined>;
-	set(guildId: string, player: Player): Promise<void>;
-	delete(guildId: string): Promise<void>;
-	keys(): Promise<string[]>;
-	has(guildId: string): Promise<boolean>;
-
-	filter(predicate: (player: Player, guildId: string) => boolean | Promise<boolean>): Promise<Map<string, Player>>;
-	find(predicate: (player: Player, guildId: string) => boolean | Promise<boolean>): Promise<Player | undefined>;
-	map<T>(callback: (player: Player, guildId: string) => T | Promise<T>): Promise<T[]>;
-	forEach(callback: (player: Player, guildId: string) => void | Promise<void>): Promise<void>;
-
-	some(predicate: (player: Player, guildId: string) => boolean | Promise<boolean>): Promise<boolean>;
-	every(predicate: (player: Player, guildId: string) => boolean | Promise<boolean>): Promise<boolean>;
-	size(): Promise<number>;
-	clear(): Promise<void>;
-	entries(): AsyncIterableIterator<[string, Player]>;
-}
-
-/**
  * Queue interface
  */
 export interface IQueue {
