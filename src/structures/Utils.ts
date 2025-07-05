@@ -4,7 +4,6 @@ import { Manager } from "./Manager";
 import axios from "axios";
 import { JSDOM } from "jsdom";
 import crypto from "crypto";
-import cheerio from "cheerio";
 import { AutoPlayPlatform, LoadTypes, SearchPlatform, TrackPartial } from "./Enums";
 import { Extendable, LavalinkResponse, PlaylistInfoData, PlaylistRawData, SearchResult, Track, TrackData, TrackSourceName } from "./Types";
 
@@ -334,38 +333,19 @@ export abstract class AutoPlayUtils {
 							track = res.tracks[0];
 						}
 
-						const periodMs = 30000;
+						const [totp, timestamp] = this.generateTotp();
 
-						async function getSpotifyTotpParams() {
-							try {
-								const secretBuffer = await AutoPlayUtils.fetchSecretArray();
+						const params = {
+							reason: "init",
+							productType: "web-player",
+							totp: totp,
+							totpVer: 5,
+							ts: timestamp,
+						};
 
-								const transformedSecret = AutoPlayUtils.transformSecret(secretBuffer);
-
-								const totp = AutoPlayUtils.generateTotp(transformedSecret);
-
-								const timestamp = Math.floor(Date.now() / periodMs) * periodMs;
-
-								const params = {
-									reason: "transport",
-									productType: "embed",
-									totp,
-									totpVer: 5,
-									ts: timestamp,
-								};
-
-								return params;
-							} catch (error) {
-								console.error("Failed to generate Spotify TOTP params:", error);
-								throw error;
-							}
-						}
-
-						
 						let body;
 						try {
-							const params = await getSpotifyTotpParams();
-							const response = await axios.get("https://open.spotify.com/get_access_token", {
+							const response = await axios.get("https://open.spotify.com/api/token", {
 								params,
 								headers: {
 									"User-Agent":
@@ -374,12 +354,12 @@ export abstract class AutoPlayUtils {
 									Referer: "https://open.spotify.com/",
 									Origin: "https://open.spotify.com",
 									"Accept-Language": "en",
-									"Content-Type": "application/json",
 								},
 							});
 							body = response.data;
 						} catch (error) {
-							console.error("[AutoPlay] Failed to get spotify access token:", error.response?.status);
+							const status = error.response?.status ?? "No response";
+							console.error("[AutoPlay] Failed to get spotify access token:", status);
 							return [];
 						}
 
@@ -837,62 +817,25 @@ export abstract class AutoPlayUtils {
 		}
 	}
 
-	static async fetchSecretArray() {
-		// Step 1: Get Spotify homepage HTML
-		const homepageRes = await axios.get("https://open.spotify.com/");
-		const $ = cheerio.load(homepageRes.data);
+	static generateTotp() {
+		const TOTP_SECRET = new Uint8Array([
+			53, 53, 48, 55, 49, 52, 53, 56, 53, 51, 52, 56, 55, 52, 57, 57, 53, 57, 50, 50, 52, 56, 54, 51, 48, 51, 50, 57, 51, 52, 55,
+		]);
 
-		// Step 2: Find script URL with "mobile-web-player" but not "vendor"
-		const scriptUrl = $("script[src]")
-			.map((_, el) => $(el).attr("src"))
-			.get()
-			.find((src) => src.includes("mobile-web-player") && !src.includes("vendor"));
-
-		if (!scriptUrl) throw new Error("Secret script not found");
-
-		// Full URL fix (if needed)
-		const fullScriptUrl = scriptUrl.startsWith("http") ? scriptUrl : "https://open.spotify.com" + scriptUrl;
-
-		// Step 3: Fetch the script content
-		const scriptRes = await axios.get(fullScriptUrl);
-		const scriptContent = scriptRes.data;
-
-		// Step 4: Extract secret array using regex
-		const secretPattern = /\(\[(\d+(?:,\d+)+)]\)/;
-		const match = secretPattern.exec(scriptContent);
-		if (!match) throw new Error("Secret array not found in script");
-
-		// Parse the secret array into bytes
-		const secretArray = match[1].split(",").map((n) => parseInt(n.trim(), 10));
-
-		return Buffer.from(secretArray);
-	}
-
-	static transformSecret(buffer: Buffer) {
-		const transformed = Buffer.alloc(buffer.length);
-		for (let i = 0; i < buffer.length; i++) {
-			transformed[i] = buffer[i] ^ ((i % 33) + 9);
-		}
-		return transformed;
-	}
-
-	static generateTotp(secretBuffer: Buffer) {
-		const period = 30; // seconds
-		const digits = 6;
-		const counter = Math.floor(Date.now() / 1000 / period);
+		const hmac = crypto.createHmac("sha1", TOTP_SECRET);
+		const counter = Math.floor(Date.now() / 30000);
 		const counterBuffer = Buffer.alloc(8);
 		counterBuffer.writeBigInt64BE(BigInt(counter));
 
-		const hmac = crypto.createHmac("sha1", secretBuffer);
 		hmac.update(counterBuffer);
 		const hmacResult = hmac.digest();
 
-		const offset = hmacResult[hmacResult.length - 1] & 0x0f;
-		const binary =
-			((hmacResult[offset] & 0x7f) << 24) | ((hmacResult[offset + 1] & 0xff) << 16) | ((hmacResult[offset + 2] & 0xff) << 8) | (hmacResult[offset + 3] & 0xff);
+		const offset = hmacResult[hmacResult.length - 1] & 15;
+		const truncatedValue =
+			((hmacResult[offset] & 127) << 24) | ((hmacResult[offset + 1] & 255) << 16) | ((hmacResult[offset + 2] & 255) << 8) | (hmacResult[offset + 3] & 255);
 
-		const otp = binary % 10 ** digits;
-		return otp.toString().padStart(digits, "0");
+		const totp = (truncatedValue % 1000000).toString().padStart(6, "0");
+		return [totp, counter * 30000];
 	}
 }
 
