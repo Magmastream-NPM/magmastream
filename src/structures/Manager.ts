@@ -1218,7 +1218,6 @@ interface LavaPlayer {
 export interface BaseSearchResult {
 	/** The load type of the result. */
 	loadType: LoadTypes.Empty | LoadTypes.Error;
-	tracks: Track[] | undefined
 }
 
 export type SearchResult = TrackSearchResult | SearchSearchResult | PlaylistSearchResult | BaseSearchResult;
@@ -1226,13 +1225,15 @@ export type SearchResult = TrackSearchResult | SearchSearchResult | PlaylistSear
 
 export interface TrackSearchResult {
 	/** The load type is always 'track' */
-	loadType: LoadTypes.Track | LoadTypes.Search;
-	/** The tracks of the search result */
+	loadType: LoadTypes.Track;
+	/** The track obtained */
 	tracks: [Track];
 }
 
 export interface SearchSearchResult {
+	/** The load type is always 'search' */
 	loadType: LoadTypes.Search
+	/** The tracks of the search result */
 	tracks: Track[]
 }
 

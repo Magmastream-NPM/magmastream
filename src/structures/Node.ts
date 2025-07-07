@@ -612,11 +612,7 @@ export class Node {
 		const { reason } = payload;
 
 		const skipFlag = player.get<boolean>("skipFlag");
-		if (
-			!skipFlag && 
-			(player.queue.previous.length === 0 || 
-			(player.queue.previous[0] && player.queue.previous[0].track !== player.queue.current?.track))
-		) {
+		if (!skipFlag && (player.queue.previous.length === 0 || (player.queue.previous[0] && player.queue.previous[0].track !== player.queue.current?.track))) {
 			// Store the current track in the previous tracks queue
 			player.queue.previous.push(player.queue.current);
 
@@ -863,16 +859,19 @@ export class Node {
 		// Check if the previous track has a YouTube URL
 		const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) => previousTrack.uri.includes(url));
 		// Get the video ID from the previous track's URL
-		const videoID = hasYouTubeURL
-			? previousTrack.uri.split("=").pop()
-			: (
-					await this.manager.search(
-						{ query: `${previousTrack.author} - ${previousTrack.title}`, source: SearchPlatform.YouTube },
-						player.get("Internal_BotUser") as User | ClientUser
-					)
-			  ).tracks[0]?.uri
-					.split("=")
-					.pop();
+		let videoID;
+
+		if (hasYouTubeURL) {
+			videoID = previousTrack.uri.split("=").pop();
+		} else {
+			const videoSearch = await this.manager.search(
+				{ query: `${previousTrack.author} - ${previousTrack.title}`, source: SearchPlatform.YouTube },
+				player.get("Internal_BotUser") as User | ClientUser
+			);
+			if (videoSearch.loadType !== LoadTypes.Track && videoSearch.loadType !== LoadTypes.Search && videoSearch.loadType != LoadTypes.Playlist) return false;
+
+			videoID = videoSearch.tracks[0]?.uri.split("=").pop();
+		}
 
 		// If the video ID is not found, return false
 		if (!videoID) return false;
@@ -889,7 +888,7 @@ export class Node {
 
 		// Search for the video and return false if the search fails
 		const res = await this.manager.search({ query: searchURI, source: SearchPlatform.YouTube }, player.get("Internal_BotUser") as User | ClientUser);
-		if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
+		if (res.loadType !== LoadTypes.Track && res.loadType !== LoadTypes.Search && res.loadType != LoadTypes.Playlist) return false;
 
 		// Find a track that is not the same as the current track
 		const foundTrack = res.tracks.find((t) => t.uri !== previousTrack.uri && t.author !== previousTrack.author && t.title !== previousTrack.title);
