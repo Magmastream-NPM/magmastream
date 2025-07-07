@@ -186,7 +186,7 @@ export class Manager extends EventEmitter {
 			if (!res) throw new Error("Query not found.");
 
 			let tracks: Track[] = [];
-			let playlist: SearchResult["playlist"] = null;
+			let playlist: PlaylistSearchResult["playlist"] = null;
 
 			switch (res.loadType) {
 				case LoadTypes.Search:
@@ -228,7 +228,18 @@ export class Manager extends EventEmitter {
 				}
 			}
 
-			const result: SearchResult = { loadType: res.loadType, tracks, playlist };
+			const result: SearchResult = (() => {
+				if (res.loadType === LoadTypes.Playlist) {
+					return { loadType: res.loadType, tracks, playlist };
+				} else if (res.loadType === LoadTypes.Search) {
+					return { loadType: res.loadType, tracks };
+				} else if (res.loadType === LoadTypes.Track) {
+					return { loadType: res.loadType, tracks: [tracks[0]] };
+				}
+			})();
+			
+
+			
 			this.emit(ManagerEventTypes.Debug, `[MANAGER] Result ${_source} search for: ${_query.query}: ${JSON.stringify(result)}`);
 
 			return result;
@@ -1204,13 +1215,34 @@ interface LavaPlayer {
 	filters: Record<string, unknown>;
 }
 
-export interface SearchResult {
+export interface BaseSearchResult {
 	/** The load type of the result. */
-	loadType: LoadTypes;
-	/** The array of tracks from the result. */
+	loadType: LoadTypes.Empty | LoadTypes.Error;
+	tracks: Track[] | undefined
+}
+
+export type SearchResult = TrackSearchResult | SearchSearchResult | PlaylistSearchResult | BaseSearchResult;
+
+
+export interface TrackSearchResult {
+	/** The load type is always 'track' */
+	loadType: LoadTypes.Track | LoadTypes.Search;
+	/** The tracks of the search result */
+	tracks: [Track];
+}
+
+export interface SearchSearchResult {
+	loadType: LoadTypes.Search
+	tracks: Track[]
+}
+
+export interface PlaylistSearchResult {
+	/** The playlist load type */
+	loadType: LoadTypes.Playlist;
+	/** The tracks of the playlist */
 	tracks: Track[];
-	/** The playlist info if the load type is 'playlist'. */
-	playlist?: PlaylistData;
+	/** The playlist info */
+	playlist: PlaylistData;
 }
 
 export interface PlaylistRawData {

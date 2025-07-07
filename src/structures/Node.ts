@@ -788,7 +788,7 @@ export class Node {
 					{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: platform },
 					player.get("Internal_BotUser") as User | ClientUser
 				);
-				if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
+				if (res.loadType !== LoadTypes.Search && res.loadType !== LoadTypes.Track && res.loadType !== LoadTypes.Playlist) return false;
 
 				const foundTrack = res.tracks.find((t) => t.uri !== previousTrack.uri);
 				if (!foundTrack) return false;
@@ -828,7 +828,7 @@ export class Node {
 				{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: platform },
 				player.get("Internal_BotUser") as User | ClientUser
 			);
-			if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
+			if (res.loadType !== LoadTypes.Search && res.loadType !== LoadTypes.Track && res.loadType !== LoadTypes.Playlist) return false;
 
 			const foundTrack = res.tracks.find((t) => t.uri !== previousTrack.uri);
 			if (!foundTrack) return false;
@@ -843,7 +843,7 @@ export class Node {
 			{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: platform },
 			player.get("Internal_BotUser") as User | ClientUser
 		);
-		if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return false;
+		if (res.loadType !== LoadTypes.Search && res.loadType !== LoadTypes.Track && res.loadType !== LoadTypes.Playlist) return false;
 
 		const foundTrack = res.tracks.find((t) => t.uri !== previousTrack.uri);
 		if (!foundTrack) return false;

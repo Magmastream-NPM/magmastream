@@ -484,7 +484,9 @@ export class Player {
 			videoID = track.uri.split("=").pop();
 		} else {
 			const searchResult = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.YouTube }, track.requester);
-			videoID = searchResult.tracks[0]?.uri.split("=").pop();
+			if (searchResult.loadType === LoadTypes.Search || searchResult.loadType === LoadTypes.Track) {
+				videoID = searchResult.tracks[0]?.uri.split("=").pop();
+			}
 		}
 
 		// If the video ID is not found, return false
@@ -502,7 +504,7 @@ export class Player {
 
 		// Search for the video and return false if the search fails
 		const res = await this.manager.search({ query: searchURI, source: SearchPlatform.YouTube }, track.requester);
-		if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return [];
+		if (res.loadType !== LoadTypes.Search && res.loadType !== LoadTypes.Track && res.loadType != LoadTypes.Playlist) return [];
 
 		// Return all track titles that do not have the same URI as the track.uri from before
 		return res.tracks.filter((t) => t.uri !== track.uri);
@@ -529,7 +531,7 @@ export class Player {
 
 				const randomTrack = response.data.toptracks.track[Math.floor(Math.random() * response.data.toptracks.track.length)];
 				const res = await this.manager.search({ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: source }, track.requester);
-				if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return [];
+				if (res.loadType !== LoadTypes.Search && res.loadType !== LoadTypes.Track && res.loadType !== LoadTypes.Playlist) return [];
 
 				const filteredTracks = res.tracks.filter((t) => t.uri !== track.uri);
 				if (!filteredTracks) return [];
@@ -564,8 +566,8 @@ export class Player {
 
 			const randomTrack = retryResponse.data.toptracks.track[Math.floor(Math.random() * retryResponse.data.toptracks.track.length)];
 			const res = await this.manager.search({ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: source }, track.requester);
-			if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return [];
-
+			if (res.loadType !== LoadTypes.Search && res.loadType !== LoadTypes.Track && res.loadType !== LoadTypes.Playlist) return [];
+			
 			const filteredTracks = res.tracks.filter((t) => t.uri !== track.uri);
 			if (!filteredTracks) return [];
 
