@@ -3,9 +3,9 @@ import { ClientUser, User } from "discord.js";
 import { Manager } from "./Manager";
 import axios from "axios";
 import { JSDOM } from "jsdom";
-import crypto from "crypto";
 import { AutoPlayPlatform, LoadTypes, SearchPlatform, TrackPartial } from "./Enums";
-import { Extendable, LavalinkResponse, PlaylistInfoData, PlaylistRawData, SearchResult, Track, TrackData, TrackSourceName } from "./Types";
+import { Extendable, LavalinkResponse, PlaylistRawData, Track, TrackData, TrackSourceName } from "./Types";
+// import playwright from "playwright";
 
 /** @hidden */
 const SIZES = ["0", "1", "2", "3", "default", "mqdefault", "hqdefault", "maxresdefault"];
@@ -147,15 +147,21 @@ export abstract class TrackUtils {
 
 export abstract class AutoPlayUtils {
 	private static manager: Manager;
+	// private static cachedAccessToken: string | null = null;
+	// private static cachedAccessTokenExpiresAt: number = 0;
 
 	/**
 	 * Initializes the AutoPlayUtils class with the given manager.
 	 * @param manager The manager instance to use.
 	 * @hidden
 	 */
-	public static init(manager: Manager): void {
+	public static async init(manager: Manager): Promise<void> {
 		if (!manager) throw new Error("AutoPlayUtils.init() requires a valid Manager instance.");
 		this.manager = manager;
+
+		// if (this.manager.options.autoPlaySearchPlatforms.includes(AutoPlayPlatform.Spotify)) {
+		// 	await this.getSpotifyAccessToken();
+		// }
 	}
 
 	/**
@@ -216,20 +222,31 @@ export abstract class AutoPlayUtils {
 
 				const randomTrack = response.data.toptracks.track[Math.floor(Math.random() * response.data.toptracks.track.length)];
 
-				const res = await this.manager.search(
+				const searchResult = await this.manager.search(
 					{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: this.manager.options.defaultSearchPlatform },
 					track.requester
 				);
-				if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
+				if (searchResult.loadType === LoadTypes.Empty || searchResult.loadType === LoadTypes.Error) {
 					return [];
 				}
 
-				const filteredTracks = res.tracks.filter((t) => t.uri !== track.uri);
-				if (!filteredTracks.length) {
-					return [];
+				let resolvedTracks: Track[];
+
+				switch (searchResult.loadType) {
+					case LoadTypes.Playlist:
+						resolvedTracks = searchResult.playlist.tracks;
+						break;
+					case LoadTypes.Track:
+					case LoadTypes.Search:
+						resolvedTracks = searchResult.tracks;
+						break;
+					default:
+						return [];
 				}
 
-				return filteredTracks;
+				if (!resolvedTracks.length) return [];
+
+				return resolvedTracks;
 			}
 			if (!artist) {
 				// No artist provided, search for the track title
@@ -267,15 +284,31 @@ export abstract class AutoPlayUtils {
 
 			const randomTrack = retryResponse.data.toptracks.track[Math.floor(Math.random() * retryResponse.data.toptracks.track.length)];
 
-			const res = await this.manager.search(
+			const searchResult = await this.manager.search(
 				{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: this.manager.options.defaultSearchPlatform },
 				track.requester
 			);
-			if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
+			if (searchResult.loadType === LoadTypes.Empty || searchResult.loadType === LoadTypes.Error) {
 				return [];
 			}
 
-			const filteredTracks = res.tracks.filter((t) => t.uri !== track.uri);
+			let resolvedTracks: Track[];
+
+			switch (searchResult.loadType) {
+				case LoadTypes.Playlist:
+					resolvedTracks = searchResult.playlist.tracks;
+					break;
+				case LoadTypes.Track:
+				case LoadTypes.Search:
+					resolvedTracks = searchResult.tracks;
+					break;
+				default:
+					return [];
+			}
+
+			if (!resolvedTracks.length) return [];
+
+			const filteredTracks = resolvedTracks.filter((t) => t.uri !== track.uri);
 			if (!filteredTracks.length) {
 				return [];
 			}
@@ -289,19 +322,31 @@ export abstract class AutoPlayUtils {
 			return [];
 		}
 
-		const res = await this.manager.search(
+		const searchResult = await this.manager.search(
 			{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: this.manager.options.defaultSearchPlatform },
 			track.requester
 		);
-		if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
-			return [];
-		}
-		if (res.loadType === LoadTypes.Playlist) res.tracks = res.playlist.tracks;
-		if (!res.tracks.length) {
+		if (searchResult.loadType === LoadTypes.Empty || searchResult.loadType === LoadTypes.Error) {
 			return [];
 		}
 
-		return res.tracks;
+		let resolvedTracks: Track[];
+
+		switch (searchResult.loadType) {
+			case LoadTypes.Playlist:
+				resolvedTracks = searchResult.playlist.tracks;
+				break;
+			case LoadTypes.Track:
+			case LoadTypes.Search:
+				resolvedTracks = searchResult.tracks;
+				break;
+			default:
+				return [];
+		}
+
+		if (!resolvedTracks.length) return [];
+
+		return resolvedTracks;
 	}
 
 	/**
@@ -310,193 +355,109 @@ export abstract class AutoPlayUtils {
 	 * @param platform The source to get recommended tracks from.
 	 * @returns An array of recommended tracks.
 	 */
-	static async getRecommendedTracksFromSource(track: Track, platform: string): Promise<Track[]> {
+	static async getRecommendedTracksFromSource(track: Track, platform: AutoPlayPlatform): Promise<Track[]> {
+		const requester = track.requester;
 		switch (platform) {
-			case "spotify":
+			case AutoPlayPlatform.Spotify:
 				{
-					try {
-						if (!track.uri.includes("spotify")) {
-							const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.Spotify }, track.requester);
+					if (!track.uri.includes("spotify")) {
+						const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.Spotify }, requester);
 
-							if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
+						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return [];
+
+						let resolvedTrack: Track;
+
+						switch (res.loadType) {
+							case LoadTypes.Playlist:
+								resolvedTrack = res.playlist.tracks[0];
+								break;
+							case LoadTypes.Track:
+							case LoadTypes.Search:
+								resolvedTrack = res.tracks[0];
+								break;
+							default:
 								return [];
-							}
-
-							if (res.loadType === LoadTypes.Playlist) {
-								res.tracks = res.playlist.tracks;
-							}
-
-							if (!res.tracks.length) {
-								return [];
-							}
-
-							track = res.tracks[0];
 						}
 
-						const [totp, timestamp] = this.generateTotp();
+						if (!resolvedTrack) return [];
 
-						const params = {
-							reason: "init",
-							productType: "web-player",
-							totp: totp,
-							totpVer: 5,
-							ts: timestamp,
-						};
-
-						let body;
-						try {
-							const response = await axios.get("https://open.spotify.com/api/token", {
-								params,
-								headers: {
-									"User-Agent":
-										"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.6998.178 Spotify/1.2.65.255 Safari/537.36",
-									"App-Platform": "WebPlayer",
-									Referer: "https://open.spotify.com/",
-									Origin: "https://open.spotify.com",
-									"Accept-Language": "en",
-								},
-							});
-							body = response.data;
-						} catch (error) {
-							const status = error.response?.status ?? "No response";
-							console.error("[AutoPlay] Failed to get spotify access token:", status);
-							return [];
-						}
-
-						let json;
-						try {
-							const response = await axios.get(`https://api.spotify.com/v1/recommendations`, {
-								params: { limit: 10, seed_tracks: track.identifier },
-								headers: {
-									Authorization: `Bearer ${body.accessToken}`,
-									"Content-Type": "application/json",
-								},
-							});
-							json = response.data;
-						} catch (error) {
-							console.error("[AutoPlay] Failed to fetch spotify recommendations:", error.response?.status);
-							return [];
-						}
-
-						if (!json.tracks || !json.tracks.length) {
-							return [];
-						}
-
-						const recommendedTrackId = json.tracks[Math.floor(Math.random() * json.tracks.length)].id;
-
-						const res = await this.manager.search({ query: `https://open.spotify.com/track/${recommendedTrackId}`, source: SearchPlatform.Spotify }, track.requester);
-
-						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
-							return [];
-						}
-
-						if (res.loadType === LoadTypes.Playlist) {
-							res.tracks = res.playlist.tracks;
-						}
-
-						if (!res.tracks.length) {
-							return [];
-						}
-
-						return res.tracks;
-					} catch (error) {
-						console.error("[AutoPlay] Unexpected spotify error:", error.message || error);
-						return [];
+						track = resolvedTrack;
 					}
+
+					const extractSpotifyArtistID = (url: string): string | null => {
+						const regex = /https:\/\/open\.spotify\.com\/artist\/([a-zA-Z0-9]+)/;
+						const match = url.match(regex);
+						return match ? match[1] : null;
+					};
+
+					const identifier = `sprec:seed_artists=${extractSpotifyArtistID(track.pluginInfo.artistUrl)}&seed_tracks=${track.identifier}`;
+
+					const recommendedResult = (await this.manager.useableNode.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(identifier)}`)) as LavalinkResponse;
+
+					const tracks = this.buildTracksFromResponse(recommendedResult, requester);
+
+					return tracks;
 				}
 				break;
-			case "deezer":
+			case AutoPlayPlatform.Deezer:
 				{
 					if (!track.uri.includes("deezer")) {
-						const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.Deezer }, track.requester);
+						const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.Deezer }, requester);
 
-						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
-							return [];
+						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return [];
+
+						let resolvedTrack: Track;
+
+						switch (res.loadType) {
+							case LoadTypes.Playlist:
+								resolvedTrack = res.playlist.tracks[0];
+								break;
+							case LoadTypes.Track:
+							case LoadTypes.Search:
+								resolvedTrack = res.tracks[0];
+								break;
+							default:
+								return [];
 						}
 
-						if (res.loadType === LoadTypes.Playlist) {
-							res.tracks = res.playlist.tracks;
-						}
+						if (!resolvedTrack) return [];
 
-						if (!res.tracks.length) {
-							return [];
-						}
-
-						track = res.tracks[0];
+						track = resolvedTrack;
 					}
 
 					const identifier = `dzrec:${track.identifier}`;
 
 					const recommendedResult = (await this.manager.useableNode.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(identifier)}`)) as LavalinkResponse;
 
-					if (!recommendedResult) {
-						return [];
-					}
+					const tracks = this.buildTracksFromResponse(recommendedResult, requester);
 
-					let tracks: Track[] = [];
-					let playlist: SearchResult["playlist"] = null;
-
-					const requester = track.requester;
-
-					switch (recommendedResult.loadType) {
-						case LoadTypes.Search:
-							tracks = (recommendedResult.data as TrackData[]).map((track) => TrackUtils.build(track, requester));
-							break;
-
-						case LoadTypes.Track:
-							tracks = [TrackUtils.build(recommendedResult.data as unknown as TrackData, requester)];
-							break;
-
-						case LoadTypes.Playlist: {
-							const playlistData = recommendedResult.data as PlaylistRawData;
-							tracks = playlistData.tracks.map((track) => TrackUtils.build(track, requester));
-
-							playlist = {
-								name: playlistData.info.name,
-								playlistInfo: playlistData.pluginInfo as PlaylistInfoData[],
-								requester: requester as User,
-								tracks,
-								duration: tracks.reduce((acc, cur) => acc + ((cur as unknown as Track).duration || 0), 0),
-							};
-							break;
-						}
-					}
-
-					const result: SearchResult = { loadType: recommendedResult.loadType, tracks, playlist };
-
-					if (result.loadType === LoadTypes.Empty || result.loadType === LoadTypes.Error) {
-						return [];
-					}
-
-					if (result.loadType === LoadTypes.Playlist) {
-						result.tracks = result.playlist.tracks;
-					}
-
-					if (!result.tracks.length) {
-						return [];
-					}
-
-					return result.tracks;
+					return tracks;
 				}
 				break;
-			case "soundcloud":
+			case AutoPlayPlatform.SoundCloud:
 				{
 					if (!track.uri.includes("soundcloud")) {
-						const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.SoundCloud }, track.requester);
+						const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.SoundCloud }, requester);
 
-						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
-							return [];
+						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return [];
+
+						let resolvedTrack: Track;
+
+						switch (res.loadType) {
+							case LoadTypes.Playlist:
+								resolvedTrack = res.playlist.tracks[0];
+								break;
+							case LoadTypes.Track:
+							case LoadTypes.Search:
+								resolvedTrack = res.tracks[0];
+								break;
+							default:
+								return [];
 						}
 
-						if (res.loadType === LoadTypes.Playlist) {
-							res.tracks = res.playlist.tracks;
-						}
+						if (!resolvedTrack) return [];
 
-						if (!res.tracks.length) {
-							return [];
-						}
-
-						track = res.tracks[0];
+						track = resolvedTrack;
 					}
 
 					try {
@@ -536,27 +497,32 @@ export abstract class AutoPlayUtils {
 
 						const randomUrl = urls[Math.floor(Math.random() * urls.length)];
 
-						const res = await this.manager.search({ query: randomUrl, source: SearchPlatform.SoundCloud }, track.requester);
+						const res = await this.manager.search({ query: randomUrl, source: SearchPlatform.SoundCloud }, requester);
 
-						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
-							return [];
+						let resolvedTrack: Track;
+
+						switch (res.loadType) {
+							case LoadTypes.Playlist:
+								resolvedTrack = res.playlist.tracks[0];
+								break;
+							case LoadTypes.Track:
+							case LoadTypes.Search:
+								resolvedTrack = res.tracks[0];
+								break;
+							default:
+								return [];
 						}
 
-						if (res.loadType === LoadTypes.Playlist) {
-							res.tracks = res.playlist.tracks;
-						}
+						if (!resolvedTrack) return [];
 
-						if (!res.tracks.length) {
-							return [];
-						}
-						return res.tracks;
+						return [resolvedTrack];
 					} catch (error) {
 						console.error("[AutoPlay] Error occurred while fetching soundcloud recommendations:", error);
 						return [];
 					}
 				}
 				break;
-			case "youtube":
+			case AutoPlayPlatform.YouTube:
 				{
 					const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) => track.uri.includes(url));
 					let videoID: string | null = null;
@@ -564,8 +530,28 @@ export abstract class AutoPlayUtils {
 					if (hasYouTubeURL) {
 						videoID = track.uri.split("=").pop();
 					} else {
-						const searchResult = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.YouTube }, track.requester);
-						videoID = searchResult.tracks[0]?.uri.split("=").pop();
+						const searchResult = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.YouTube }, requester);
+						if (searchResult.loadType === LoadTypes.Empty || searchResult.loadType === LoadTypes.Error) {
+							return [];
+						}
+
+						let resolvedTrack: Track;
+
+						switch (searchResult.loadType) {
+							case LoadTypes.Playlist:
+								resolvedTrack = searchResult.playlist.tracks[0];
+								break;
+							case LoadTypes.Track:
+							case LoadTypes.Search:
+								resolvedTrack = searchResult.tracks[0];
+								break;
+							default:
+								return [];
+						}
+
+						if (!resolvedTrack) return [];
+
+						videoID = resolvedTrack.uri.split("=").pop();
 					}
 
 					if (!videoID) {
@@ -580,236 +566,133 @@ export abstract class AutoPlayUtils {
 						searchURI = `https://www.youtube.com/watch?v=${videoID}&list=RD${videoID}&index=${randomIndex}`;
 					} while (track.uri.includes(searchURI));
 
-					const res = await this.manager.search({ query: searchURI, source: SearchPlatform.YouTube }, track.requester);
+					const res = await this.manager.search({ query: searchURI, source: SearchPlatform.YouTube }, requester);
 					if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
 						return [];
 					}
 
-					const filteredTracks = res.tracks.filter((t) => t.uri !== track.uri);
+					let resolvedTracks: Track[];
+
+					switch (res.loadType) {
+						case LoadTypes.Playlist:
+							resolvedTracks = res.playlist.tracks;
+							break;
+						case LoadTypes.Track:
+						case LoadTypes.Search:
+							resolvedTracks = res.tracks;
+							break;
+						default:
+							return [];
+					}
+
+					const filteredTracks = resolvedTracks.filter((t) => t.uri !== track.uri);
 
 					return filteredTracks;
 				}
 				break;
-			case "tidal":
+			case AutoPlayPlatform.Tidal:
 				{
 					if (!track.uri.includes("tidal")) {
-						const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.Tidal }, track.requester);
+						const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.Tidal }, requester);
 
-						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
-							return [];
+						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return [];
+
+						let resolvedTrack: Track;
+
+						switch (res.loadType) {
+							case LoadTypes.Playlist:
+								resolvedTrack = res.playlist.tracks[0];
+								break;
+							case LoadTypes.Track:
+							case LoadTypes.Search:
+								resolvedTrack = res.tracks[0];
+								break;
+							default:
+								return [];
 						}
 
-						if (res.loadType === LoadTypes.Playlist) {
-							res.tracks = res.playlist.tracks;
-						}
+						if (!resolvedTrack) return [];
 
-						if (!res.tracks.length) {
-							return [];
-						}
-
-						track = res.tracks[0];
+						track = resolvedTrack;
 					}
 
 					const identifier = `tdrec:${track.identifier}`;
 
 					const recommendedResult = (await this.manager.useableNode.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(identifier)}`)) as LavalinkResponse;
 
-					if (!recommendedResult) {
-						return [];
-					}
+					const tracks = this.buildTracksFromResponse(recommendedResult, requester);
 
-					let tracks: Track[] = [];
-					let playlist: SearchResult["playlist"] = null;
-
-					const requester = track.requester;
-
-					switch (recommendedResult.loadType) {
-						case LoadTypes.Search:
-							tracks = (recommendedResult.data as TrackData[]).map((track) => TrackUtils.build(track, requester));
-							break;
-
-						case LoadTypes.Track:
-							tracks = [TrackUtils.build(recommendedResult.data as unknown as TrackData, requester)];
-							break;
-
-						case LoadTypes.Playlist: {
-							const playlistData = recommendedResult.data as PlaylistRawData;
-							tracks = playlistData.tracks.map((track) => TrackUtils.build(track, requester));
-
-							playlist = {
-								name: playlistData.info.name,
-								playlistInfo: playlistData.pluginInfo as PlaylistInfoData[],
-								requester: requester as User,
-								tracks,
-								duration: tracks.reduce((acc, cur) => acc + ((cur as unknown as Track).duration || 0), 0),
-							};
-							break;
-						}
-					}
-
-					const result: SearchResult = { loadType: recommendedResult.loadType, tracks, playlist };
-
-					if (result.loadType === LoadTypes.Empty || result.loadType === LoadTypes.Error) {
-						return [];
-					}
-
-					if (result.loadType === LoadTypes.Playlist) {
-						result.tracks = result.playlist.tracks;
-					}
-
-					if (!result.tracks.length) {
-						return [];
-					}
-
-					return result.tracks;
+					return tracks;
 				}
 				break;
-			case "vkmusic":
+			case AutoPlayPlatform.VKMusic:
 				{
 					if (!track.uri.includes("vk.com") && !track.uri.includes("vk.ru")) {
-						const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.VKMusic }, track.requester);
+						const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.VKMusic }, requester);
 
-						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
-							return [];
+						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return [];
+
+						let resolvedTrack: Track;
+
+						switch (res.loadType) {
+							case LoadTypes.Playlist:
+								resolvedTrack = res.playlist.tracks[0];
+								break;
+							case LoadTypes.Track:
+							case LoadTypes.Search:
+								resolvedTrack = res.tracks[0];
+								break;
+							default:
+								return [];
 						}
 
-						if (res.loadType === LoadTypes.Playlist) {
-							res.tracks = res.playlist.tracks;
-						}
+						if (!resolvedTrack) return [];
 
-						if (!res.tracks.length) {
-							return [];
-						}
-
-						track = res.tracks[0];
+						track = resolvedTrack;
 					}
 
 					const identifier = `vkrec:${track.identifier}`;
 
 					const recommendedResult = (await this.manager.useableNode.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(identifier)}`)) as LavalinkResponse;
 
-					if (!recommendedResult) {
-						return [];
-					}
+					const tracks = this.buildTracksFromResponse(recommendedResult, requester);
 
-					let tracks: Track[] = [];
-					let playlist: SearchResult["playlist"] = null;
-
-					const requester = track.requester;
-
-					switch (recommendedResult.loadType) {
-						case LoadTypes.Search:
-							tracks = (recommendedResult.data as TrackData[]).map((track) => TrackUtils.build(track, requester));
-							break;
-
-						case LoadTypes.Track:
-							tracks = [TrackUtils.build(recommendedResult.data as unknown as TrackData, requester)];
-							break;
-
-						case LoadTypes.Playlist: {
-							const playlistData = recommendedResult.data as PlaylistRawData;
-							tracks = playlistData.tracks.map((track) => TrackUtils.build(track, requester));
-
-							playlist = {
-								name: playlistData.info.name,
-								playlistInfo: playlistData.pluginInfo as PlaylistInfoData[],
-								requester: requester as User,
-								tracks,
-								duration: tracks.reduce((acc, cur) => acc + ((cur as unknown as Track).duration || 0), 0),
-							};
-							break;
-						}
-					}
-
-					const result: SearchResult = { loadType: recommendedResult.loadType, tracks, playlist };
-
-					if (result.loadType === LoadTypes.Empty || result.loadType === LoadTypes.Error) {
-						return [];
-					}
-
-					if (result.loadType === LoadTypes.Playlist) {
-						result.tracks = result.playlist.tracks;
-					}
-
-					if (!result.tracks.length) {
-						return [];
-					}
-
-					return result.tracks;
+					return tracks;
 				}
 				break;
-			case "qobuz":
+			case AutoPlayPlatform.Qobuz:
 				{
 					if (!track.uri.includes("qobuz.com")) {
-						const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.Qobuz }, track.requester);
+						const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.Qobuz }, requester);
 
-						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
-							return [];
+						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return [];
+
+						let resolvedTrack: Track;
+
+						switch (res.loadType) {
+							case LoadTypes.Playlist:
+								resolvedTrack = res.playlist.tracks[0];
+								break;
+							case LoadTypes.Track:
+							case LoadTypes.Search:
+								resolvedTrack = res.tracks[0];
+								break;
+							default:
+								return [];
 						}
 
-						if (res.loadType === LoadTypes.Playlist) {
-							res.tracks = res.playlist.tracks;
-						}
+						if (!resolvedTrack) return [];
 
-						if (!res.tracks.length) {
-							return [];
-						}
-
-						track = res.tracks[0];
+						track = resolvedTrack;
 					}
 
 					const identifier = `qbrec:${track.identifier}`;
 
 					const recommendedResult = (await this.manager.useableNode.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(identifier)}`)) as LavalinkResponse;
 
-					if (!recommendedResult) {
-						return [];
-					}
+					const tracks = this.buildTracksFromResponse(recommendedResult, requester);
 
-					let tracks: Track[] = [];
-					let playlist: SearchResult["playlist"] = null;
-
-					const requester = track.requester;
-
-					switch (recommendedResult.loadType) {
-						case LoadTypes.Search:
-							tracks = (recommendedResult.data as TrackData[]).map((track) => TrackUtils.build(track, requester));
-							break;
-
-						case LoadTypes.Track:
-							tracks = [TrackUtils.build(recommendedResult.data as unknown as TrackData, requester)];
-							break;
-
-						case LoadTypes.Playlist: {
-							const playlistData = recommendedResult.data as PlaylistRawData;
-							tracks = playlistData.tracks.map((track) => TrackUtils.build(track, requester));
-
-							playlist = {
-								name: playlistData.info.name,
-								playlistInfo: playlistData.pluginInfo as PlaylistInfoData[],
-								requester: requester as User,
-								tracks,
-								duration: tracks.reduce((acc, cur) => acc + ((cur as unknown as Track).duration || 0), 0),
-							};
-							break;
-						}
-					}
-
-					const result: SearchResult = { loadType: recommendedResult.loadType, tracks, playlist };
-
-					if (result.loadType === LoadTypes.Empty || result.loadType === LoadTypes.Error) {
-						return [];
-					}
-
-					if (result.loadType === LoadTypes.Playlist) {
-						result.tracks = result.playlist.tracks;
-					}
-
-					if (!result.tracks.length) {
-						return [];
-					}
-
-					return result.tracks;
+					return tracks;
 				}
 				break;
 			default:
@@ -817,25 +700,83 @@ export abstract class AutoPlayUtils {
 		}
 	}
 
-	static generateTotp() {
-		const TOTP_SECRET = new Uint8Array([
-			53, 53, 48, 55, 49, 52, 53, 56, 53, 51, 52, 56, 55, 52, 57, 57, 53, 57, 50, 50, 52, 56, 54, 51, 48, 51, 50, 57, 51, 52, 55,
-		]);
+	// static async getSpotifyAccessToken() {
+	// 	const timeoutMs = 15000;
 
-		const hmac = crypto.createHmac("sha1", TOTP_SECRET);
-		const counter = Math.floor(Date.now() / 30000);
-		const counterBuffer = Buffer.alloc(8);
-		counterBuffer.writeBigInt64BE(BigInt(counter));
+	// 	let browser;
+	// 	let timeout;
 
-		hmac.update(counterBuffer);
-		const hmacResult = hmac.digest();
+	// 	try {
+	// 		browser = await playwright.chromium.launch({ headless: true, args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"] });
+	// 		const page = await browser.newPage();
 
-		const offset = hmacResult[hmacResult.length - 1] & 15;
-		const truncatedValue =
-			((hmacResult[offset] & 127) << 24) | ((hmacResult[offset + 1] & 255) << 16) | ((hmacResult[offset + 2] & 255) << 8) | (hmacResult[offset + 3] & 255);
+	// 		let tokenCaptured = false;
 
-		const totp = (truncatedValue % 1000000).toString().padStart(6, "0");
-		return [totp, counter * 30000];
+	// 		timeout = setTimeout(async () => {
+	// 			if (!tokenCaptured) {
+	// 				console.warn("[Spotify] Token request timeout — did Spotify change their internals?");
+	// 				await browser?.close();
+	// 			}
+	// 		}, timeoutMs);
+
+	// 		page.on("requestfinished", async (request) => {
+	// 			if (!request.url().includes("/api/token")) return;
+
+	// 			tokenCaptured = true;
+
+	// 			try {
+	// 				const response = await request.response();
+	// 				if (response && response.ok()) {
+	// 					const data = await response.json();
+	// 					this.cachedAccessToken = data?.accessToken ?? null;
+	// 					this.cachedAccessTokenExpiresAt = data?.accessTokenExpirationTimestampMs ?? 0;
+	// 				}
+	// 			} catch (err) {
+	// 				console.error("[Spotify] Error reading token response:", err);
+	// 			}
+
+	// 			clearTimeout(timeout);
+	// 			page.removeAllListeners();
+	// 			await browser.close();
+	// 		});
+
+	// 		try {
+	// 			await page.goto("https://open.spotify.com/", { waitUntil: "domcontentloaded" });
+	// 		} catch (err) {
+	// 			clearTimeout(timeout);
+	// 			await browser.close();
+	// 			console.error("[Spotify] Failed to navigate:", err);
+	// 			return [];
+	// 		}
+	// 	} catch (err) {
+	// 		clearTimeout(timeout);
+	// 		await browser?.close();
+	// 		console.error("[Spotify] Failed to launch Playwright:", err);
+	// 	}
+	// }
+
+	static buildTracksFromResponse<T>(recommendedResult: LavalinkResponse, requester?: T): Track[] {
+		if (!recommendedResult) return [];
+
+		if (recommendedResult.loadType === LoadTypes.Empty || recommendedResult.loadType === LoadTypes.Error) return [];
+
+		switch (recommendedResult.loadType) {
+			case LoadTypes.Search: {
+				const tracks = (recommendedResult.data as TrackData[]).map((t) => TrackUtils.build(t, requester));
+				return tracks;
+			}
+			case LoadTypes.Track: {
+				const track = TrackUtils.build(recommendedResult.data as unknown as TrackData, requester);
+				return [track];
+			}
+			case LoadTypes.Playlist: {
+				const playlistData = recommendedResult.data as PlaylistRawData;
+				const tracks = playlistData.tracks.map((t) => TrackUtils.build(t, requester));
+				return tracks;
+			}
+			default:
+				throw new Error(`Unsupported loadType: ${recommendedResult.loadType}`);
+		}
 	}
 }
 

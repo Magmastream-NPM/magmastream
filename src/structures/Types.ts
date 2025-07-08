@@ -402,13 +402,41 @@ export interface LavaPlayer {
 /**
  * Search Result
  */
-export interface SearchResult {
+export interface BaseSearchResult {
 	/** The load type of the result. */
-	loadType: LoadTypes;
-	/** The array of tracks from the result. */
+	loadType: LoadTypes.Empty | LoadTypes.Error;
+}
+
+/**
+ * Track Search Result
+ */
+export interface TrackSearchResult {
+	/** The load type is always 'track' */
+	loadType: LoadTypes.Track;
+	/** The track obtained */
+	tracks: [Track];
+}
+
+/**
+ * Search Result
+ */
+export interface SearchSearchResult {
+	/** The load type is always 'search' */
+	loadType: LoadTypes.Search
+	/** The tracks of the search result */
+	tracks: Track[]
+}
+
+/**
+ * Playlist Search Result
+ */
+export interface PlaylistSearchResult {
+	/** The playlist load type */
+	loadType: LoadTypes.Playlist;
+	/** The tracks of the playlist */
 	tracks: Track[];
-	/** The playlist info if the load type is 'playlist'. */
-	playlist?: PlaylistData;
+	/** The playlist info */
+	playlist: PlaylistData;
 }
 
 /**
@@ -1072,3 +1100,8 @@ export type NodeLinkGetLyrics = NodeLinkGetLyricsSingle | NodeLinkGetLyricsMulti
  * Voice Receiver Event Enum type
  */
 export type VoiceReceiverEvent = StartSpeakingEventVoiceReceiver | EndSpeakingEventVoiceReceiver;
+
+/**
+ * Search Result Enum type
+ */
+export type SearchResult = TrackSearchResult | SearchSearchResult | PlaylistSearchResult | BaseSearchResult;
