@@ -4,7 +4,7 @@ import { Manager } from "./Manager";
 import axios from "axios";
 import { JSDOM } from "jsdom";
 import { AutoPlayPlatform, LoadTypes, SearchPlatform, TrackPartial } from "./Enums";
-import { Extendable, LavalinkResponse, PlaylistRawData, Track, TrackData, TrackSourceName } from "./Types";
+import { ErrorOrEmptySearchResult, Extendable, LavalinkResponse, PlaylistRawData, SearchResult, Track, TrackData, TrackSourceName } from "./Types";
 // import playwright from "playwright";
 
 /** @hidden */
@@ -143,6 +143,15 @@ export abstract class TrackUtils {
 			throw new RangeError(`Argument "data" is not a valid track: ${error.message}`);
 		}
 	}
+
+	/**
+	 * Validates a search result.
+	 * @param result The search result to validate.
+	 * @returns Whether the search result is valid.
+	 */
+	static isErrorOrEmptySearchResult(result: SearchResult): result is ErrorOrEmptySearchResult {
+		return result.loadType === LoadTypes.Empty || result.loadType === LoadTypes.Error;
+	}
 }
 
 export abstract class AutoPlayUtils {
@@ -226,7 +235,7 @@ export abstract class AutoPlayUtils {
 					{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: this.manager.options.defaultSearchPlatform },
 					track.requester
 				);
-				if (searchResult.loadType === LoadTypes.Empty || searchResult.loadType === LoadTypes.Error) {
+				if (TrackUtils.isErrorOrEmptySearchResult(searchResult)) {
 					return [];
 				}
 
@@ -288,7 +297,7 @@ export abstract class AutoPlayUtils {
 				{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: this.manager.options.defaultSearchPlatform },
 				track.requester
 			);
-			if (searchResult.loadType === LoadTypes.Empty || searchResult.loadType === LoadTypes.Error) {
+			if (TrackUtils.isErrorOrEmptySearchResult(searchResult)) {
 				return [];
 			}
 
@@ -326,7 +335,7 @@ export abstract class AutoPlayUtils {
 			{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: this.manager.options.defaultSearchPlatform },
 			track.requester
 		);
-		if (searchResult.loadType === LoadTypes.Empty || searchResult.loadType === LoadTypes.Error) {
+		if (TrackUtils.isErrorOrEmptySearchResult(searchResult)) {
 			return [];
 		}
 
@@ -363,7 +372,7 @@ export abstract class AutoPlayUtils {
 					if (!track.uri.includes("spotify")) {
 						const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.Spotify }, requester);
 
-						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return [];
+						if (TrackUtils.isErrorOrEmptySearchResult(res)) return [];
 
 						let resolvedTrack: Track;
 
@@ -404,7 +413,7 @@ export abstract class AutoPlayUtils {
 					if (!track.uri.includes("deezer")) {
 						const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.Deezer }, requester);
 
-						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return [];
+						if (TrackUtils.isErrorOrEmptySearchResult(res)) return [];
 
 						let resolvedTrack: Track;
 
@@ -439,7 +448,7 @@ export abstract class AutoPlayUtils {
 					if (!track.uri.includes("soundcloud")) {
 						const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.SoundCloud }, requester);
 
-						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return [];
+						if (TrackUtils.isErrorOrEmptySearchResult(res)) return [];
 
 						let resolvedTrack: Track;
 
@@ -531,7 +540,7 @@ export abstract class AutoPlayUtils {
 						videoID = track.uri.split("=").pop();
 					} else {
 						const searchResult = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.YouTube }, requester);
-						if (searchResult.loadType === LoadTypes.Empty || searchResult.loadType === LoadTypes.Error) {
+						if (TrackUtils.isErrorOrEmptySearchResult(searchResult)) {
 							return [];
 						}
 
@@ -567,7 +576,7 @@ export abstract class AutoPlayUtils {
 					} while (track.uri.includes(searchURI));
 
 					const res = await this.manager.search({ query: searchURI, source: SearchPlatform.YouTube }, requester);
-					if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
+					if (TrackUtils.isErrorOrEmptySearchResult(res)) {
 						return [];
 					}
 
@@ -595,7 +604,7 @@ export abstract class AutoPlayUtils {
 					if (!track.uri.includes("tidal")) {
 						const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.Tidal }, requester);
 
-						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return [];
+						if (TrackUtils.isErrorOrEmptySearchResult(res)) return [];
 
 						let resolvedTrack: Track;
 
@@ -630,7 +639,7 @@ export abstract class AutoPlayUtils {
 					if (!track.uri.includes("vk.com") && !track.uri.includes("vk.ru")) {
 						const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.VKMusic }, requester);
 
-						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return [];
+						if (TrackUtils.isErrorOrEmptySearchResult(res)) return [];
 
 						let resolvedTrack: Track;
 
@@ -665,7 +674,7 @@ export abstract class AutoPlayUtils {
 					if (!track.uri.includes("qobuz.com")) {
 						const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.Qobuz }, requester);
 
-						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) return [];
+						if (TrackUtils.isErrorOrEmptySearchResult(res)) return [];
 
 						let resolvedTrack: Track;
 
@@ -758,7 +767,7 @@ export abstract class AutoPlayUtils {
 	static buildTracksFromResponse<T>(recommendedResult: LavalinkResponse, requester?: T): Track[] {
 		if (!recommendedResult) return [];
 
-		if (recommendedResult.loadType === LoadTypes.Empty || recommendedResult.loadType === LoadTypes.Error) return [];
+		if (TrackUtils.isErrorOrEmptySearchResult(recommendedResult as unknown as SearchResult)) return [];
 
 		switch (recommendedResult.loadType) {
 			case LoadTypes.Search: {

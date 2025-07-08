@@ -399,10 +399,11 @@ export interface LavaPlayer {
 	filters: Record<string, unknown>;
 }
 
+
 /**
- * Search Result
+ * Error or Empty Search Result
  */
-export interface BaseSearchResult {
+export interface ErrorOrEmptySearchResult {
 	/** The load type of the result. */
 	loadType: LoadTypes.Empty | LoadTypes.Error;
 }
@@ -1104,4 +1105,4 @@ export type VoiceReceiverEvent = StartSpeakingEventVoiceReceiver | EndSpeakingEv
 /**
  * Search Result Enum type
  */
-export type SearchResult = TrackSearchResult | SearchSearchResult | PlaylistSearchResult | BaseSearchResult;
+export type SearchResult = TrackSearchResult | SearchSearchResult | PlaylistSearchResult | ErrorOrEmptySearchResult;
