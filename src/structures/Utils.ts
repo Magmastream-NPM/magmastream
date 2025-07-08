@@ -5,7 +5,8 @@ import axios from "axios";
 import { JSDOM } from "jsdom";
 import crypto from "crypto";
 import { AutoPlayPlatform, LoadTypes, SearchPlatform, TrackPartial } from "./Enums";
-import { Extendable, LavalinkResponse, PlaylistInfoData, PlaylistRawData, SearchResult, Track, TrackData, TrackSourceName } from "./Types";
+import { Extendable, LavalinkResponse, PlaylistInfoData, PlaylistRawData, PlaylistSearchResult, SearchResult, Track, TrackData, TrackSourceName } from "./Types";
+import isErrorOrEmptySearchResult from "../utils/isErrorOrEmptySearchResult";
 
 /** @hidden */
 const SIZES = ["0", "1", "2", "3", "default", "mqdefault", "hqdefault", "maxresdefault"];
@@ -220,7 +221,7 @@ export abstract class AutoPlayUtils {
 					{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: this.manager.options.defaultSearchPlatform },
 					track.requester
 				);
-				if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
+				if (isErrorOrEmptySearchResult(res)) {
 					return [];
 				}
 
@@ -271,7 +272,7 @@ export abstract class AutoPlayUtils {
 				{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: this.manager.options.defaultSearchPlatform },
 				track.requester
 			);
-			if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
+			if (isErrorOrEmptySearchResult(res)) {
 				return [];
 			}
 
@@ -293,7 +294,7 @@ export abstract class AutoPlayUtils {
 			{ query: `${randomTrack.artist.name} - ${randomTrack.name}`, source: this.manager.options.defaultSearchPlatform },
 			track.requester
 		);
-		if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
+		if (isErrorOrEmptySearchResult(res)) {
 			return [];
 		}
 		if (res.loadType === LoadTypes.Playlist) res.tracks = res.playlist.tracks;
@@ -318,7 +319,7 @@ export abstract class AutoPlayUtils {
 						if (!track.uri.includes("spotify")) {
 							const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.Spotify }, track.requester);
 
-							if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
+							if (isErrorOrEmptySearchResult(res)) {
 								return [];
 							}
 
@@ -386,7 +387,7 @@ export abstract class AutoPlayUtils {
 
 						const res = await this.manager.search({ query: `https://open.spotify.com/track/${recommendedTrackId}`, source: SearchPlatform.Spotify }, track.requester);
 
-						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
+						if (isErrorOrEmptySearchResult(res)) {
 							return [];
 						}
 
@@ -410,7 +411,7 @@ export abstract class AutoPlayUtils {
 					if (!track.uri.includes("deezer")) {
 						const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.Deezer }, track.requester);
 
-						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
+						if (isErrorOrEmptySearchResult(res)) {
 							return [];
 						}
 
@@ -434,7 +435,7 @@ export abstract class AutoPlayUtils {
 					}
 
 					let tracks: Track[] = [];
-					let playlist: SearchResult["playlist"] = null;
+					let playlist: PlaylistSearchResult["playlist"] = null;
 
 					const requester = track.requester;
 
@@ -462,9 +463,24 @@ export abstract class AutoPlayUtils {
 						}
 					}
 
-					const result: SearchResult = { loadType: recommendedResult.loadType, tracks, playlist };
+					let result: SearchResult;
 
-					if (result.loadType === LoadTypes.Empty || result.loadType === LoadTypes.Error) {
+					switch (recommendedResult.loadType) {
+						case LoadTypes.Playlist:
+							result = { loadType: recommendedResult.loadType, tracks, playlist };
+							break;
+						case LoadTypes.Search:
+							result = { loadType: recommendedResult.loadType, tracks };
+							break;
+						case LoadTypes.Track:
+							result = { loadType: recommendedResult.loadType, tracks: [tracks[0]] };
+							break;
+						default:
+							result = { loadType: recommendedResult.loadType };
+							break;
+					}
+
+					if (isErrorOrEmptySearchResult(result)) {
 						return [];
 					}
 
@@ -484,7 +500,7 @@ export abstract class AutoPlayUtils {
 					if (!track.uri.includes("soundcloud")) {
 						const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.SoundCloud }, track.requester);
 
-						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
+						if (isErrorOrEmptySearchResult(res)) {
 							return [];
 						}
 
@@ -538,7 +554,7 @@ export abstract class AutoPlayUtils {
 
 						const res = await this.manager.search({ query: randomUrl, source: SearchPlatform.SoundCloud }, track.requester);
 
-						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
+						if (isErrorOrEmptySearchResult(res)) {
 							return [];
 						}
 
@@ -565,7 +581,9 @@ export abstract class AutoPlayUtils {
 						videoID = track.uri.split("=").pop();
 					} else {
 						const searchResult = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.YouTube }, track.requester);
-						videoID = searchResult.tracks[0]?.uri.split("=").pop();
+						if (!isErrorOrEmptySearchResult(searchResult)) {
+							videoID = searchResult.tracks[0]?.uri.split("=").pop();
+						}
 					}
 
 					if (!videoID) {
@@ -581,7 +599,7 @@ export abstract class AutoPlayUtils {
 					} while (track.uri.includes(searchURI));
 
 					const res = await this.manager.search({ query: searchURI, source: SearchPlatform.YouTube }, track.requester);
-					if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
+					if (isErrorOrEmptySearchResult(res)) {
 						return [];
 					}
 
@@ -595,7 +613,7 @@ export abstract class AutoPlayUtils {
 					if (!track.uri.includes("tidal")) {
 						const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.Tidal }, track.requester);
 
-						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
+						if (isErrorOrEmptySearchResult(res)) {
 							return [];
 						}
 
@@ -619,7 +637,7 @@ export abstract class AutoPlayUtils {
 					}
 
 					let tracks: Track[] = [];
-					let playlist: SearchResult["playlist"] = null;
+					let playlist: PlaylistSearchResult["playlist"] = null;
 
 					const requester = track.requester;
 
@@ -647,9 +665,24 @@ export abstract class AutoPlayUtils {
 						}
 					}
 
-					const result: SearchResult = { loadType: recommendedResult.loadType, tracks, playlist };
+					let result: SearchResult;
 
-					if (result.loadType === LoadTypes.Empty || result.loadType === LoadTypes.Error) {
+					switch (recommendedResult.loadType) {
+						case LoadTypes.Playlist:
+							result = { loadType: recommendedResult.loadType, tracks, playlist };
+							break;
+						case LoadTypes.Search:
+							result = { loadType: recommendedResult.loadType, tracks };
+							break;
+						case LoadTypes.Track:
+							result = { loadType: recommendedResult.loadType, tracks: [tracks[0]] };
+							break;
+						default:
+							result = { loadType: recommendedResult.loadType };
+							break;
+					}
+
+					if (isErrorOrEmptySearchResult(result)) {
 						return [];
 					}
 
@@ -669,7 +702,7 @@ export abstract class AutoPlayUtils {
 					if (!track.uri.includes("vk.com") && !track.uri.includes("vk.ru")) {
 						const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.VKMusic }, track.requester);
 
-						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
+						if (isErrorOrEmptySearchResult(res)) {
 							return [];
 						}
 
@@ -693,7 +726,7 @@ export abstract class AutoPlayUtils {
 					}
 
 					let tracks: Track[] = [];
-					let playlist: SearchResult["playlist"] = null;
+					let playlist: PlaylistSearchResult["playlist"] = null;
 
 					const requester = track.requester;
 
@@ -721,9 +754,24 @@ export abstract class AutoPlayUtils {
 						}
 					}
 
-					const result: SearchResult = { loadType: recommendedResult.loadType, tracks, playlist };
+					let result: SearchResult;
 
-					if (result.loadType === LoadTypes.Empty || result.loadType === LoadTypes.Error) {
+					switch (recommendedResult.loadType) {
+						case LoadTypes.Playlist:
+							result = { loadType: recommendedResult.loadType, tracks, playlist };
+							break;
+						case LoadTypes.Search:
+							result = { loadType: recommendedResult.loadType, tracks };
+							break;
+						case LoadTypes.Track:
+							result = { loadType: recommendedResult.loadType, tracks: [tracks[0]] };
+							break;
+						default:
+							result = { loadType: recommendedResult.loadType };
+							break;
+					}
+
+					if (isErrorOrEmptySearchResult(result)) {
 						return [];
 					}
 
@@ -743,7 +791,7 @@ export abstract class AutoPlayUtils {
 					if (!track.uri.includes("qobuz.com")) {
 						const res = await this.manager.search({ query: `${track.author} - ${track.title}`, source: SearchPlatform.Qobuz }, track.requester);
 
-						if (res.loadType === LoadTypes.Empty || res.loadType === LoadTypes.Error) {
+						if (isErrorOrEmptySearchResult(res)) {
 							return [];
 						}
 
@@ -767,7 +815,7 @@ export abstract class AutoPlayUtils {
 					}
 
 					let tracks: Track[] = [];
-					let playlist: SearchResult["playlist"] = null;
+					let playlist: PlaylistSearchResult["playlist"] = null;
 
 					const requester = track.requester;
 
@@ -795,9 +843,24 @@ export abstract class AutoPlayUtils {
 						}
 					}
 
-					const result: SearchResult = { loadType: recommendedResult.loadType, tracks, playlist };
+					let result:SearchResult;
 
-					if (result.loadType === LoadTypes.Empty || result.loadType === LoadTypes.Error) {
+					switch (recommendedResult.loadType) {
+						case LoadTypes.Playlist:
+							result = { loadType: recommendedResult.loadType, tracks, playlist };
+							break;
+						case LoadTypes.Search:
+							result = { loadType: recommendedResult.loadType, tracks};
+							break;
+						case LoadTypes.Track:
+							result = { loadType: recommendedResult.loadType, tracks: [tracks[0]] };
+							break;
+						default:
+							result = { loadType: recommendedResult.loadType };
+							break;
+					}
+
+					if (isErrorOrEmptySearchResult(result)) {
 						return [];
 					}
 

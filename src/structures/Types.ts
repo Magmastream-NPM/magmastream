@@ -399,16 +399,34 @@ export interface LavaPlayer {
 	filters: Record<string, unknown>;
 }
 
-/**
- * Search Result
- */
-export interface SearchResult {
+export type SearchResult = TrackSearchResult | SearchSearchResult | PlaylistSearchResult | ErrorOrEmptySearchResult;
+
+export interface ErrorOrEmptySearchResult {
 	/** The load type of the result. */
-	loadType: LoadTypes;
-	/** The array of tracks from the result. */
+	loadType: LoadTypes.Empty | LoadTypes.Error;
+}
+
+export interface TrackSearchResult {
+	/** The load type is always 'track' */
+	loadType: LoadTypes.Track;
+	/** The track obtained */
+	tracks: [Track];
+}
+
+export interface SearchSearchResult {
+	/** The load type is always 'search' */
+	loadType: LoadTypes.Search;
+	/** The tracks of the search result */
 	tracks: Track[];
-	/** The playlist info if the load type is 'playlist'. */
-	playlist?: PlaylistData;
+}
+
+export interface PlaylistSearchResult {
+	/** The playlist load type */
+	loadType: LoadTypes.Playlist;
+	/** The tracks of the playlist */
+	tracks: Track[];
+	/** The playlist info */
+	playlist: PlaylistData;
 }
 
 /**

@@ -21,6 +21,7 @@ import {
 	PlayerOptions,
 	PlaylistInfoData,
 	PlaylistRawData,
+	PlaylistSearchResult,
 	SearchQuery,
 	SearchResult,
 	Track,
@@ -213,7 +214,7 @@ export class Manager extends EventEmitter {
 			if (!res) throw new Error("Query not found.");
 
 			let tracks: Track[] = [];
-			let playlist: SearchResult["playlist"] = null;
+			let playlist: PlaylistSearchResult["playlist"] = null;
 
 			switch (res.loadType) {
 				case LoadTypes.Search:
@@ -255,7 +256,28 @@ export class Manager extends EventEmitter {
 				}
 			}
 
-			const result: SearchResult = { loadType: res.loadType, tracks, playlist };
+			let result: SearchResult;
+
+			switch (res.loadType) {
+				case LoadTypes.Playlist: {
+					result = { loadType: res.loadType, tracks, playlist };
+					break;
+				}
+
+				case LoadTypes.Search: {
+					result = { loadType: res.loadType, tracks };
+					break;
+				}
+
+				case LoadTypes.Track: {
+					result = { loadType: res.loadType, tracks: [tracks[0]] };
+					break;
+				}
+
+				default:
+					return { loadType: res.loadType };
+			}
+
 			this.emit(ManagerEventTypes.Debug, `[MANAGER] Result ${_source} search for: ${_query.query}: ${JSON.stringify(result)}`);
 
 			return result;
