@@ -2,7 +2,7 @@ import { Manager } from "./Manager";
 import { ClientUser, User } from "discord.js";
 import { Redis } from "ioredis";
 import { ManagerEventTypes, PlayerStateEventTypes } from "./Enums";
-import { IQueue, Track } from "./Types";
+import { IQueue, PlayerStateUpdateEvent, Track } from "./Types";
 
 export class RedisQueue implements IQueue {
 	private redis: Redis;
@@ -120,10 +120,11 @@ export class RedisQueue implements IQueue {
 					this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 						changeType: PlayerStateEventTypes.QueueChange,
 						details: {
-							changeType: "autoPlayAdd",
+							type: "queue",
+							action: "autoPlayAdd",
 							tracks: Array.isArray(track) ? track : [track],
 						},
-					});
+					} as PlayerStateUpdateEvent);
 
 					return;
 				}
@@ -133,10 +134,11 @@ export class RedisQueue implements IQueue {
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
 			details: {
-				changeType: "add",
+				type: "queue",
+				action: "add",
 				tracks,
 			},
-		});
+		} as PlayerStateUpdateEvent);
 	}
 
 	public async remove(position?: number): Promise<Track[]>;
@@ -170,10 +172,11 @@ export class RedisQueue implements IQueue {
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
 			details: {
-				changeType: "remove",
+				type: "queue",
+				action: "remove",
 				tracks: deserialized,
 			},
-		});
+		} as PlayerStateUpdateEvent);
 
 		return deserialized;
 	}
@@ -185,10 +188,11 @@ export class RedisQueue implements IQueue {
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
 			details: {
-				changeType: "clear",
+				type: "queue",
+				action: "clear",
 				tracks: [],
 			},
-		});
+		} as PlayerStateUpdateEvent);
 
 		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Cleared the queue for: ${this.guildId}`);
 	}
@@ -234,8 +238,11 @@ export class RedisQueue implements IQueue {
 
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
-			details: { changeType: "shuffle" },
-		});
+			details: {
+				type: "queue",
+				action: "shuffle",
+			},
+		} as PlayerStateUpdateEvent);
 
 		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Shuffled the queue for: ${this.guildId}`);
 	}
@@ -266,8 +273,11 @@ export class RedisQueue implements IQueue {
 
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
-			details: { changeType: "userBlock" },
-		});
+			details: {
+				type: "queue",
+				action: "userBlock",
+			},
+		} as PlayerStateUpdateEvent);
 
 		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] userBlockShuffled the queue for: ${this.guildId}`);
 	}
@@ -309,8 +319,11 @@ export class RedisQueue implements IQueue {
 
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
-			details: { changeType: "roundRobin" },
-		});
+			details: {
+				type: "queue",
+				action: "roundRobin",
+			},
+		} as PlayerStateUpdateEvent);
 
 		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] roundRobinShuffled the queue for: ${this.guildId}`);
 	}

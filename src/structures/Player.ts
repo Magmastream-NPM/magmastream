@@ -7,7 +7,7 @@ import * as _ from "lodash";
 import playerCheck from "../utils/playerCheck";
 import { ClientUser, Message, User } from "discord.js";
 import { RedisQueue } from "./RedisQueue";
-import { IQueue, Lyrics, PlayerOptions, PlayOptions, SearchQuery, SearchResult, Track, VoiceReceiverEvent, VoiceState } from "./Types";
+import { IQueue, Lyrics, PlayerOptions, PlayerStateUpdateEvent, PlayOptions, SearchQuery, SearchResult, Track, VoiceReceiverEvent, VoiceState } from "./Types";
 // import { IQueue, Lyrics, PlayerOptions, PlayerUpdateVoiceState, PlayOptions, SearchQuery, SearchResult, Track, VoiceState } from "./Types";
 import { ManagerEventTypes, PlayerStateEventTypes, SponsorBlockSegment, StateStorageType, StateTypes } from "./Enums";
 import { WebSocket } from "ws";
@@ -198,11 +198,12 @@ export class Player {
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.ConnectionChange,
 			details: {
-				changeType: "connect",
+				type: "connection",
+				action: "connect",
 				previousConnection: oldPlayer?.state === StateTypes.Connected,
 				currentConnection: true,
 			},
-		});
+		} as PlayerStateUpdateEvent);
 	}
 
 	/**
@@ -240,11 +241,12 @@ export class Player {
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.ConnectionChange,
 			details: {
-				changeType: "disconnect",
+				type: "connection",
+				action: "disconnect",
 				previousConnection: oldPlayer.state === StateTypes.Connected,
 				currentConnection: false,
 			},
-		});
+		} as PlayerStateUpdateEvent);
 
 		return this;
 	}
@@ -257,8 +259,6 @@ export class Player {
 	 * @emits {PlayerStateUpdate} - Emitted when the player state is updated.
 	 */
 	public async destroy(disconnect: boolean = true): Promise<boolean> {
-		const oldPlayer = this ? { ...this } : null;
-
 		this.state = StateTypes.Destroying;
 
 		if (disconnect) {
@@ -275,9 +275,6 @@ export class Player {
 		await this.queue.clearPrevious();
 		await this.queue.setCurrent(null);
 
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, null, {
-			changeType: PlayerStateEventTypes.PlayerDestroy,
-		});
 		this.manager.emit(ManagerEventTypes.PlayerDestroy, this);
 
 		const deleted = this.manager.players.delete(this.guildId);
@@ -305,11 +302,12 @@ export class Player {
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.ChannelChange,
 			details: {
-				changeType: "voice",
+				type: "channel",
+				action: "voice",
 				previousChannel: oldPlayer.voiceChannelId || null,
 				currentChannel: this.voiceChannelId,
 			},
-		});
+		} as PlayerStateUpdateEvent);
 
 		return this;
 	}
@@ -338,11 +336,12 @@ export class Player {
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.ChannelChange,
 			details: {
-				changeType: "text",
+				type: "channel",
+				action: "text",
 				previousChannel: oldPlayer.textChannelId || null,
 				currentChannel: this.textChannelId,
 			},
-		});
+		} as PlayerStateUpdateEvent);
 
 		// Return the player instance for chaining
 		return this;
@@ -446,10 +445,12 @@ export class Player {
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.AutoPlayChange,
 			details: {
+				type: "autoplay",
+				action: "toggle",
 				previousAutoplay: oldPlayer.isAutoplay,
 				currentAutoplay: this.isAutoplay,
 			},
-		});
+		} as PlayerStateUpdateEvent);
 
 		return this;
 	}
@@ -492,11 +493,13 @@ export class Player {
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.VolumeChange,
 			details: {
+				type: "volume",
+				action: "adjust",
 				previousVolume: oldVolume,
 				currentVolume: this.volume,
 				isGradual: false,
 			},
-		});
+		} as PlayerStateUpdateEvent);
 
 		return this;
 	}
@@ -557,12 +560,13 @@ export class Player {
 		// Emit an event indicating the repeat mode has changed
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.RepeatChange,
-			detail: {
-				changeType: "track",
+			details: {
+				type: "repeat",
+				action: "track",
 				previousRepeat: this.getRepeatState(oldPlayer),
 				currentRepeat: this.getRepeatState(this),
 			},
-		});
+		} as PlayerStateUpdateEvent);
 
 		return this;
 	}
@@ -594,12 +598,13 @@ export class Player {
 		// Emit the player state update event
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.RepeatChange,
-			detail: {
-				changeType: "queue",
+			details: {
+				type: "repeat",
+				action: "queue",
 				previousRepeat: this.getRepeatState(oldPlayer),
 				currentRepeat: this.getRepeatState(this),
 			},
-		});
+		} as PlayerStateUpdateEvent);
 
 		return this;
 	}
@@ -656,12 +661,13 @@ export class Player {
 		// Emit a player state update event
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.RepeatChange,
-			detail: {
-				changeType: "dynamic",
+			details: {
+				type: "repeat",
+				action: "dynamic",
 				previousRepeat: this.getRepeatState(oldPlayer),
 				currentRepeat: this.getRepeatState(this),
 			},
-		});
+		} as PlayerStateUpdateEvent);
 
 		return this;
 	}
@@ -717,10 +723,11 @@ export class Player {
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.QueueChange,
 			details: {
-				changeType: "remove",
+				type: "queue",
+				action: "remove",
 				tracks: removedTracks,
 			},
-		});
+		} as PlayerStateUpdateEvent);
 
 		return this;
 	}
@@ -757,10 +764,12 @@ export class Player {
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.PauseChange,
 			details: {
+				type: "pause",
+				action: "pause",
 				previousPause: oldPlayer.paused,
 				currentPause: this.paused,
 			},
-		});
+		} as PlayerStateUpdateEvent);
 
 		return this;
 	}
@@ -790,10 +799,11 @@ export class Player {
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.TrackChange,
 			details: {
-				changeType: "previous",
+				type: "track",
+				action: "previous",
 				track: lastTrack,
 			},
-		});
+		} as PlayerStateUpdateEvent);
 
 		return this;
 	}
@@ -837,11 +847,12 @@ export class Player {
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.TrackChange,
 			details: {
-				changeType: "timeUpdate",
+				type: "track",
+				action: "timeUpdate",
 				previousTime: oldPlayer.position,
 				currentTime: this.position,
 			},
-		});
+		} as PlayerStateUpdateEvent);
 
 		return this;
 	}

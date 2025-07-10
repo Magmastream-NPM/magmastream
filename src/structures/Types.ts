@@ -185,49 +185,65 @@ export interface RedisConfig {
 /**
  * Player State Update Event
  */
-export interface PlayerStateUpdateEvent {
-	changeType: PlayerStateEventTypes;
-	details?:
-		| AutoplayChangeEvent
-		| ConnectionChangeEvent
-		| RepeatChangeEvent
-		| PauseChangeEvent
-		| QueueChangeEvent
-		| TrackChangeEvent
-		| VolumeChangeEvent
-		| ChannelChangeEvent;
-}
+export type PlayerStateUpdateEvent =
+	| { changeType: PlayerStateEventTypes.TrackChange; details: TrackChangeEvent }
+	| { changeType: PlayerStateEventTypes.PauseChange; details: PauseChangeEvent }
+	| { changeType: PlayerStateEventTypes.QueueChange; details: QueueChangeEvent }
+	| { changeType: PlayerStateEventTypes.ConnectionChange; details: ConnectionChangeEvent }
+	| { changeType: PlayerStateEventTypes.AutoPlayChange; details: AutoplayChangeEvent }
+	| { changeType: PlayerStateEventTypes.ChannelChange; details: ChannelChangeEvent }
+	| { changeType: PlayerStateEventTypes.VolumeChange; details: VolumeChangeEvent }
+	| { changeType: PlayerStateEventTypes.RepeatChange; details: RepeatChangeEvent };
+
+/**
+ * Player State Change Data
+ */
+export type PlayerStateChangeData =
+	| AutoplayChangeEvent
+	| ConnectionChangeEvent
+	| RepeatChangeEvent
+	| PauseChangeEvent
+	| QueueChangeEvent
+	| TrackChangeEvent
+	| VolumeChangeEvent
+	| ChannelChangeEvent;
 
 /**
  * Autoplay Change Event
  */
 interface AutoplayChangeEvent {
-	previousAutoplay: boolean;
-	currentAutoplay: boolean;
+	type: "autoplay";
+	action: "toggle";
+	previousAutoplay: boolean | null;
+	currentAutoplay: boolean | null;
 }
 
 /**
  * Connection Change Event
  */
 interface ConnectionChangeEvent {
-	changeType: "connect" | "disconnect";
-	previousConnection: boolean;
-	currentConnection: boolean;
+	type: "connection";
+	action: "connect" | "disconnect";
+	previousConnection: boolean | null;
+	currentConnection: boolean | null;
 }
 
 /**
  * Repeat Change Event
  */
 interface RepeatChangeEvent {
-	changeType: "dynamic" | "track" | "queue" | null;
-	previousRepeat: string | null;
-	currentRepeat: string | null;
+	type: "repeat";
+	action: "dynamic" | "track" | "queue" | "none";
+	previousRepeat: "dynamic" | "track" | "queue" | null;
+	currentRepeat: "dynamic" | "track" | "queue" | null;
 }
 
 /**
  * Pause Change Event
  */
 interface PauseChangeEvent {
+	type: "pause";
+	action: "pause" | "resume" | "toggle";
 	previousPause: boolean | null;
 	currentPause: boolean | null;
 }
@@ -236,7 +252,10 @@ interface PauseChangeEvent {
  * Queue Change Event
  */
 interface QueueChangeEvent {
-	changeType: "add" | "remove" | "clear" | "shuffle" | "roundRobin" | "userBlock" | "autoPlayAdd";
+	type: "queue";
+	action: "add" | "remove" | "clear" | "shuffle" | "roundRobin" | "userBlock" | "autoPlayAdd";
+	previousQueueLength: number | null;
+	currentQueueLength: number | null;
 	tracks?: Track[];
 }
 
@@ -244,7 +263,8 @@ interface QueueChangeEvent {
  * Track Change Event
  */
 interface TrackChangeEvent {
-	changeType: "start" | "end" | "previous" | "timeUpdate" | "autoPlay";
+	type: "track";
+	action: "start" | "end" | "previous" | "timeUpdate" | "autoPlay";
 	track: Track;
 	previousTime?: number | null;
 	currentTime?: number | null;
@@ -254,6 +274,8 @@ interface TrackChangeEvent {
  * Volume Change Event
  */
 interface VolumeChangeEvent {
+	type: "volume";
+	action: "adjust";
 	previousVolume: number | null;
 	currentVolume: number | null;
 }
@@ -262,7 +284,8 @@ interface VolumeChangeEvent {
  * Channel Change Event
  */
 interface ChannelChangeEvent {
-	changeType: "text" | "voice";
+	type: "channel";
+	action: "text" | "voice";
 	previousChannel: string | null;
 	currentChannel: string | null;
 }

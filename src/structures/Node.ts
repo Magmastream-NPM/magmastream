@@ -18,6 +18,7 @@ import {
 	NodeStats,
 	PlayerEvent,
 	PlayerEvents,
+	PlayerStateUpdateEvent,
 	SponsorBlockChaptersLoaded,
 	SponsorBlockChapterStarted,
 	SponsorBlockSegmentSkipped,
@@ -592,20 +593,22 @@ export class Node {
 			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, player, {
 				changeType: PlayerStateEventTypes.TrackChange,
 				details: {
-					changeType: "autoPlay",
+					type: "track",
+					action: "autoPlay",
 					track: track,
 				},
-			});
+			} as PlayerStateUpdateEvent);
 			return;
 		}
 
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, player, {
 			changeType: PlayerStateEventTypes.TrackChange,
 			details: {
-				changeType: "start",
+				type: "track",
+				action: "start",
 				track: track,
 			},
-		});
+		} as PlayerStateUpdateEvent);
 	}
 
 	/**
@@ -674,10 +677,11 @@ export class Node {
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, player, {
 			changeType: PlayerStateEventTypes.TrackChange,
 			details: {
-				changeType: "end",
+				type: "track",
+				action: "end",
 				track: track,
 			},
-		});
+		} as PlayerStateUpdateEvent);
 	}
 
 	/**

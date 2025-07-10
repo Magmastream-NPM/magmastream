@@ -1,7 +1,7 @@
 import { Manager } from "./Manager"; // Import Manager to access emit method
 import { ClientUser, User } from "discord.js";
 import { ManagerEventTypes, PlayerStateEventTypes } from "./Enums";
-import { IQueue, Track } from "./Types";
+import { IQueue, PlayerStateUpdateEvent, Track } from "./Types";
 
 /**
  * The player's queue, the `current` property is the currently playing track, think of the rest as the up-coming tracks.
@@ -153,10 +153,11 @@ export class Queue extends Array<Track> implements IQueue {
 					this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 						changeType: PlayerStateEventTypes.QueueChange,
 						details: {
-							changeType: "autoPlayAdd",
+							type: "queue",
+							action: "autoPlayAdd",
 							tracks: Array.isArray(track) ? track : [track],
 						},
-					});
+					} as PlayerStateUpdateEvent);
 
 					return;
 				}
@@ -166,10 +167,11 @@ export class Queue extends Array<Track> implements IQueue {
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
 			details: {
-				changeType: "add",
+				type: "queue",
+				action: "add",
 				tracks: Array.isArray(track) ? track : [track],
 			},
-		});
+		} as PlayerStateUpdateEvent);
 	}
 
 	/**
@@ -203,10 +205,11 @@ export class Queue extends Array<Track> implements IQueue {
 			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 				changeType: PlayerStateEventTypes.QueueChange,
 				details: {
-					changeType: "remove",
+					type: "queue",
+					action: "remove",
 					tracks: removedTracks,
 				},
-			});
+			} as PlayerStateUpdateEvent);
 
 			return removedTracks;
 		}
@@ -224,10 +227,11 @@ export class Queue extends Array<Track> implements IQueue {
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
 			details: {
-				changeType: "remove",
+				type: "queue",
+				action: "remove",
 				tracks: tracksToEmit,
 			},
-		});
+		} as PlayerStateUpdateEvent);
 
 		return removedTrack;
 	}
@@ -247,10 +251,11 @@ export class Queue extends Array<Track> implements IQueue {
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
 			details: {
-				changeType: "clear",
+				type: "queue",
+				action: "clear",
 				tracks: [], // No tracks are left after clearing
 			},
-		});
+		} as PlayerStateUpdateEvent);
 
 		// Emit a debug message indicating the queue has been cleared for a specific guild ID.
 		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Cleared the queue for: ${this.guildId}`);
@@ -274,9 +279,10 @@ export class Queue extends Array<Track> implements IQueue {
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
 			details: {
-				changeType: "shuffle",
+				type: "queue",
+				action: "shuffle",
 			},
-		});
+		} as PlayerStateUpdateEvent);
 
 		// Emit a debug message indicating the queue has been shuffled for a specific guild ID.
 		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Shuffled the queue for: ${this.guildId}`);
@@ -323,9 +329,10 @@ export class Queue extends Array<Track> implements IQueue {
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
 			details: {
-				changeType: "userBlock",
+				type: "queue",
+				action: "userBlock",
 			},
-		});
+		} as PlayerStateUpdateEvent);
 
 		// Emit a debug message indicating the queue has been shuffled for a specific guild ID.
 		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] userBlockShuffled the queue for: ${this.guildId}`);
@@ -385,9 +392,10 @@ export class Queue extends Array<Track> implements IQueue {
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
 			details: {
-				changeType: "roundRobin",
+				type: "queue",
+				action: "roundRobin",
 			},
-		});
+		} as PlayerStateUpdateEvent);
 
 		// Emit a debug message indicating the queue has been shuffled for a specific guild ID.
 		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] roundRobinShuffled the queue for: ${this.guildId}`);
