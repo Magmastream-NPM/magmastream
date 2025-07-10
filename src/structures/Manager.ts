@@ -976,9 +976,7 @@ export class Manager extends EventEmitter {
 		console.warn("\x1b[31m%s\x1b[0m", "MAGMASTREAM WARNING: Shutting down! Please wait, saving active players...");
 
 		try {
-			if (this.options.stateStorage.type === StateStorageType.Collection) {
-				await this.clearAllPlayerStates();
-			}
+			await this.clearAllPlayerStores();
 			const savePromises = Array.from(this.players.keys()).map(async (guildId) => {
 				try {
 					await this.savePlayerState(guildId);
@@ -1300,7 +1298,7 @@ export class Manager extends EventEmitter {
 	 * Clears all player states from the file system.
 	 * This is done to prevent stale state files from accumulating on the file system.
 	 */
-	private async clearAllPlayerStates(): Promise<void> {
+	private async clearAllPlayerStores(): Promise<void> {
 		switch (this.options.stateStorage.type) {
 			case StateStorageType.Collection: {
 				const configDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
