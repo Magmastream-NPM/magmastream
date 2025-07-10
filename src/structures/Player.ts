@@ -480,6 +480,7 @@ export class Player {
 		if (volume < 0 || volume > 1000) throw new RangeError("Volume must be between 0 and 1000.");
 
 		const oldVolume = this.volume;
+		const oldPlayer = { ...this };
 
 		await this.node.rest.updatePlayer({
 			guildId: this.options.guildId,
@@ -488,7 +489,7 @@ export class Player {
 
 		this.volume = volume;
 
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, {
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.VolumeChange,
 			details: {
 				previousVolume: oldVolume,
