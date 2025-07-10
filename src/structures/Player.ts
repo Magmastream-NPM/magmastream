@@ -497,7 +497,6 @@ export class Player {
 				action: "adjust",
 				previousVolume: oldVolume,
 				currentVolume: this.volume,
-				isGradual: false,
 			},
 		} as PlayerStateUpdateEvent);
 
