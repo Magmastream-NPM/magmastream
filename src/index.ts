@@ -11,6 +11,7 @@ export * from "./wrappers/discord.js";
 export * from "./wrappers/eris";
 export * from "./wrappers/detritus";
 export * from "./wrappers/oceanic";
+export * from "./wrappers/seyfert";
 // types
 export * from "./structures/Types";
 export * from "./structures/Enums";
