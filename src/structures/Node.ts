@@ -843,8 +843,8 @@ export class Node {
 	 *
 	 * If the node is a NodeLink, it will use the `NodeLinkGetLyrics` method to fetch the lyrics.
 	 *
-	 * If the node is not a NodeLink, it will use the `lavalyrics-plugin` to fetch the lyrics.
-	 * If the plugin is not available, it will throw a RangeError.
+	 * Requires the `lavalyrics-plugin` to be present in the Lavalink node.
+	 * Requires the `lavasrc-plugin` or `java-lyrics-plugin` to be present in the Lavalink node.
 	 *
 	 * @param {Track} track - The track to fetch the lyrics for.
 	 * @param {boolean} [skipTrackSource=false] - Whether to skip using the track's source URL.
@@ -857,8 +857,15 @@ export class Node {
 			return (await this.rest.get(`/v4/lyrics?track=${encodeURIComponent(track.track)}&skipTrackSource=${skipTrackSource}`)) as NodeLinkGetLyrics;
 		}
 
-		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "lavalyrics-plugin"))
-			throw new RangeError(`there is no lavalyrics-plugin available in the lavalink node: ${this.options.identifier}`);
+		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "lavalyrics-plugin")) {
+			throw new RangeError(`The plugin "lavalyrics-plugin" must be present in the lavalink node: ${this.options.identifier}`);
+		}
+
+		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "lavasrc-plugin" || plugin.name === "java-lyrics-plugin")) {
+			throw new RangeError(
+				`One of the following plugins must also be present in the lavalink node: "lavasrc-plugin" or "java-lyrics-plugin" (Node: ${this.options.identifier})`
+			);
+		}
 
 		return (
 			((await this.rest.get(`/v4/lyrics?track=${encodeURIComponent(track.track)}&skipTrackSource=${skipTrackSource}`)) as Lyrics) || {
@@ -883,8 +890,14 @@ export class Node {
 
 		if (this.isNodeLink) throw new RangeError(`The node is a node link: ${this.options.identifier}`);
 
-		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "java-lyrics-plugin")) {
-			throw new RangeError(`there is no java-lyrics-plugin available in the lavalink node: ${this.options.identifier}`);
+		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "lavalyrics-plugin")) {
+			throw new RangeError(`The plugin "lavalyrics-plugin" must be present in the lavalink node: ${this.options.identifier}`);
+		}
+
+		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "lavasrc-plugin" || plugin.name === "java-lyrics-plugin")) {
+			throw new RangeError(
+				`One of the following plugins must also be present in the lavalink node: "lavasrc-plugin" or "java-lyrics-plugin" (Node: ${this.options.identifier})`
+			);
 		}
 
 		return await this.rest.post(`/v4/sessions/${this.sessionId}/players/${guildId}/lyrics/subscribe?skipTrackSource=${skipTrackSource}`, {});
