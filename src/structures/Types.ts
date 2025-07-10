@@ -71,6 +71,7 @@ export interface ManagerOptions {
 export interface StateStorageOptions {
 	type: StateStorageType;
 	redisConfig?: RedisConfig;
+	deleteInactivePlayers?: boolean;
 }
 /**
  * Payload

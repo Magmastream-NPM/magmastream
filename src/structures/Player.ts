@@ -277,6 +277,8 @@ export class Player {
 		this.manager.emit(ManagerEventTypes.PlayerDestroy, this);
 
 		const deleted = this.manager.players.delete(this.guildId);
+
+		if (this.manager.options.stateStorage.deleteInactivePlayers) await this.manager.cleanupInactivePlayer(this.guildId);
 		return deleted;
 	}
 

@@ -96,7 +96,7 @@ export class Manager extends EventEmitter {
 			defaultSearchPlatform: SearchPlatform.YouTube,
 			useNode: UseNodeOptions.LeastPlayers,
 			maxPreviousTracks: options.maxPreviousTracks ?? 20,
-			stateStorage: { type: StateStorageType.Collection },
+			stateStorage: { type: StateStorageType.Collection, deleteInactivePlayers: true },
 			...options,
 		};
 
@@ -328,7 +328,6 @@ export class Manager extends EventEmitter {
 		if (!player) return;
 
 		await player.destroy();
-		await this.cleanupInactivePlayers();
 	}
 
 	/**
@@ -976,7 +975,7 @@ export class Manager extends EventEmitter {
 		console.warn("\x1b[31m%s\x1b[0m", "MAGMASTREAM WARNING: Shutting down! Please wait, saving active players...");
 
 		try {
-			await this.clearAllPlayerStores();
+			await this.clearAllStoredPlayers();
 			const savePromises = Array.from(this.players.keys()).map(async (guildId) => {
 				try {
 					await this.savePlayerState(guildId);
@@ -985,9 +984,8 @@ export class Manager extends EventEmitter {
 				}
 			});
 
+			if (this.options.stateStorage.deleteInactivePlayers) await this.cleanupInactivePlayers();
 			await Promise.allSettled(savePromises);
-
-			await this.cleanupInactivePlayers();
 
 			setTimeout(() => {
 				console.warn("\x1b[32m%s\x1b[0m", "MAGMASTREAM INFO: Shutting down complete, exiting...");
@@ -1258,39 +1256,124 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-	 * Checks for players that are no longer active and deletes their saved state files.
+	 * Cleans up inactive players by removing their state files from the file system.
 	 * This is done to prevent stale state files from accumulating on the file system.
 	 */
-	private async cleanupInactivePlayers(): Promise<void> {
-		const playerStatesDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
+	public async cleanupInactivePlayers(): Promise<void> {
+		if (this.options.stateStorage.type === StateStorageType.Collection) {
+			const playerStatesDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
 
-		try {
-			// Check if the directory exists, and create it if it doesn't
-			await fs.access(playerStatesDir).catch(async () => {
-				await fs.mkdir(playerStatesDir, { recursive: true });
-				this.emit(ManagerEventTypes.Debug, `[MANAGER] Created directory: ${playerStatesDir}`);
+			try {
+				// Check if the directory exists, and create it if it doesn't
+				await fs.access(playerStatesDir).catch(async () => {
+					await fs.mkdir(playerStatesDir, { recursive: true });
+					this.emit(ManagerEventTypes.Debug, `[MANAGER] Created directory: ${playerStatesDir}`);
+				});
+
+				// Get the list of player state files
+				const playerFiles = await fs.readdir(playerStatesDir);
+
+				// Get the set of active guild IDs from the manager's player collection
+				const activeGuildIds = new Set(this.players.keys());
+
+				// Iterate over the player state files
+				for (const file of playerFiles) {
+					// Get the guild ID from the file name
+					const guildId = path.basename(file, ".json");
+
+					// If the guild ID is not in the set of active guild IDs, delete the file
+					if (!activeGuildIds.has(guildId)) {
+						const filePath = path.join(playerStatesDir, file);
+						await fs.unlink(filePath); // Delete the file asynchronously
+						this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleting inactive player: ${guildId}`);
+					}
+				}
+			} catch (error) {
+				this.emit(ManagerEventTypes.Debug, `[MANAGER] Error cleaning up inactive players: ${error}`);
+			}
+			return;
+		}
+
+		if (this.options.stateStorage.type === StateStorageType.Redis) {
+			const prefix = this.options.stateStorage.redisConfig.prefix?.endsWith(":")
+				? this.options.stateStorage.redisConfig.prefix
+				: this.options.stateStorage.redisConfig.prefix ?? "magmastream:";
+
+			const pattern = `${prefix}queue:*:current`;
+
+			const stream = this.redis.scanStream({
+				match: pattern,
+				count: 100,
 			});
 
-			// Get the list of player state files
-			const playerFiles = await fs.readdir(playerStatesDir);
+			for await (const keys of stream) {
+				for (const key of keys) {
+					// Extract guildId from queue key
+					const match = key.match(new RegExp(`^${prefix}queue:(.+):current$`));
+					if (!match) continue;
 
-			// Get the set of active guild IDs from the manager's player collection
-			const activeGuildIds = new Set(this.players.keys());
+					const guildId = match[1];
 
-			// Iterate over the player state files
-			for (const file of playerFiles) {
-				// Get the guild ID from the file name
-				const guildId = path.basename(file, ".json");
+					// If player is not active in memory, clean up all keys
+					if (!this.players.has(guildId)) {
+						await this.redis.del(
+							`${prefix}playerstore:${guildId}`,
+							`${prefix}queue:${guildId}:current`,
+							`${prefix}queue:${guildId}:tracks`,
+							`${prefix}queue:${guildId}:previous`
+						);
 
-				// If the guild ID is not in the set of active guild IDs, delete the file
-				if (!activeGuildIds.has(guildId)) {
-					const filePath = path.join(playerStatesDir, file);
-					await fs.unlink(filePath); // Delete the file asynchronously
-					this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleting inactive player: ${guildId}`);
+						this.emit(ManagerEventTypes.Debug, `[MANAGER] Cleaned inactive Redis player data: ${guildId}`);
+					}
 				}
 			}
-		} catch (error) {
-			this.emit(ManagerEventTypes.Debug, `[MANAGER] Error cleaning up inactive players: ${error}`);
+			return;
+		}
+	}
+
+	/**
+	 * Cleans up an inactive player by removing its state files from the file system.
+	 * This is done to prevent stale state files from accumulating on the file system.
+	 * @param guildId The guild ID of the player to clean up.
+	 */
+	public async cleanupInactivePlayer(guildId: string): Promise<void> {
+		if (this.options.stateStorage.type === StateStorageType.Collection) {
+			const playerStatesDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
+			const filePath = path.join(playerStatesDir, `${guildId}.json`);
+
+			try {
+				await fs.mkdir(playerStatesDir, { recursive: true });
+
+				if (!this.players.has(guildId)) {
+					await fs.unlink(filePath);
+					this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleting inactive player file: ${guildId}`);
+				}
+			} catch (error) {
+				if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+					this.emit(ManagerEventTypes.Debug, `[MANAGER] Error deleting player file for ${guildId}: ${error}`);
+				}
+			}
+			return;
+		}
+
+		if (this.options.stateStorage.type === StateStorageType.Redis) {
+			const player = this.players.get(guildId);
+
+			if (!player) {
+				const prefix = this.options.stateStorage.redisConfig.prefix?.endsWith(":")
+					? this.options.stateStorage.redisConfig.prefix
+					: `${this.options.stateStorage.redisConfig.prefix ?? "magmastream"}:`;
+
+				const keysToDelete = [
+					`${prefix}playerstore:${guildId}`,
+					`${prefix}queue:${guildId}:tracks`,
+					`${prefix}queue:${guildId}:current`,
+					`${prefix}queue:${guildId}:previous`,
+				];
+
+				await this.redis.del(...keysToDelete);
+				this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleted Redis player and queue data for: ${guildId}`);
+			}
 		}
 	}
 
@@ -1298,7 +1381,7 @@ export class Manager extends EventEmitter {
 	 * Clears all player states from the file system.
 	 * This is done to prevent stale state files from accumulating on the file system.
 	 */
-	private async clearAllPlayerStores(): Promise<void> {
+	private async clearAllStoredPlayers(): Promise<void> {
 		switch (this.options.stateStorage.type) {
 			case StateStorageType.Collection: {
 				const configDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
