@@ -618,7 +618,7 @@ export class Node {
 	 * @param {TrackEndEvent} payload - The payload of the event emitted by the node.
 	 * @private
 	 */
-	protected async trackEnd(player: Player, track: Track, payload: TrackEndEvent): Promise<void> {
+	public async trackEnd(player: Player, track: Track, payload: TrackEndEvent): Promise<void> {
 		const { reason } = payload;
 
 		const skipFlag = player.get<boolean>("skipFlag");

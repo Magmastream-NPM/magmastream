@@ -34,7 +34,7 @@ import {
 import { LoadTypes, ManagerEventTypes, SearchPlatform, StateStorageType, StateTypes, TrackEndReasonTypes, UseNodeOptions } from "./Enums";
 
 /**
- * The main hub for interacting with Lavalink and using Magmastream,
+ * The main hub for interacting with Lavalink and using Magmastream.
  */
 export class Manager extends EventEmitter {
 	/** The map of players. */
@@ -461,7 +461,7 @@ export class Manager extends EventEmitter {
 							return;
 						}
 
-						const serializedPlayer = this.serializePlayer(player);
+						const serializedPlayer = await this.serializePlayer(player);
 
 						await fs.writeFile(playerStateFilePath, JSON.stringify(serializedPlayer, null, 2), "utf-8");
 
@@ -481,7 +481,7 @@ export class Manager extends EventEmitter {
 							return;
 						}
 
-						const serializedPlayer = this.serializePlayer(player);
+						const serializedPlayer = await this.serializePlayer(player);
 						const redisKey = `${
 							this.options.stateStorage.redisConfig.prefix?.endsWith(":")
 								? this.options.stateStorage.redisConfig.prefix
@@ -574,40 +574,79 @@ export class Manager extends EventEmitter {
 
 									player.connect();
 
-									const tracks = [];
+									const tracks: Track[] = [];
 
 									const currentTrack = state.queue.current;
 									const queueTracks = state.queue.tracks;
 
-									if (lavaPlayer) {
-										if (lavaPlayer.track) {
-											tracks.push(...queueTracks);
-											if (currentTrack && currentTrack.uri === lavaPlayer.track.info.uri) {
-												await player.queue.setCurrent(TrackUtils.build(lavaPlayer.track as TrackData, currentTrack.requester));
-											}
-										} else {
-											if (!currentTrack) {
-												const payload = {
-													reason: TrackEndReasonTypes.Finished,
-												};
-												await node.queueEnd(player, currentTrack, payload as TrackEndEvent);
-											} else {
-												tracks.push(currentTrack, ...queueTracks);
-											}
-										}
-									} else {
-										if (!currentTrack) {
-											const payload = {
-												reason: TrackEndReasonTypes.Finished,
-											};
-											await node.queueEnd(player, currentTrack, payload as TrackEndEvent);
-										} else {
-											tracks.push(currentTrack, ...queueTracks);
-										}
+									if (state.isAutoplay) {
+										Object.setPrototypeOf(state.data.clientUser, { constructor: { name: "User" } });
+										player.setAutoplay(true, state.data.clientUser, state.autoplayTries);
 									}
 
-									if (tracks.length > 0) {
-										await player.queue.add(tracks as Track[]);
+									if (lavaPlayer?.track) {
+										// If lavaPlayer has a track, push all queue tracks
+										tracks.push(...queueTracks);
+
+										// Set current track if matches lavaPlayer's track URI
+										if (currentTrack && currentTrack.uri === lavaPlayer.track.info.uri) {
+											await player.queue.setCurrent(TrackUtils.build(lavaPlayer.track as TrackData, currentTrack.requester));
+										}
+
+										// Add tracks to queue
+										if (tracks.length > 0) {
+											await player.queue.clear();
+											await player.queue.add(tracks);
+										}
+									} else {
+										// LavaPlayer missing track or lavaPlayer is falsy
+										if (currentTrack) {
+											if (queueTracks.length > 0) {
+												tracks.push(...queueTracks);
+												await player.queue.clear();
+												await player.queue.add(tracks);
+											}
+
+											await node.trackEnd(player, currentTrack, {
+												reason: TrackEndReasonTypes.Finished,
+												type: "TrackEndEvent",
+											} as TrackEndEvent);
+										} else {
+											// No current track, check previous queue for last track
+											const previousQueue = await player.queue.getPrevious();
+											const lastTrack = previousQueue?.at(-1);
+
+											if (lastTrack) {
+												if (queueTracks.length === 0) {
+													// If no tracks in queue, end last track
+													await node.trackEnd(player, lastTrack, {
+														reason: TrackEndReasonTypes.Finished,
+														type: "TrackEndEvent",
+													} as TrackEndEvent);
+												} else {
+													// If there are queued tracks, add them
+													tracks.push(...queueTracks);
+
+													if (tracks.length > 0) {
+														await player.queue.clear();
+														await player.queue.add(tracks);
+													}
+												}
+											} else {
+												if (queueTracks.length > 0) {
+													tracks.push(...queueTracks);
+													if (tracks.length > 0) {
+														await player.queue.clear();
+														await player.queue.add(tracks);
+													}
+
+													await node.trackEnd(player, lastTrack, {
+														reason: TrackEndReasonTypes.Finished,
+														type: "TrackEndEvent",
+													} as TrackEndEvent);
+												}
+											}
+										}
 									}
 
 									if (state.queue.previous.length > 0) {
@@ -627,10 +666,6 @@ export class Manager extends EventEmitter {
 
 									if (state.dynamicRepeat) {
 										player.setDynamicRepeat(state.dynamicRepeat, state.dynamicLoopInterval._idleTimeout);
-									}
-									if (state.isAutoplay) {
-										Object.setPrototypeOf(state.data.clientUser, { constructor: { name: "User" } });
-										player.setAutoplay(true, state.data.clientUser, state.autoplayTries);
 									}
 									if (state.data) {
 										for (const [name, value] of Object.entries(state.data)) {
@@ -706,7 +741,6 @@ export class Manager extends EventEmitter {
 					}
 				}
 				break;
-
 			case StateStorageType.Redis:
 				{
 					try {
@@ -755,40 +789,79 @@ export class Manager extends EventEmitter {
 									player.connect();
 
 									// Rest of the player state restoration code (tracks, filters, etc.)
-									const tracks = [];
+									const tracks: Track[] = [];
 
 									const currentTrack = state.queue.current;
 									const queueTracks = state.queue.tracks;
 
-									if (lavaPlayer) {
-										if (lavaPlayer.track) {
-											tracks.push(...queueTracks);
-											if (currentTrack && currentTrack.uri === lavaPlayer.track.info.uri) {
-												await player.queue.setCurrent(TrackUtils.build(lavaPlayer.track as TrackData, currentTrack.requester));
-											}
-										} else {
-											if (!currentTrack) {
-												const payload = {
-													reason: TrackEndReasonTypes.Finished,
-												};
-												await node.queueEnd(player, currentTrack, payload as TrackEndEvent);
-											} else {
-												tracks.push(currentTrack, ...queueTracks);
-											}
-										}
-									} else {
-										if (!currentTrack) {
-											const payload = {
-												reason: TrackEndReasonTypes.Finished,
-											};
-											await node.queueEnd(player, currentTrack, payload as TrackEndEvent);
-										} else {
-											tracks.push(currentTrack, ...queueTracks);
-										}
+									if (state.isAutoplay) {
+										Object.setPrototypeOf(state.data.clientUser, { constructor: { name: "User" } });
+										player.setAutoplay(true, state.data.clientUser, state.autoplayTries);
 									}
 
-									if (tracks.length > 0) {
-										await player.queue.add(tracks as Track[]);
+									if (lavaPlayer?.track) {
+										// If lavaPlayer has a track, push all queue tracks
+										tracks.push(...queueTracks);
+
+										// Set current track if matches lavaPlayer's track URI
+										if (currentTrack && currentTrack.uri === lavaPlayer.track.info.uri) {
+											await player.queue.setCurrent(TrackUtils.build(lavaPlayer.track as TrackData, currentTrack.requester));
+										}
+
+										// Add tracks to queue
+										if (tracks.length > 0) {
+											await player.queue.clear();
+											await player.queue.add(tracks);
+										}
+									} else {
+										// LavaPlayer missing track or lavaPlayer is falsy
+										if (currentTrack) {
+											if (queueTracks.length > 0) {
+												tracks.push(...queueTracks);
+												await player.queue.clear();
+												await player.queue.add(tracks);
+											}
+
+											await node.trackEnd(player, currentTrack, {
+												reason: TrackEndReasonTypes.Finished,
+												type: "TrackEndEvent",
+											} as TrackEndEvent);
+										} else {
+											// No current track, check previous queue for last track
+											const previousQueue = await player.queue.getPrevious();
+											const lastTrack = previousQueue?.at(-1);
+
+											if (lastTrack) {
+												if (queueTracks.length === 0) {
+													// If no tracks in queue, end last track
+													await node.trackEnd(player, lastTrack, {
+														reason: TrackEndReasonTypes.Finished,
+														type: "TrackEndEvent",
+													} as TrackEndEvent);
+												} else {
+													// If there are queued tracks, add them
+													tracks.push(...queueTracks);
+
+													if (tracks.length > 0) {
+														await player.queue.clear();
+														await player.queue.add(tracks);
+													}
+												}
+											} else {
+												if (queueTracks.length > 0) {
+													tracks.push(...queueTracks);
+													if (tracks.length > 0) {
+														await player.queue.clear();
+														await player.queue.add(tracks);
+													}
+
+													await node.trackEnd(player, lastTrack, {
+														reason: TrackEndReasonTypes.Finished,
+														type: "TrackEndEvent",
+													} as TrackEndEvent);
+												}
+											}
+										}
 									}
 
 									if (state.queue.previous.length > 0) {
@@ -808,10 +881,6 @@ export class Manager extends EventEmitter {
 
 									if (state.dynamicRepeat) {
 										player.setDynamicRepeat(state.dynamicRepeat, state.dynamicLoopInterval._idleTimeout);
-									}
-									if (state.isAutoplay) {
-										Object.setPrototypeOf(state.data.clientUser, { constructor: { name: "User" } });
-										player.setAutoplay(true, state.data.clientUser, state.autoplayTries);
 									}
 									if (state.data) {
 										for (const [name, value] of Object.entries(state.data)) {
@@ -1127,8 +1196,13 @@ export class Manager extends EventEmitter {
 	 * @param player The Player instance to serialize
 	 * @returns The serialized Player instance
 	 */
-	public serializePlayer(player: Player): Record<string, unknown> {
+	public async serializePlayer(player: Player): Promise<Record<string, unknown>> {
 		const seen = new WeakSet();
+
+		// Fetch async queue data once before serializing
+		const current = await player.queue.getCurrent();
+		const tracks = Array.isArray(await player.queue.getTracks()) ? await player.queue.getTracks() : [];
+		const previous = Array.isArray(await player.queue.getPrevious()) ? await player.queue.getPrevious() : [];
 
 		/**
 		 * Recursively serializes an object, avoiding circular references.
@@ -1168,9 +1242,9 @@ export class Manager extends EventEmitter {
 				}
 				if (key === "queue") {
 					return {
-						current: value.current || null,
-						tracks: Array.isArray(value) ? [...value] : [],
-						previous: Array.isArray(value.previous) ? [...value.previous] : [],
+						current,
+						tracks,
+						previous,
 					};
 				}
 

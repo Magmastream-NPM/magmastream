@@ -8,7 +8,6 @@ import playerCheck from "../utils/playerCheck";
 import { ClientUser, Message, User } from "discord.js";
 import { RedisQueue } from "./RedisQueue";
 import { IQueue, Lyrics, PlayerOptions, PlayerStateUpdateEvent, PlayOptions, SearchQuery, SearchResult, Track, VoiceReceiverEvent, VoiceState } from "./Types";
-// import { IQueue, Lyrics, PlayerOptions, PlayerUpdateVoiceState, PlayOptions, SearchQuery, SearchResult, Track, VoiceState } from "./Types";
 import { ManagerEventTypes, PlayerStateEventTypes, SponsorBlockSegment, StateStorageType, StateTypes } from "./Enums";
 import { WebSocket } from "ws";
 
