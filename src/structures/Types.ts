@@ -399,7 +399,6 @@ export interface LavaPlayer {
 	filters: Record<string, unknown>;
 }
 
-
 /**
  * Error or Empty Search Result
  */
@@ -423,9 +422,9 @@ export interface TrackSearchResult {
  */
 export interface SearchSearchResult {
 	/** The load type is always 'search' */
-	loadType: LoadTypes.Search
+	loadType: LoadTypes.Search;
 	/** The tracks of the search result */
-	tracks: Track[]
+	tracks: Track[];
 }
 
 /**
@@ -479,6 +478,9 @@ export interface ManagerEvents {
 	[ManagerEventTypes.ChapterStarted]: [player: Player, track: Track, payload: SponsorBlockChapterStarted];
 	[ManagerEventTypes.ChaptersLoaded]: [player: Player, track: Track, payload: SponsorBlockChaptersLoaded];
 	[ManagerEventTypes.Debug]: [info: string];
+	[ManagerEventTypes.LyricsFoundEvent]: [player: Player, track: Track, payload: LyricsFoundEvent];
+	[ManagerEventTypes.LyricsLineEvent]: [player: Player, track: Track, payload: LyricsLineEvent];
+	[ManagerEventTypes.LyricsNotFoundEvent]: [player: Player, track: Track, payload: LyricsNotFoundEvent];
 	[ManagerEventTypes.NodeConnect]: [node: Node];
 	[ManagerEventTypes.NodeCreate]: [node: Node];
 	[ManagerEventTypes.NodeDestroy]: [node: Node];
@@ -847,6 +849,34 @@ export interface Lyrics {
 }
 
 /**
+ * LyricsFoundEvent interface
+ */
+export interface LyricsFoundEvent extends PlayerEvent {
+	type: "LyricsFoundEvent";
+	guildId: string;
+	lyrics: Lyrics;
+}
+
+/**
+ * LyricsNotFoundEvent interface
+ */
+export interface LyricsNotFoundEvent extends PlayerEvent {
+	type: "LyricsNotFoundEvent";
+	guildId: string;
+}
+
+/**
+ * LyricsLineEvent interface
+ */
+export interface LyricsLineEvent extends PlayerEvent {
+	type: "LyricsLineEvent";
+	guildId: string;
+	lineIndex: number;
+	line: LyricsLine;
+	skipped: boolean;
+}
+
+/**
  * NodeLink Get Lyrics Multiple interface
  */
 export interface NodeLinkGetLyricsMultiple {
@@ -1065,7 +1095,10 @@ export type PlayerEventType =
 	| "SegmentSkipped"
 	| "SegmentsLoaded"
 	| "ChaptersLoaded"
-	| "ChapterStarted";
+	| "ChapterStarted"
+	| "LyricsFoundEvent"
+	| "LyricsNotFoundEvent"
+	| "LyricsLineEvent";
 
 /**
  * Severity Types Enum type
@@ -1085,7 +1118,14 @@ export type SponsorBlockSegmentEventType = "SegmentSkipped" | "SegmentsLoaded" |
 /**
  * Player Events Enum type
  */
-export type PlayerEvents = TrackStartEvent | TrackEndEvent | TrackStuckEvent | TrackExceptionEvent | WebSocketClosedEvent | SponsorBlockSegmentEvents;
+export type PlayerEvents =
+	| TrackStartEvent
+	| TrackEndEvent
+	| TrackStuckEvent
+	| TrackExceptionEvent
+	| WebSocketClosedEvent
+	| SponsorBlockSegmentEvents
+	| LyricsEvent;
 
 /**
  * Load Type Enum type
@@ -1106,3 +1146,13 @@ export type VoiceReceiverEvent = StartSpeakingEventVoiceReceiver | EndSpeakingEv
  * Search Result Enum type
  */
 export type SearchResult = TrackSearchResult | SearchSearchResult | PlaylistSearchResult | ErrorOrEmptySearchResult;
+
+/**
+ * Lyrics Event Enum type
+ */
+export type LyricsEvent = LyricsFoundEvent | LyricsNotFoundEvent | LyricsLineEvent;
+
+/**
+ * Lyrics Event Type Enum type
+ */
+export type LyricsEventType = "LyricsFoundEvent" | "LyricsNotFoundEvent" | "LyricsLineEvent";

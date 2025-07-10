@@ -10,6 +10,9 @@ import { User, ClientUser } from "discord.js";
 import {
 	LavalinkInfo,
 	Lyrics,
+	LyricsFoundEvent,
+	LyricsLineEvent,
+	LyricsNotFoundEvent,
 	NodeLinkGetLyrics,
 	NodeOptions,
 	NodeStats,
@@ -523,7 +526,6 @@ export class Node {
 			case "TrackStartEvent":
 				this.trackStart(player, track as Track, payload);
 				break;
-
 			case "TrackEndEvent":
 				if (player?.nowPlayingMessage && player?.nowPlayingMessage.deletable) {
 					await player?.nowPlayingMessage?.delete().catch(() => {});
@@ -531,19 +533,15 @@ export class Node {
 
 				await this.trackEnd(player, track as Track, payload);
 				break;
-
 			case "TrackStuckEvent":
 				await this.trackStuck(player, track as Track, payload);
 				break;
-
 			case "TrackExceptionEvent":
 				await this.trackError(player, track as Track, payload);
 				break;
-
 			case "WebSocketClosedEvent":
 				this.socketClosed(player, payload);
 				break;
-
 			case "SegmentsLoaded":
 				this.sponsorBlockSegmentLoaded(player, track, payload);
 				break;
@@ -555,6 +553,15 @@ export class Node {
 				break;
 			case "ChapterStarted":
 				this.sponsorBlockChapterStarted(player, track, payload);
+				break;
+			case "LyricsFoundEvent":
+				this.lyricsFound(player, track, payload);
+				break;
+			case "LyricsNotFoundEvent":
+				this.lyricsNotFound(player, track, payload);
+				break;
+			case "LyricsLineEvent":
+				this.lyricsLine(player, track, payload);
 				break;
 
 			default:
@@ -833,7 +840,10 @@ export class Node {
 
 	/**
 	 * Fetches the lyrics of a track from the Lavalink node.
-	 * This method uses the `lavalyrics-plugin` to fetch the lyrics.
+	 *
+	 * If the node is a NodeLink, it will use the `NodeLinkGetLyrics` method to fetch the lyrics.
+	 *
+	 * If the node is not a NodeLink, it will use the `lavalyrics-plugin` to fetch the lyrics.
 	 * If the plugin is not available, it will throw a RangeError.
 	 *
 	 * @param {Track} track - The track to fetch the lyrics for.
@@ -841,9 +851,12 @@ export class Node {
 	 * @returns {Promise<Lyrics | NodeLinkGetLyrics>} A promise that resolves with the lyrics data.
 	 */
 	public async getLyrics(track: Track, skipTrackSource: boolean = false): Promise<Lyrics | NodeLinkGetLyrics> {
+		if (!this.connected) throw new RangeError(`The node is not connected to the lavalink server: ${this.options.identifier}`);
+
 		if (this.isNodeLink) {
 			return (await this.rest.get(`/v4/lyrics?track=${encodeURIComponent(track.track)}&skipTrackSource=${skipTrackSource}`)) as NodeLinkGetLyrics;
 		}
+
 		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "lavalyrics-plugin"))
 			throw new RangeError(`there is no lavalyrics-plugin available in the lavalink node: ${this.options.identifier}`);
 
@@ -858,6 +871,42 @@ export class Node {
 		);
 	}
 
+	/**
+	 * Subscribes to lyrics for a player.
+	 * @param {string} guildId - The ID of the guild to subscribe to lyrics for.
+	 * @param {boolean} [skipTrackSource=false] - Whether to skip using the track's source URL.
+	 * @returns {Promise<unknown>} A promise that resolves when the subscription is complete.
+	 * @throws {RangeError} If the node is not connected to the lavalink server or if the java-lyrics-plugin is not available.
+	 */
+	public async lyricsSubscribe(guildId: string, skipTrackSource: boolean = false): Promise<unknown> {
+		if (!this.connected) throw new RangeError(`The node is not connected to the lavalink server: ${this.options.identifier}`);
+
+		if (this.isNodeLink) throw new RangeError(`The node is a node link: ${this.options.identifier}`);
+
+		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "java-lyrics-plugin")) {
+			throw new RangeError(`there is no java-lyrics-plugin available in the lavalink node: ${this.options.identifier}`);
+		}
+
+		return await this.rest.post(`/v4/sessions/${this.sessionId}/players/${guildId}/lyrics/subscribe?skipTrackSource=${skipTrackSource}`, {});
+	}
+
+	/**
+	 * Unsubscribes from lyrics for a player.
+	 * @param {string} guildId - The ID of the guild to unsubscribe from lyrics for.
+	 * @returns {Promise<unknown>} A promise that resolves when the unsubscription is complete.
+	 * @throws {RangeError} If the node is not connected to the lavalink server or if the java-lyrics-plugin is not available.
+	 */
+	public async lyricsUnsubscribe(guildId: string): Promise<unknown> {
+		if (!this.connected) throw new RangeError(`The node is not connected to the lavalink server: ${this.options.identifier}`);
+
+		if (this.isNodeLink) throw new RangeError(`The node is a node link: ${this.options.identifier}`);
+
+		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "java-lyrics-plugin")) {
+			throw new RangeError(`there is no java-lyrics-plugin available in the lavalink node: ${this.options.identifier}`);
+		}
+
+		return await this.rest.delete(`/v4/sessions/${this.sessionId}/players/${guildId}/lyrics/subscribe`);
+	}
 	/**
 	 * Handles the event when a track becomes stuck during playback.
 	 * Stops the current track and emits a `trackStuck` event.
@@ -941,6 +990,39 @@ export class Node {
 	 */
 	private sponsorBlockChapterStarted(player: Player, track: Track, payload: SponsorBlockChapterStarted) {
 		return this.manager.emit(ManagerEventTypes.ChapterStarted, player, track, payload);
+	}
+
+	/**
+	 * Emitted when lyrics for a track are found.
+	 * The payload of the event will contain the lyrics.
+	 * @param {Player} player - The player associated with the lyrics.
+	 * @param {Track} track - The track associated with the lyrics.
+	 * @param {LyricsFoundEvent} payload - The event payload containing additional data about the lyrics found event.
+	 */
+	private lyricsFound(player: Player, track: Track, payload: LyricsFoundEvent) {
+		return this.manager.emit(ManagerEventTypes.LyricsFoundEvent, player, track, payload);
+	}
+
+	/**
+	 * Emitted when lyrics for a track are not found.
+	 * The payload of the event will contain the track.
+	 * @param {Player} player - The player associated with the lyrics.
+	 * @param {Track} track - The track associated with the lyrics.
+	 * @param {LyricsNotFoundEvent} payload - The event payload containing additional data about the lyrics not found event.
+	 */
+	private lyricsNotFound(player: Player, track: Track, payload: LyricsNotFoundEvent) {
+		return this.manager.emit(ManagerEventTypes.LyricsNotFoundEvent, player, track, payload);
+	}
+
+	/**
+	 * Emitted when a line of lyrics for a track is received.
+	 * The payload of the event will contain the lyrics line.
+	 * @param {Player} player - The player associated with the lyrics line.
+	 * @param {Track} track - The track associated with the lyrics line.
+	 * @param {LyricsLineEvent} payload - The event payload containing additional data about the lyrics line event.
+	 */
+	private lyricsLine(player: Player, track: Track, payload: LyricsLineEvent) {
+		return this.manager.emit(ManagerEventTypes.LyricsLineEvent, player, track, payload);
 	}
 
 	/**
