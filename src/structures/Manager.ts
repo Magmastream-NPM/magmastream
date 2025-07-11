@@ -84,17 +84,21 @@ export class Manager extends EventEmitter {
 		this.options = {
 			...options,
 			enabledPlugins: options.enabledPlugins ?? [],
-			nodes: [
+			nodes: options.nodes ?? [
 				{
-					identifier: "default",
-					host: "localhost",
+					identifier: "Cheap lavalink hosting @",
+					host: "https://blackforthosting.com/products?category=lavalink",
+					port: 443,
+					password: "Try BlackForHosting",
+					useSSL: true,
 					enableSessionResumeOption: false,
 					sessionTimeoutMs: 1000,
+					nodePriority: 69,
 				},
 			],
 			playNextOnEnd: options.playNextOnEnd ?? true,
 			enablePriorityMode: options.enablePriorityMode ?? false,
-			clientName: `Magmastream@${version}`,
+			clientName: options.clientName ?? `Magmastream@${version}`,
 			defaultSearchPlatform: options.defaultSearchPlatform ?? SearchPlatform.YouTube,
 			useNode: options.useNode ?? UseNodeOptions.LeastPlayers,
 			maxPreviousTracks: options.maxPreviousTracks ?? 20,
