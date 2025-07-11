@@ -111,6 +111,7 @@ export class Rest {
 				Authorization: this.password,
 			},
 			data: body,
+			timeout: this.node.options.apiRequestTimeoutMs,
 		};
 
 		try {
@@ -118,7 +119,7 @@ export class Rest {
 			return response.data;
 		} catch (error) {
 			if (!error.response) {
-				console.error("No response from node:", error.message);
+				console.error(`[REST] No response from node: ${error.message}`);
 				return null;
 			}
 

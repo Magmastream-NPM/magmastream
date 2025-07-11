@@ -77,20 +77,24 @@ export class Node {
 		nodeCheck(options);
 
 		this.options = {
-			port: 2333,
-			password: "youshallnotpass",
-			useSSL: false,
-			maxRetryAttempts: 30,
-			retryDelayMs: 60000,
-			nodePriority: 0,
 			...options,
+			port: options.port ?? 2333,
+			password: options.password ?? "youshallnotpass",
+			useSSL: options.useSSL ?? false,
+			identifier: options.identifier ?? options.host,
+			maxRetryAttempts: options.maxRetryAttempts ?? 30,
+			retryDelayMs: options.retryDelayMs ?? 60000,
+			enableSessionResumeOption: options.enableSessionResumeOption ?? false,
+			sessionTimeoutMs: options.sessionTimeoutMs ?? 1000,
+			apiRequestTimeoutMs: options.apiRequestTimeoutMs ?? 10000,
+			nodePriority: options.nodePriority ?? 0,
+			isNodeLink: options.isNodeLink ?? false,
 		};
 
 		if (this.options.useSSL) {
 			this.options.port = 443;
 		}
 
-		this.options.identifier = options.identifier || options.host;
 		this.stats = {
 			players: 0,
 			playingPlayers: 0,

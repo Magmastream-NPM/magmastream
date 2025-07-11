@@ -109,27 +109,49 @@ export interface Payload {
 export interface NodeOptions {
 	/** The host for the node. */
 	host: string;
-	/** The port for the node. */
+	/** The port for the node.
+	 * @default 2333
+	 */
 	port?: number;
-	/** The password for the node. */
+	/** The password for the node.
+	 * @default "youshallnotpass"
+	 */
 	password?: string;
-	/** Whether the host uses SSL. */
+	/** Whether the host uses SSL.
+	 * @default false
+	 */
 	useSSL?: boolean;
-	/** The identifier for the node. */
+	/** The identifier for the node.
+	 * @default host
+	 */
 	identifier?: string;
-	/** The maxRetryAttempts for the node. */
+	/** The maxRetryAttempts for the node.
+	 * @default 30
+	 */
 	maxRetryAttempts?: number;
-	/** The retryDelayMs for the node. */
+	/** The retryDelayMs for the node.
+	 * @default 60000
+	 */
 	retryDelayMs?: number;
-	/** Whether to resume the previous session. */
+	/** Whether to resume the previous session.
+	 * @default false
+	 */
 	enableSessionResumeOption?: boolean;
-	/** The time the lavalink server will wait before it removes the player. */
+	/** The time the lavalink server will wait before it removes the player.
+	 * @default 1000
+	 */
 	sessionTimeoutMs?: number;
-	/** The timeout used for api calls. */
+	/** The timeout used for api calls.
+	 * @default 10000
+	 */
 	apiRequestTimeoutMs?: number;
-	/** Priority of the node. */
+	/** Priority of the node.
+	 * @default 0
+	 */
 	nodePriority?: number;
-	/** Whether the node is a NodeLink. */
+	/** Whether the node is a NodeLink.
+	 * @default false
+	 */
 	isNodeLink?: boolean;
 }
 

@@ -125,7 +125,7 @@ export class Manager extends EventEmitter {
 					process.exit(0);
 				}, 2000);
 			} catch (error) {
-				console.error("Error during shutdown:", error);
+				console.error(`[MANAGER] Error during shutdown: ${error}`);
 				process.exit(1);
 			}
 		});
@@ -138,7 +138,7 @@ export class Manager extends EventEmitter {
 				console.warn("\x1b[32mShutdown complete. Exiting now...\x1b[0m");
 				process.exit(0);
 			} catch (error) {
-				console.error("Error during SIGTERM shutdown:", error);
+				console.error(`[MANAGER] Error during SIGTERM shutdown: ${error}`);
 				process.exit(1);
 			}
 		});
@@ -165,7 +165,7 @@ export class Manager extends EventEmitter {
 		}
 
 		if (typeof clusterId !== "number") {
-			console.warn('"clusterId" is not a valid number, defaulting to 0.');
+			console.warn(`[MANAGER] "clusterId" is not a valid number, defaulting to 0.`);
 			this.options.clusterId = 0;
 		} else {
 			this.options.clusterId = clusterId;
@@ -463,7 +463,7 @@ export class Manager extends EventEmitter {
 						const player = this.getPlayer(guildId);
 
 						if (!player || player.state === StateTypes.Disconnected || !player.voiceChannelId) {
-							console.warn(`Skipping save for inactive player: ${guildId}`);
+							console.warn(`[MANAGER] Skipping save for inactive player: ${guildId}`);
 							return;
 						}
 
@@ -473,7 +473,7 @@ export class Manager extends EventEmitter {
 
 						this.emit(ManagerEventTypes.Debug, `[MANAGER] Player state saved: ${guildId}`);
 					} catch (error) {
-						console.error(`Error saving player state for guild ${guildId}:`, error);
+						console.error(`[MANAGER] Error saving player state for guild ${guildId}:`, error);
 					}
 				}
 				break;
@@ -483,7 +483,7 @@ export class Manager extends EventEmitter {
 						const player = this.getPlayer(guildId);
 
 						if (!player || player.state === StateTypes.Disconnected || !player.voiceChannelId) {
-							console.warn(`Skipping save for inactive player: ${guildId}`);
+							console.warn(`[MANAGER] Skipping save for inactive player: ${guildId}`);
 							return;
 						}
 
@@ -498,7 +498,7 @@ export class Manager extends EventEmitter {
 
 						this.emit(ManagerEventTypes.Debug, `[MANAGER] Player state saved to Redis: ${guildId}`);
 					} catch (error) {
-						console.error(`Error saving player state to Redis for guild ${guildId}:`, error);
+						console.error(`[MANAGER] Error saving player state to Redis for guild ${guildId}:`, error);
 					}
 				}
 				break;
@@ -987,7 +987,7 @@ export class Manager extends EventEmitter {
 				try {
 					await this.savePlayerState(guildId);
 				} catch (error) {
-					console.error(`Error saving player state for guild ${guildId}:`, error);
+					console.error(`[MANAGER] Error saving player state for guild ${guildId}:`, error);
 				}
 			});
 
@@ -999,7 +999,7 @@ export class Manager extends EventEmitter {
 				process.exit(0);
 			}, 500);
 		} catch (error) {
-			console.error("Unexpected error during shutdown:", error);
+			console.error(`[MANAGER] Unexpected error during shutdown:`, error);
 			process.exit(1);
 		}
 	}
@@ -1189,7 +1189,7 @@ export class Manager extends EventEmitter {
 			await fs.mkdir(configDir, { recursive: true });
 			return path.join(configDir, `${guildId}.json`);
 		} catch (err) {
-			console.error("Error ensuring player data directory exists:", err);
+			console.error(`[MANAGER] Error ensuring player data directory exists: ${err}`);
 			throw new Error(`Failed to resolve player file path for guild ${guildId}`);
 		}
 	}
@@ -1402,11 +1402,11 @@ export class Manager extends EventEmitter {
 
 					const files = await fs.readdir(configDir);
 
-					await Promise.all(files.map((file) => fs.unlink(path.join(configDir, file)).catch((err) => console.warn(`Failed to delete file ${file}:`, err))));
+					await Promise.all(files.map((file) => fs.unlink(path.join(configDir, file)).catch((err) => console.warn(`[MANAGER] Failed to delete file ${file}:`, err))));
 
 					this.emit(ManagerEventTypes.Debug, `[MANAGER] Cleared all player state files in ${configDir}`);
 				} catch (err) {
-					console.error("Error clearing player state files:", err);
+					console.error("[MANAGER] Error clearing player state files:", err);
 				}
 				break;
 			}
@@ -1440,10 +1440,10 @@ export class Manager extends EventEmitter {
 					});
 
 					stream.on("error", (err) => {
-						console.error("Error during Redis SCAN stream:", err);
+						console.error("[MANAGER] Error during Redis SCAN stream:", err);
 					});
 				} catch (err) {
-					console.error("Failed to clear Redis player state keys:", err);
+					console.error("[MANAGER] Failed to clear Redis player state keys:", err);
 				}
 				break;
 			}
