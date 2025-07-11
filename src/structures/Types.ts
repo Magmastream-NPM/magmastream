@@ -770,34 +770,6 @@ export interface PlayerUpdate {
 }
 
 /**
- * NodeOptions interface
- */
-export interface NodeOptions {
-	/** The host for the node. */
-	host: string;
-	/** The port for the node. */
-	port?: number;
-	/** The password for the node. */
-	password?: string;
-	/** Whether the host uses SSL. */
-	useSSL?: boolean;
-	/** The identifier for the node. */
-	identifier?: string;
-	/** The maxRetryAttempts for the node. */
-	maxRetryAttempts?: number;
-	/** The retryDelayMs for the node. */
-	retryDelayMs?: number;
-	/** Whether to resume the previous session. */
-	enableSessionResumeOption?: boolean;
-	/** The time the lavalink server will wait before it removes the player. */
-	sessionTimeoutMs?: number;
-	/** The timeout used for api calls. */
-	apiRequestTimeoutMs?: number;
-	/** Priority of the node. */
-	nodePriority?: number;
-}
-
-/**
  * NodeStats interface
  */
 export interface NodeStats {
