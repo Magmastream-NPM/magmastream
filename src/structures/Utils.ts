@@ -185,6 +185,12 @@ export abstract class AutoPlayUtils {
 		}
 
 		const apiKey = this.manager.options.lastFmApiKey;
+
+		// Check if Last.fm API is available
+		if (apiKey) {
+			return await this.getRecommendedTracksFromLastFm(track, apiKey);
+		}
+
 		const enabledSources = node.info.sourceManagers;
 		const autoPlaySearchPlatforms: AutoPlayPlatform[] = this.manager.options.autoPlaySearchPlatforms;
 
@@ -198,11 +204,6 @@ export abstract class AutoPlayUtils {
 					return recommendedTracks;
 				}
 			}
-		}
-
-		// Check if Last.fm API is available
-		if (apiKey) {
-			return await this.getRecommendedTracksFromLastFm(track, apiKey);
 		}
 
 		return [];
