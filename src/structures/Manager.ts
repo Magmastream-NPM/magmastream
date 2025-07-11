@@ -31,7 +31,7 @@ import {
 	VoiceServer,
 	VoiceState,
 } from "./Types";
-import { LoadTypes, ManagerEventTypes, SearchPlatform, StateStorageType, StateTypes, TrackEndReasonTypes, UseNodeOptions } from "./Enums";
+import { AutoPlayPlatform, LoadTypes, ManagerEventTypes, SearchPlatform, StateStorageType, StateTypes, TrackEndReasonTypes, UseNodeOptions } from "./Enums";
 import { version } from "../../package.json";
 
 /**
@@ -98,6 +98,7 @@ export class Manager extends EventEmitter {
 			useNode: UseNodeOptions.LeastPlayers,
 			maxPreviousTracks: options.maxPreviousTracks ?? 20,
 			stateStorage: { type: StateStorageType.Collection, deleteInactivePlayers: true },
+			autoPlaySearchPlatforms: options.autoPlaySearchPlatforms ?? [AutoPlayPlatform.YouTube],
 			...options,
 		};
 
