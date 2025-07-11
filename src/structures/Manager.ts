@@ -32,6 +32,7 @@ import {
 	VoiceState,
 } from "./Types";
 import { LoadTypes, ManagerEventTypes, SearchPlatform, StateStorageType, StateTypes, TrackEndReasonTypes, UseNodeOptions } from "./Enums";
+import { version } from "../../package.json";
 
 /**
  * The main hub for interacting with Lavalink and using Magmastream.
@@ -92,7 +93,7 @@ export class Manager extends EventEmitter {
 			],
 			playNextOnEnd: true,
 			enablePriorityMode: false,
-			clientName: "Magmastream",
+			clientName: `Magmastream@${version}`,
 			defaultSearchPlatform: SearchPlatform.YouTube,
 			useNode: UseNodeOptions.LeastPlayers,
 			maxPreviousTracks: options.maxPreviousTracks ?? 20,

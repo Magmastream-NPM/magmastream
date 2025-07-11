@@ -11,7 +11,8 @@
 
 		/* Module Resolution Options */
 		"moduleResolution": "NodeNext",
-		"esModuleInterop": true
+		"esModuleInterop": true,
+		"resolveJsonModule": true,
 	},
 	"exclude": ["node_modules", "dist"]
 }
