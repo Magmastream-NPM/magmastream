@@ -21,41 +21,57 @@ import { Queue } from "./Queue";
 export interface ManagerOptions {
 	/** The state storage options.
 	 *
-	 * @default { type: StateStorageType.Collection }
+	 * @default { type: StateStorageType.Collection, deleteInactivePlayers: true }
 	 */
 	stateStorage?: StateStorageOptions;
-	/** Enable priority mode over least player count or load balancing? */
+	/** Enable priority mode over least player count or load balancing?
+	 * @default false
+	 */
 	enablePriorityMode?: boolean;
-	/** Automatically play the next track when the current one ends. */
+	/** Automatically play the next track when the current one ends.
+	 * @default true
+	 */
 	playNextOnEnd?: boolean;
 	/** An array of search platforms to use for autoplay. First to last matters
 	 * Use enum `AutoPlayPlatform`.
+	 * @default [AutoPlayPlatform.YouTube]
 	 */
 	autoPlaySearchPlatforms?: AutoPlayPlatform[];
 	/** The client ID to use. */
 	clientId?: string;
 	/** Value to use for the `Client-Name` header. */
 	clientName?: string;
-	/** The array of shard IDs connected to this manager instance. */
+	/** The array of shard IDs connected to this manager instance.
+	 * @default 0
+	 */
 	clusterId?: number;
 	/** List of plugins to load. */
 	enabledPlugins?: Plugin[];
 	/** The default search platform to use.
-	 * Use enum `SearchPlatform`. */
+	 * Use enum `SearchPlatform`.
+	 * @default SearchPlatform.YouTube
+	 */
 	defaultSearchPlatform?: SearchPlatform;
 	/** The last.fm API key.
 	 * If you need to create one go here: https://www.last.fm/api/account/create.
 	 * If you already have one, get it from here: https://www.last.fm/api/accounts. */
 	lastFmApiKey?: string;
-	/** The maximum number of previous tracks to store. */
+	/** The maximum number of previous tracks to store.
+	 * @default 20
+	 */
 	maxPreviousTracks?: number;
 	/** The array of nodes to connect to. */
 	nodes?: NodeOptions[];
-	/** Whether the YouTube video titles should be replaced if the Author does not exactly match. */
+	/** Whether the YouTube video titles should be replaced if the Author does not exactly match.
+	 * @default false
+	 */
 	normalizeYouTubeTitles?: boolean;
 	/** An array of track properties to keep. `track` will always be present. */
 	trackPartial?: TrackPartial[];
-	/** Use the least amount of players or least load? */
+	/** Use the least amount of players or least load?
+	 * Use enum `UseNodeOptions`.
+	 * @default UseNodeOptions.LeastPlayers
+	 */
 	useNode?: UseNodeOptions.LeastLoad | UseNodeOptions.LeastPlayers;
 	/**
 	 * Function to send data to the websocket.

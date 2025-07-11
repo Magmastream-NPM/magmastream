@@ -82,7 +82,8 @@ export class Manager extends EventEmitter {
 		if (options.send && !this._send) this._send = options.send;
 
 		this.options = {
-			enabledPlugins: [],
+			...options,
+			enabledPlugins: options.enabledPlugins ?? [],
 			nodes: [
 				{
 					identifier: "default",
@@ -91,15 +92,15 @@ export class Manager extends EventEmitter {
 					sessionTimeoutMs: 1000,
 				},
 			],
-			playNextOnEnd: true,
-			enablePriorityMode: false,
+			playNextOnEnd: options.playNextOnEnd ?? true,
+			enablePriorityMode: options.enablePriorityMode ?? false,
 			clientName: `Magmastream@${version}`,
-			defaultSearchPlatform: SearchPlatform.YouTube,
-			useNode: UseNodeOptions.LeastPlayers,
+			defaultSearchPlatform: options.defaultSearchPlatform ?? SearchPlatform.YouTube,
+			useNode: options.useNode ?? UseNodeOptions.LeastPlayers,
 			maxPreviousTracks: options.maxPreviousTracks ?? 20,
+			normalizeYouTubeTitles: options.normalizeYouTubeTitles ?? false,
 			stateStorage: { type: StateStorageType.Collection, deleteInactivePlayers: true },
 			autoPlaySearchPlatforms: options.autoPlaySearchPlatforms ?? [AutoPlayPlatform.YouTube],
-			...options,
 		};
 
 		AutoPlayUtils.init(this);
