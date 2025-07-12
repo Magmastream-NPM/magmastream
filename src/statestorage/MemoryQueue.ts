@@ -1,12 +1,12 @@
-import { Manager } from "./Manager"; // Import Manager to access emit method
+import { Manager } from "../structures/Manager"; // Import Manager to access emit method
 import { ClientUser, User } from "discord.js";
-import { ManagerEventTypes, PlayerStateEventTypes } from "./Enums";
-import { IQueue, PlayerStateUpdateEvent, Track } from "./Types";
+import { ManagerEventTypes, PlayerStateEventTypes } from "../structures/Enums";
+import { IQueue, PlayerStateUpdateEvent, Track } from "../structures/Types";
 
 /**
  * The player's queue, the `current` property is the currently playing track, think of the rest as the up-coming tracks.
  */
-export class Queue extends Array<Track> implements IQueue {
+export class MemoryQueue extends Array<Track> implements IQueue {
 	/** The current track */
 	public current: Track | null = null;
 
@@ -32,14 +32,23 @@ export class Queue extends Array<Track> implements IQueue {
 		this.guildId = guildId;
 	}
 
+	/**
+	 * @returns The current track.
+	 */
 	async getCurrent(): Promise<Track | null> {
 		return this.current;
 	}
 
+	/**
+	 * @param track The track to set.
+	 */
 	async setCurrent(track: Track | null): Promise<void> {
 		this.current = track;
 	}
 
+	/**
+	 * @returns The previous tracks.
+	 */
 	async getPrevious(): Promise<Track[]> {
 		return [...this.previous];
 	}
@@ -56,14 +65,23 @@ export class Queue extends Array<Track> implements IQueue {
 		}
 	}
 
+	/**
+	 * @param tracks The tracks to set.
+	 */
 	public async setPrevious(tracks: Track[]): Promise<void> {
 		this.previous = [...tracks];
 	}
 
+	/**
+	 * @returns The newest track.
+	 */
 	public async popPrevious(): Promise<Track | null> {
 		return this.previous.shift() || null; // get newest track
 	}
 
+	/**
+	 * Clears the previous tracks.
+	 */
 	public async clearPrevious(): Promise<void> {
 		this.previous = [];
 	}
@@ -101,19 +119,22 @@ export class Queue extends Array<Track> implements IQueue {
 	 * @param [offset=null] The position to add the track(s) at. If not provided, the track(s) will be added at the end of the queue.
 	 */
 	public async add(track: Track | Track[], offset?: number): Promise<void> {
+		const isArray = Array.isArray(track);
+		const tracks = isArray ? [...track] : [track];
+
 		// Get the track info as a string
-		const trackInfo = Array.isArray(track) ? track.map((t) => JSON.stringify(t, null, 2)).join(", ") : JSON.stringify(track, null, 2);
+		const trackInfo = isArray ? tracks.map((t) => JSON.stringify(t, null, 2)).join(", ") : JSON.stringify(track, null, 2);
 
 		// Emit a debug message
-		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Added ${Array.isArray(track) ? track.length : 1} track(s) to queue: ${trackInfo}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Added ${tracks.length} track(s) to queue: ${trackInfo}`);
 
 		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
 		// If the queue is empty, set the track as the current track
 		if (!this.current) {
-			if (Array.isArray(track)) {
-				this.current = (track.shift() as Track) || null;
-				this.push(...track);
+			if (isArray) {
+				this.current = (tracks.shift() as Track) || null;
+				this.push(...tracks);
 			} else {
 				this.current = track;
 			}
@@ -131,15 +152,15 @@ export class Queue extends Array<Track> implements IQueue {
 				}
 
 				// Add the track(s) at the offset position
-				if (Array.isArray(track)) {
-					this.splice(offset, 0, ...track);
+				if (isArray) {
+					this.splice(offset, 0, ...tracks);
 				} else {
 					this.splice(offset, 0, track);
 				}
 			} else {
 				// If no offset is provided, add the track(s) at the end of the queue
-				if (Array.isArray(track)) {
-					this.push(...track);
+				if (isArray) {
+					this.push(...tracks);
 				} else {
 					this.push(track);
 				}
@@ -147,7 +168,7 @@ export class Queue extends Array<Track> implements IQueue {
 		}
 
 		if (this.manager.players.has(this.guildId) && this.manager.players.get(this.guildId).isAutoplay) {
-			if (!Array.isArray(track)) {
+			if (!isArray) {
 				const botUser = this.manager.players.get(this.guildId).get("Internal_BotUser") as User | ClientUser;
 				if (botUser && botUser.id === track.requester.id) {
 					this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
@@ -155,7 +176,7 @@ export class Queue extends Array<Track> implements IQueue {
 						details: {
 							type: "queue",
 							action: "autoPlayAdd",
-							tracks: Array.isArray(track) ? track : [track],
+							tracks: [track],
 						},
 					} as PlayerStateUpdateEvent);
 
@@ -169,7 +190,7 @@ export class Queue extends Array<Track> implements IQueue {
 			details: {
 				type: "queue",
 				action: "add",
-				tracks: Array.isArray(track) ? track : [track],
+				tracks: isArray ? tracks : [track],
 			},
 		} as PlayerStateUpdateEvent);
 	}
@@ -401,10 +422,17 @@ export class Queue extends Array<Track> implements IQueue {
 		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] roundRobinShuffled the queue for: ${this.guildId}`);
 	}
 
+	/**
+	 * Removes the first element from the queue.
+	 */
 	public async dequeue(): Promise<Track | undefined> {
 		return super.shift();
 	}
 
+	/**
+	 * Adds the specified track or tracks to the front of the queue.
+	 * @param track The track or tracks to add.
+	 */
 	public async enqueueFront(track: Track | Track[]): Promise<void> {
 		if (Array.isArray(track)) {
 			this.unshift(...track);
@@ -413,34 +441,62 @@ export class Queue extends Array<Track> implements IQueue {
 		}
 	}
 
+	/**
+	 * @returns A shallow copy of the queue.
+	 */
 	public async getTracks(): Promise<Track[]> {
 		return [...this]; // clone to avoid direct mutation
 	}
 
+	/**
+	 * @returns A shallow copy of the queue.
+	 */
 	public async getSlice(start?: number, end?: number): Promise<Track[]> {
 		return this.slice(start, end); // Native sync method, still wrapped in a Promise
 	}
 
+	/**
+	 * Modifies the queue at the specified index.
+	 * @param start The index at which to start modifying the queue.
+	 * @param deleteCount The number of elements to remove from the queue.
+	 * @param items The elements to add to the queue.
+	 * @returns The modified queue.
+	 */
 	public async modifyAt(start: number, deleteCount = 0, ...items: Track[]): Promise<Track[]> {
 		return super.splice(start, deleteCount, ...items);
 	}
 
+	/**
+	 * @returns A new array with the results of calling a provided function on every element in the queue.
+	 */
 	public async mapAsync<T>(callback: (track: Track, index: number, array: Track[]) => T): Promise<T[]> {
 		return this.map(callback);
 	}
 
+	/**
+	 * @returns A new array with all elements that pass the test implemented by the provided function.
+	 */
 	public async filterAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<Track[]> {
 		return this.filter(callback);
 	}
 
+	/**
+	 * @returns The first element in the queue that satisfies the provided testing function.
+	 */
 	public async findAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<Track | undefined> {
 		return this.find(callback);
 	}
 
+	/**
+	 * @returns Whether at least one element in the queue satisfies the provided testing function.
+	 */
 	public async someAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<boolean> {
 		return this.some(callback);
 	}
 
+	/**
+	 * @returns Whether all elements in the queue satisfy the provided testing function.
+	 */
 	public async everyAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<boolean> {
 		return this.every(callback);
 	}

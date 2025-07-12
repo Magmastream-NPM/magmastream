@@ -78,6 +78,7 @@ export class Node {
 
 		this.options = {
 			...options,
+			host: options.host ?? "localhost",
 			port: options.port ?? 2333,
 			password: options.password ?? "youshallnotpass",
 			useSSL: options.useSSL ?? false,

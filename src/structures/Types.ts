@@ -13,7 +13,9 @@ import {
 	UseNodeOptions,
 } from "./Enums";
 import { Player } from "./Player";
-import { Queue } from "./Queue";
+import { MemoryQueue } from "../statestorage/MemoryQueue";
+import { RedisQueue } from "../statestorage/RedisQueue";
+import { JsonQueue } from "../statestorage/JsonQueue";
 
 /**
  * Manager Options
@@ -87,6 +89,7 @@ export interface ManagerOptions {
 export interface StateStorageOptions {
 	type: StateStorageType;
 	redisConfig?: RedisConfig;
+	jsonConfig?: JsonConfig;
 	deleteInactivePlayers?: boolean;
 }
 /**
@@ -219,6 +222,13 @@ export interface RedisConfig {
 	password?: string;
 	db?: number;
 	prefix?: string;
+}
+
+/**
+ * JSON Configuration
+ */
+export interface JsonConfig {
+	path: string;
 }
 
 /**
@@ -591,7 +601,7 @@ export interface VoiceServer {
 
 export interface Extendable {
 	Player: typeof Player;
-	Queue: typeof Queue;
+	Queue: typeof MemoryQueue | typeof RedisQueue | typeof JsonQueue;
 	Node: typeof Node;
 }
 

@@ -2,8 +2,9 @@
  * State Storage Enum
  */
 export enum StateStorageType {
-	Collection = "collection",
+	Memory = "memory",
 	Redis = "redis",
+	JSON = "json",
 }
 
 /**

@@ -3,7 +3,7 @@ export * from "./structures/Manager";
 export * from "./structures/Node";
 export * from "./structures/Player";
 export * from "./structures/Plugin";
-export * from "./structures/Queue";
+export * from "./statestorage/MemoryQueue";
 export * from "./structures/Rest";
 export * from "./structures/Utils";
 // wrappers
@@ -15,3 +15,7 @@ export * from "./wrappers/seyfert";
 // types
 export * from "./structures/Types";
 export * from "./structures/Enums";
+// state storage
+export * from "./statestorage/MemoryQueue";
+export * from "./statestorage/JsonQueue";
+export * from "./statestorage/RedisQueue";

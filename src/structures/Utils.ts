@@ -817,7 +817,7 @@ export abstract class Structure {
 
 const structures = {
 	Player: require("./Player").Player,
-	Queue: require("./Queue").Queue,
+	Queue: require("../statestorage/MemoryQueue").MemoryQueue,
 	Node: require("./Node").Node,
 	Filters: require("./Filters").Filters,
 	Manager: require("./Manager").Manager,

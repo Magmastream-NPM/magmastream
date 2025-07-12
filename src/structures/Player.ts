@@ -1,15 +1,16 @@
 import { Filters } from "./Filters";
 import { Manager } from "./Manager";
 import { Node } from "./Node";
-import { Queue } from "./Queue";
+import { MemoryQueue } from "../statestorage/MemoryQueue";
 import { AutoPlayUtils, Structure, TrackUtils } from "./Utils";
 import * as _ from "lodash";
 import playerCheck from "../utils/playerCheck";
 import { ClientUser, Message, User } from "discord.js";
-import { RedisQueue } from "./RedisQueue";
+import { RedisQueue } from "../statestorage/RedisQueue";
 import { IQueue, Lyrics, PlayerOptions, PlayerStateUpdateEvent, PlayOptions, SearchQuery, SearchResult, Track, VoiceReceiverEvent, VoiceState } from "./Types";
 import { ManagerEventTypes, PlayerStateEventTypes, SponsorBlockSegment, StateStorageType, StateTypes } from "./Enums";
 import { WebSocket } from "ws";
+import { JsonQueue } from "../statestorage/JsonQueue";
 
 export class Player {
 	/** The Queue for the Player. */
@@ -100,15 +101,21 @@ export class Player {
 		if (!this.node) throw new RangeError("No available nodes.");
 
 		// Initialize the queue with the guild ID and manager.
-		if (this.manager.options.stateStorage.type === StateStorageType.Redis) {
-			this.queue = new RedisQueue(this.guildId, this.manager);
-		} else {
-			this.queue = new Queue(this.guildId, this.manager);
+		switch (this.manager.options.stateStorage.type) {
+			case StateStorageType.Redis:
+				this.queue = new RedisQueue(this.guildId, this.manager);
+				break;
+			case StateStorageType.Memory:
+				this.queue = new MemoryQueue(this.guildId, this.manager);
+				break;
+			case StateStorageType.JSON:
+				this.queue = new JsonQueue(this.guildId, this.manager);
+				break;
 		}
 
-		if (this.queue instanceof Queue) {
-			this.queue.previous = [];
-		}
+		// if (this.queue instanceof MemoryQueue) {
+		// 	this.queue.previous = [];
+		// }
 
 		// Add the player to the manager's player collection.
 		this.manager.players.set(options.guildId, this);
