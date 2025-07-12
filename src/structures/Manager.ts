@@ -47,6 +47,7 @@ export class Manager extends EventEmitter {
 	public initiated = false;
 	public redis?: RedisClient;
 	private _send?: (packet: GatewayVoiceStateUpdate) => unknown;
+	private loadedPlugins = new Set<Plugin>();
 
 	/**
 	 * Initiates the Manager class.
@@ -183,13 +184,6 @@ export class Manager extends EventEmitter {
 			}
 		}
 
-		if (this.options.enabledPlugins) {
-			for (const [index, plugin] of this.options.enabledPlugins.entries()) {
-				if (!(plugin instanceof Plugin)) throw new RangeError(`Plugin at index ${index} does not extend Plugin.`);
-				plugin.load(this);
-			}
-		}
-
 		if (this.options.stateStorage.type === StateStorageType.Redis) {
 			const config = this.options.stateStorage.redisConfig;
 
@@ -200,6 +194,8 @@ export class Manager extends EventEmitter {
 				db: config.db ?? 0,
 			});
 		}
+
+		this.loadPlugins();
 
 		this.initiated = true;
 		return this;
@@ -984,6 +980,7 @@ export class Manager extends EventEmitter {
 	 * After saving and cleaning up, it exits the process.
 	 */
 	public async handleShutdown(): Promise<void> {
+		this.unloadPlugins();
 		console.warn("\x1b[31m%s\x1b[0m", "MAGMASTREAM WARNING: Shutting down! Please wait, saving active players...");
 
 		try {
@@ -1405,6 +1402,42 @@ export class Manager extends EventEmitter {
 			default:
 				break;
 		}
+	}
+
+	/**
+	 * Loads the enabled plugins.
+	 */
+	private loadPlugins(): void {
+		if (!Array.isArray(this.options.enabledPlugins)) return;
+
+		for (const [index, plugin] of this.options.enabledPlugins.entries()) {
+			if (!(plugin instanceof Plugin)) {
+				throw new RangeError(`Plugin at index ${index} does not extend Plugin.`);
+			}
+
+			try {
+				plugin.load(this);
+				this.loadedPlugins.add(plugin);
+				this.emit(ManagerEventTypes.Debug, `[PLUGIN] Loaded plugin: ${plugin.name}`);
+			} catch (err) {
+				this.emit(ManagerEventTypes.Debug, `[PLUGIN] Failed to load plugin "${plugin.name}": ${err}`);
+			}
+		}
+	}
+
+	/**
+	 * Unloads the enabled plugins.
+	 */
+	private unloadPlugins(): void {
+		for (const plugin of this.loadedPlugins) {
+			try {
+				plugin.unload(this);
+				this.emit(ManagerEventTypes.Debug, `[PLUGIN] Unloaded plugin: ${plugin.name}`);
+			} catch (err) {
+				this.emit(ManagerEventTypes.Debug, `[PLUGIN] Failed to unload plugin "${plugin.name}": ${err}`);
+			}
+		}
+		this.loadedPlugins.clear();
 	}
 
 	/**
