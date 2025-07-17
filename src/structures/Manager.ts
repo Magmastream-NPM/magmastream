@@ -99,7 +99,7 @@ export class Manager extends EventEmitter {
 			],
 			playNextOnEnd: options.playNextOnEnd ?? true,
 			enablePriorityMode: options.enablePriorityMode ?? false,
-			clientName: options.clientName ?? `Magmastream@${version}`,
+			clientName: options.clientName ?? `Magmastream/${version}`,
 			defaultSearchPlatform: options.defaultSearchPlatform ?? SearchPlatform.YouTube,
 			useNode: options.useNode ?? UseNodeOptions.LeastPlayers,
 			maxPreviousTracks: options.maxPreviousTracks ?? 20,
