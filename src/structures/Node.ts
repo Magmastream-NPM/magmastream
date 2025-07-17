@@ -863,7 +863,7 @@ export class Node {
 		if (!this.connected) throw new RangeError(`The node is not connected to the lavalink server: ${this.options.identifier}`);
 
 		if (this.isNodeLink) {
-			return (await this.rest.get(`/v4/lyrics?track=${encodeURIComponent(track.track)}&skipTrackSource=${skipTrackSource}`)) as NodeLinkGetLyrics;
+			return (await this.rest.get(`/v4/loadlyrics?encodedTrack=${encodeURIComponent(track.track)}&skipTrackSource=${skipTrackSource}`)) as NodeLinkGetLyrics;
 		}
 
 		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "lavalyrics-plugin")) {
