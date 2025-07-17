@@ -40,6 +40,12 @@ export enum LoadTypes {
 	Search = "search",
 	Empty = "empty",
 	Error = "error",
+	Album = "album",
+	Artist = "artist",
+	Station = "station",
+	Podcast = "podcast",
+	Show = "show",
+	Short = "short",
 }
 
 /**

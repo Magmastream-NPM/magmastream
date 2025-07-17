@@ -229,10 +229,16 @@ export class Manager extends EventEmitter {
 					tracks = (res.data as TrackData[]).map((track) => TrackUtils.build(track, requester));
 					break;
 
+				case LoadTypes.Short:
 				case LoadTypes.Track:
 					tracks = [TrackUtils.build(res.data as unknown as TrackData, requester)];
 					break;
 
+				case LoadTypes.Album:
+				case LoadTypes.Artist:
+				case LoadTypes.Station:
+				case LoadTypes.Podcast:
+				case LoadTypes.Show:
 				case LoadTypes.Playlist: {
 					const playlistData = res.data as PlaylistRawData;
 					tracks = playlistData.tracks.map((track) => TrackUtils.build(track, requester));
@@ -267,12 +273,19 @@ export class Manager extends EventEmitter {
 			let result: SearchResult;
 
 			switch (res.loadType) {
+				case LoadTypes.Album:
+				case LoadTypes.Artist:
+				case LoadTypes.Station:
+				case LoadTypes.Podcast:
+				case LoadTypes.Show:
 				case LoadTypes.Playlist:
 					result = { loadType: res.loadType, tracks, playlist };
 					break;
 				case LoadTypes.Search:
 					result = { loadType: res.loadType, tracks };
 					break;
+
+				case LoadTypes.Short:
 				case LoadTypes.Track:
 					result = { loadType: res.loadType, tracks: [tracks[0]] };
 					break;

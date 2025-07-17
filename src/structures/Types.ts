@@ -511,6 +511,41 @@ export interface PlaylistSearchResult {
 	playlist: PlaylistData;
 }
 
+export interface AlbumSearchResult {
+	loadType: LoadTypes.Album;
+	tracks: Track[];
+	playlist: PlaylistData;
+}
+
+export interface ArtistSearchResult {
+	loadType: LoadTypes.Artist;
+	tracks: Track[];
+	playlist: PlaylistData;
+}
+
+export interface StationSearchResult {
+	loadType: LoadTypes.Station;
+	tracks: Track[];
+	playlist: PlaylistData;
+}
+
+export interface PodcastSearchResult {
+	loadType: LoadTypes.Podcast;
+	tracks: Track[];
+	playlist: PlaylistData;
+}
+
+export interface ShowSearchResult {
+	loadType: LoadTypes.Show;
+	tracks: Track[];
+	playlist: PlaylistData;
+}
+
+export interface ShortSearchResult {
+	loadType: LoadTypes.Short;
+	tracks: [Track];
+}
+
 /**
  * Playlist Data
  */
@@ -1189,7 +1224,17 @@ export type VoiceReceiverEvent = StartSpeakingEventVoiceReceiver | EndSpeakingEv
 /**
  * Search Result Enum type
  */
-export type SearchResult = TrackSearchResult | SearchSearchResult | PlaylistSearchResult | ErrorOrEmptySearchResult;
+export type SearchResult =
+	| TrackSearchResult
+	| SearchSearchResult
+	| PlaylistSearchResult
+	| ErrorOrEmptySearchResult
+	| AlbumSearchResult
+	| ArtistSearchResult
+	| StationSearchResult
+	| PodcastSearchResult
+	| ShowSearchResult
+	| ShortSearchResult;
 
 /**
  * Lyrics Event Enum type
