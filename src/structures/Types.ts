@@ -41,7 +41,11 @@ export interface ManagerOptions {
 	autoPlaySearchPlatforms?: AutoPlayPlatform[];
 	/** The client ID to use. */
 	clientId?: string;
-	/** Value to use for the `Client-Name` header. */
+	/** Value to use for the `Client-Name` header.
+	 *  @default "Magmastream"
+	 *
+	 * For NodeLink, leave it empty.
+	 */
 	clientName?: string;
 	/** The array of shard IDs connected to this manager instance.
 	 * @default 0
