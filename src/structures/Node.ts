@@ -865,7 +865,7 @@ export class Node {
 
 		if (this.isNodeLink) {
 			return (await this.rest.get(
-				`/v4/loadlyrics?encodedTrack=${encodeURIComponent(track.track)}&skipTrackSource=${skipTrackSource}${language ? `&language=${language}` : ""}`
+				`/v4/loadlyrics?encodedTrack=${encodeURIComponent(track.track)}${language ? `&language=${language}` : ""}`
 			)) as NodeLinkGetLyrics;
 		}
 
