@@ -857,13 +857,16 @@ export class Node {
 	 *
 	 * @param {Track} track - The track to fetch the lyrics for.
 	 * @param {boolean} [skipTrackSource=false] - Whether to skip using the track's source URL.
+	 * @param {string} [language="en"] - The language of the lyrics.
 	 * @returns {Promise<Lyrics | NodeLinkGetLyrics>} A promise that resolves with the lyrics data.
 	 */
-	public async getLyrics(track: Track, skipTrackSource: boolean = false): Promise<Lyrics | NodeLinkGetLyrics> {
+	public async getLyrics(track: Track, skipTrackSource: boolean = false, language?: string): Promise<Lyrics | NodeLinkGetLyrics> {
 		if (!this.connected) throw new RangeError(`The node is not connected to the lavalink server: ${this.options.identifier}`);
 
 		if (this.isNodeLink) {
-			return (await this.rest.get(`/v4/loadlyrics?encodedTrack=${encodeURIComponent(track.track)}&skipTrackSource=${skipTrackSource}`)) as NodeLinkGetLyrics;
+			return (await this.rest.get(
+				`/v4/loadlyrics?encodedTrack=${encodeURIComponent(track.track)}&skipTrackSource=${skipTrackSource}${language ? `&language=${language}` : ""}`
+			)) as NodeLinkGetLyrics;
 		}
 
 		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "lavalyrics-plugin")) {
