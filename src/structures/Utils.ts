@@ -512,10 +512,16 @@ export abstract class AutoPlayUtils {
 			}
 
 			switch (searchResult.loadType) {
+				case LoadTypes.Album:
+				case LoadTypes.Artist:
+				case LoadTypes.Station:
+				case LoadTypes.Podcast:
+				case LoadTypes.Show:
 				case LoadTypes.Playlist:
 					return searchResult.playlist.tracks;
 				case LoadTypes.Track:
 				case LoadTypes.Search:
+				case LoadTypes.Short:
 					return searchResult.tracks;
 				default:
 					return [];
@@ -542,10 +548,16 @@ export abstract class AutoPlayUtils {
 			if (TrackUtils.isErrorOrEmptySearchResult(searchResult)) return null;
 
 			switch (searchResult.loadType) {
+				case LoadTypes.Album:
+				case LoadTypes.Artist:
+				case LoadTypes.Station:
+				case LoadTypes.Podcast:
+				case LoadTypes.Show:
 				case LoadTypes.Playlist:
 					return searchResult.playlist.tracks[0] || null;
 				case LoadTypes.Track:
 				case LoadTypes.Search:
+				case LoadTypes.Short:
 					return searchResult.tracks[0] || null;
 				default:
 					return null;
