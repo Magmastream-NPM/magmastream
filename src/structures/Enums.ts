@@ -40,11 +40,17 @@ export enum LoadTypes {
 	Search = "search",
 	Empty = "empty",
 	Error = "error",
+	/** Nodelink */
 	Album = "album",
+	/** Nodelink */
 	Artist = "artist",
+	/** Nodelink */
 	Station = "station",
+	/** Nodelink */
 	Podcast = "podcast",
+	/** Nodelink */
 	Show = "show",
+	/** Nodelink */
 	Short = "short",
 }
 
@@ -169,10 +175,15 @@ export enum ManagerEventTypes {
 	TrackError = "trackError",
 	TrackStart = "trackStart",
 	TrackStuck = "trackStuck",
+	/** Nodelink */
 	VoiceReceiverDisconnect = "voiceReceiverDisconnect",
+	/** Nodelink */
 	VoiceReceiverConnect = "voiceReceiverConnect",
+	/** Nodelink */
 	VoiceReceiverError = "voiceReceiverError",
+	/** Nodelink */
 	VoiceReceiverStartSpeaking = "voiceReceiverStartSpeaking",
+	/** Nodelink */
 	VoiceReceiverEndSpeaking = "voiceReceiverEndSpeaking",
 }
 
