@@ -627,24 +627,60 @@ export abstract class AutoPlayUtils {
 	// 	}
 	// }
 
+	private static isPlaylistRawData(data: unknown): data is PlaylistRawData {
+		return typeof data === "object" && data !== null && Array.isArray((data as PlaylistRawData).tracks);
+	}
+
+	private static isTrackData(data: unknown): data is TrackData {
+		return typeof data === "object" && data !== null && "encoded" in data && "info" in data;
+	}
+
+	private static isTrackDataArray(data: unknown): data is TrackData[] {
+		return (
+			Array.isArray(data) &&
+			data.every((track) => typeof track === "object" && track !== null && "encoded" in track && "info" in track && typeof track.encoded === "string")
+		);
+	}
+
 	static buildTracksFromResponse<T>(recommendedResult: LavalinkResponse, requester?: T): Track[] {
 		if (!recommendedResult) return [];
 
 		if (TrackUtils.isErrorOrEmptySearchResult(recommendedResult as unknown as SearchResult)) return [];
 
 		switch (recommendedResult.loadType) {
-			case LoadTypes.Search: {
-				const tracks = (recommendedResult.data as TrackData[]).map((t) => TrackUtils.build(t, requester));
-				return tracks;
-			}
 			case LoadTypes.Track: {
-				const track = TrackUtils.build(recommendedResult.data as unknown as TrackData, requester);
-				return [track];
+				const data = recommendedResult.data;
+
+				if (!this.isTrackData(data)) {
+					throw new Error("[TrackBuilder] Invalid TrackData object.");
+				}
+
+				return [TrackUtils.build(data, requester)];
 			}
+
+			case LoadTypes.Short:
+			case LoadTypes.Search: {
+				const data = recommendedResult.data;
+
+				if (!this.isTrackDataArray(data)) {
+					throw new Error("[TrackBuilder] Invalid TrackData[] array for LoadTypes.Search or Short.");
+				}
+
+				return data.map((d) => TrackUtils.build(d, requester));
+			}
+			case LoadTypes.Album:
+			case LoadTypes.Artist:
+			case LoadTypes.Station:
+			case LoadTypes.Podcast:
+			case LoadTypes.Show:
 			case LoadTypes.Playlist: {
-				const playlistData = recommendedResult.data as PlaylistRawData;
-				const tracks = playlistData.tracks.map((t) => TrackUtils.build(t, requester));
-				return tracks;
+				const data = recommendedResult.data;
+
+				if (this.isPlaylistRawData(data)) {
+					return data.tracks.map((d) => TrackUtils.build(d, requester));
+				}
+
+				throw new Error(`[TrackBuilder] Invalid playlist data for loadType: ${recommendedResult.loadType}`);
 			}
 			default:
 				throw new Error(`[TrackBuilder] Unsupported loadType: ${recommendedResult.loadType}`);

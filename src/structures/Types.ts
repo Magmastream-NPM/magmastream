@@ -604,7 +604,7 @@ export interface ManagerEvents {
 	[ManagerEventTypes.PlayerCreate]: [player: Player];
 	[ManagerEventTypes.PlayerDestroy]: [player: Player];
 	[ManagerEventTypes.PlayerDisconnect]: [player: Player, oldChannel: string];
-	[ManagerEventTypes.PlayerMove]: [player: Player, initChannel: string, newChannel: string];
+	[ManagerEventTypes.PlayerMove]: [player: Player, oldChannel: string, newChannel: string];
 	[ManagerEventTypes.PlayerRestored]: [player: Player, node: Node];
 	[ManagerEventTypes.PlayerStateUpdate]: [oldPlayer: Player, newPlayer: Player, changeType: PlayerStateUpdateEvent];
 	[ManagerEventTypes.QueueEnd]: [player: Player, track: Track, payload: TrackEndEvent];
