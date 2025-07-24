@@ -8,11 +8,12 @@
 		"rootDir": "./src",
 		"skipLibCheck": true,
 		"importHelpers": true,
-
+		/* Restrict DOM globals */
+		"lib": ["ES2022"],
 		/* Module Resolution Options */
 		"moduleResolution": "NodeNext",
 		"esModuleInterop": true,
-		"resolveJsonModule": true,
+		"resolveJsonModule": true
 	},
 	"exclude": ["node_modules", "dist"]
 }

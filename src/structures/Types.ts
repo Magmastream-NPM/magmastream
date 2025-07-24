@@ -1,4 +1,7 @@
 import { ClientUser, User } from "discord.js";
+import { JsonQueue } from "../statestorage/JsonQueue";
+import { MemoryQueue } from "../statestorage/MemoryQueue";
+import { RedisQueue } from "../statestorage/RedisQueue";
 import {
 	AutoPlayPlatform,
 	LoadTypes,
@@ -12,10 +15,9 @@ import {
 	TrackSourceTypes,
 	UseNodeOptions,
 } from "./Enums";
+import { Node } from "./Node";
 import { Player } from "./Player";
-import { MemoryQueue } from "../statestorage/MemoryQueue";
-import { RedisQueue } from "../statestorage/RedisQueue";
-import { JsonQueue } from "../statestorage/JsonQueue";
+import { Plugin } from "./Plugin";
 
 /**
  * Manager Options

@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-import { ClientUser, User } from "discord.js";
-import { Manager } from "./Manager";
 import axios from "axios";
+import { ClientUser, User } from "discord.js";
 import { JSDOM } from "jsdom";
 import { AutoPlayPlatform, LoadTypes, SearchPlatform, TrackPartial } from "./Enums";
+import { Manager } from "./Manager";
 import { ErrorOrEmptySearchResult, Extendable, LavalinkResponse, PlaylistRawData, SearchResult, Track, TrackData, TrackSourceName } from "./Types";
 // import playwright from "playwright";
 
@@ -379,34 +379,38 @@ export abstract class AutoPlayUtils {
 					const html = recommendedRes.data;
 
 					const dom = new JSDOM(html);
-					const document = dom.window.document;
+					const window = dom.window;
 
-					const secondNoscript = document.querySelectorAll("noscript")[1];
+					// Narrow the element types using instanceof
+					const secondNoscript = window.querySelectorAll("noscript")[1];
+					if (!secondNoscript || !(secondNoscript instanceof window.Element)) return [];
+
 					const sectionElement = secondNoscript.querySelector("section");
-					const articleElements = sectionElement.querySelectorAll("article") as NodeListOf<HTMLElement>;
+					if (!sectionElement || !(sectionElement instanceof window.HTMLElement)) return [];
 
-					if (!articleElements || articleElements.length === 0) {
-						return [];
-					}
+					const articleElements = sectionElement.querySelectorAll("article");
+
+					if (!articleElements || articleElements.length === 0) return [];
 
 					const urls = Array.from(articleElements)
-						.map((articleElement) => {
-							const h2Element = articleElement.querySelector('h2[itemprop="name"]');
-							const aElement = h2Element?.querySelector('a[itemprop="url"]');
-							return aElement ? `https://soundcloud.com${aElement.getAttribute("href")}` : null;
+						.map((element) => {
+							const h2 = element.querySelector('h2[itemprop="name"]');
+							if (!h2) return null;
+
+							const a = h2.querySelector('a[itemprop="url"]');
+							if (!a) return null;
+
+							const href = a.getAttribute("href");
+							return href ? `https://soundcloud.com${href}` : null;
 						})
 						.filter(Boolean);
 
-					if (!urls.length) {
-						return [];
-					}
+					if (!urls.length) return [];
 
 					const randomUrl = urls[Math.floor(Math.random() * urls.length)];
 					const resolvedTrack = await this.resolveFirstTrackFromQuery(randomUrl, SearchPlatform.SoundCloud, requester);
 
-					if (!resolvedTrack) return [];
-
-					return [resolvedTrack];
+					return resolvedTrack ? [resolvedTrack] : [];
 				} catch (error) {
 					console.error("[AutoPlay] Error occurred while fetching soundcloud recommendations:", error);
 					return [];
