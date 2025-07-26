@@ -317,10 +317,12 @@ export abstract class AutoPlayUtils {
 	 */
 	static async getRecommendedTracksFromSource(track: Track, platform: AutoPlayPlatform): Promise<Track[]> {
 		const requester = track.requester;
+		const parsedURL = new URL(track.uri);
 
 		switch (platform) {
 			case AutoPlayPlatform.Spotify: {
-				if (!track.uri.includes("spotify")) {
+				const allowedSpotifyHosts = ["open.spotify.com", "www.spotify.com"];
+				if (!allowedSpotifyHosts.includes(parsedURL.host)) {
 					const resolvedTrack = await this.resolveFirstTrackFromQuery(`${track.author} - ${track.title}`, SearchPlatform.Spotify, requester);
 
 					if (!resolvedTrack) return [];
@@ -342,7 +344,8 @@ export abstract class AutoPlayUtils {
 			}
 
 			case AutoPlayPlatform.Deezer: {
-				if (!track.uri.includes("deezer")) {
+				const allowedDeezerHosts = ["deezer.com", "www.deezer.com", "www.deezer.page.link"];
+				if (!allowedDeezerHosts.includes(parsedURL.host)) {
 					const resolvedTrack = await this.resolveFirstTrackFromQuery(`${track.author} - ${track.title}`, SearchPlatform.Deezer, requester);
 
 					if (!resolvedTrack) return [];
@@ -358,7 +361,8 @@ export abstract class AutoPlayUtils {
 			}
 
 			case AutoPlayPlatform.SoundCloud: {
-				if (!track.uri.includes("soundcloud")) {
+				const allowedSoundCloudHosts = ["soundcloud.com", "www.soundcloud.com"];
+				if (!allowedSoundCloudHosts.includes(parsedURL.host)) {
 					const resolvedTrack = await this.resolveFirstTrackFromQuery(`${track.author} - ${track.title}`, SearchPlatform.SoundCloud, requester);
 
 					if (!resolvedTrack) return [];
@@ -418,7 +422,8 @@ export abstract class AutoPlayUtils {
 			}
 
 			case AutoPlayPlatform.YouTube: {
-				const hasYouTubeURL = ["youtube.com", "youtu.be"].some((url) => track.uri.includes(url));
+				const allowedYouTubeHosts = ["youtube.com", "youtu.be"];
+				const hasYouTubeURL = allowedYouTubeHosts.some((url) => track.uri.includes(url));
 				let videoID: string | null = null;
 
 				if (hasYouTubeURL) {
@@ -449,7 +454,8 @@ export abstract class AutoPlayUtils {
 			}
 
 			case AutoPlayPlatform.Tidal: {
-				if (!track.uri.includes("tidal")) {
+				const allowedTidalHosts = ["tidal.com", "www.tidal.com"];
+				if (!allowedTidalHosts.includes(parsedURL.host)) {
 					const resolvedTrack = await this.resolveFirstTrackFromQuery(`${track.author} - ${track.title}`, SearchPlatform.Tidal, requester);
 
 					if (!resolvedTrack) return [];
@@ -465,7 +471,8 @@ export abstract class AutoPlayUtils {
 			}
 
 			case AutoPlayPlatform.VKMusic: {
-				if (!track.uri.includes("vk.com") && !track.uri.includes("vk.ru")) {
+				const allowedVKHosts = ["vk.com", "www.vk.com", "vk.ru", "www.vk.ru"];
+				if (!allowedVKHosts.includes(parsedURL.host)) {
 					const resolvedTrack = await this.resolveFirstTrackFromQuery(`${track.author} - ${track.title}`, SearchPlatform.VKMusic, requester);
 
 					if (!resolvedTrack) return [];
@@ -481,7 +488,8 @@ export abstract class AutoPlayUtils {
 			}
 
 			case AutoPlayPlatform.Qobuz: {
-				if (!track.uri.includes("qobuz.com")) {
+				const allowedQobuzHosts = ["qobuz.com", "www.qobuz.com", "play.qobuz.com"];
+				if (!allowedQobuzHosts.includes(parsedURL.host)) {
 					const resolvedTrack = await this.resolveFirstTrackFromQuery(`${track.author} - ${track.title}`, SearchPlatform.Qobuz, requester);
 
 					if (!resolvedTrack) return [];
