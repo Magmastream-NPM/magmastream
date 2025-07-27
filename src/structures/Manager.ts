@@ -46,7 +46,7 @@ export class Manager extends EventEmitter {
 	public readonly options: ManagerOptions;
 	public initiated = false;
 	public redis?: RedisClient;
-	private _send?: (packet: GatewayVoiceStateUpdate) => unknown;
+	private _send: (packet: GatewayVoiceStateUpdate) => unknown;
 	private loadedPlugins = new Set<Plugin>();
 
 	/**
@@ -110,6 +110,7 @@ export class Manager extends EventEmitter {
 				deleteInactivePlayers: options.stateStorage?.deleteInactivePlayers ?? true,
 			},
 			autoPlaySearchPlatforms: options.autoPlaySearchPlatforms ?? [AutoPlayPlatform.YouTube],
+			send: this._send,
 		};
 
 		AutoPlayUtils.init(this);
@@ -1591,6 +1592,10 @@ export class Manager extends EventEmitter {
 	}
 
 	protected send(packet: GatewayVoiceStateUpdate): unknown {
+		if (!this._send) {
+			console.warn("[Manager.send] _send is not defined! Packet will not be sent.");
+			return;
+		}
 		return this._send(packet);
 	}
 
