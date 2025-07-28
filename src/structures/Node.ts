@@ -30,7 +30,7 @@ import {
 	TrackStuckEvent,
 	WebSocketClosedEvent,
 } from "./Types";
-import { ManagerEventTypes, PlayerStateEventTypes, SponsorBlockSegment, TrackEndReasonTypes } from "./Enums";
+import { ManagerEventTypes, PlayerStateEventTypes, SponsorBlockSegment, StateStorageType, TrackEndReasonTypes } from "./Enums";
 import { IncomingMessage } from "http";
 
 const validSponsorBlocks = Object.values(SponsorBlockSegment).map((v) => v.toLowerCase());
@@ -61,6 +61,7 @@ export class Node {
 
 	private reconnectTimeout?: NodeJS.Timeout;
 	private reconnectAttempts = 1;
+	private redisPrefix?: string;
 
 	/**
 	 * Creates an instance of Node.
@@ -122,20 +123,31 @@ export class Node {
 		this.manager.emit(ManagerEventTypes.NodeCreate, this);
 		this.rest = new Rest(this, this.manager);
 
-		this.createSessionIdsFile();
-		this.loadSessionIds();
+		switch (this.manager.options.stateStorage.type) {
+			case StateStorageType.JSON:
+				this.createSessionIdsFile();
+				this.loadSessionIdsFromFile();
+				this.createReadmeFile();
+				break;
 
-		// Create README file to inform the user about the magmastream folder
-		this.createReadmeFile();
+			case StateStorageType.Redis:
+				this.redisPrefix = this.manager.options.stateStorage.redisConfig.prefix?.endsWith(":")
+					? this.manager.options.stateStorage.redisConfig.prefix
+					: this.manager.options.stateStorage.redisConfig.prefix ?? "magmastream:";
+				break;
+		}
 	}
 
-	/** Returns if connected to the Node. */
+	/**
+	 * Checks if the Node is currently connected.
+	 * This method returns true if the Node has an active WebSocket connection, indicating it is ready to receive and process commands.
+	 */
 	public get connected(): boolean {
 		if (!this.socket) return false;
 		return this.socket.readyState === WebSocket.OPEN;
 	}
 
-	/** Returns the address for this node. */
+	/** Returns the full address for this node, including the host and port. */
 	public get address(): string {
 		return `${this.options.host}:${this.options.port}`;
 	}
@@ -146,10 +158,9 @@ export class Node {
 	 * the node when resuming a session.
 	 */
 	public createSessionIdsFile(): void {
-		// If the sessionIds.json file does not exist, create it
 		if (!fs.existsSync(sessionIdsFilePath)) {
 			this.manager.emit(ManagerEventTypes.Debug, `[NODE] Creating sessionId file at: ${sessionIdsFilePath}`);
-			// Create the file with an empty object as the content
+
 			fs.writeFileSync(sessionIdsFilePath, JSON.stringify({}), "utf-8");
 		}
 	}
@@ -162,22 +173,16 @@ export class Node {
 	 * of the node identifier and cluster ID. This allows multiple clusters to
 	 * be used with the same node identifier.
 	 */
-	public loadSessionIds(): void {
-		// Check if the sessionIds.json file exists
+	public loadSessionIdsFromFile(): void {
 		if (fs.existsSync(sessionIdsFilePath)) {
-			// Emit a debug event indicating that session IDs are being loaded
 			this.manager.emit(ManagerEventTypes.Debug, `[NODE] Loading sessionIds from file: ${sessionIdsFilePath}`);
 
-			// Read the content of the sessionIds.json file as a string
 			const sessionIdsData = fs.readFileSync(sessionIdsFilePath, "utf-8");
 
-			// Parse the JSON string into an object and convert it into a Map
 			sessionIdsMap = new Map(Object.entries(JSON.parse(sessionIdsData)));
 
-			// Check if the session IDs Map contains the session ID for this node
 			const compositeKey = `${this.options.identifier}::${this.manager.options.clusterId}`;
 			if (sessionIdsMap.has(compositeKey)) {
-				// Set the session ID on this node if it exists in the session IDs Map
 				this.sessionId = sessionIdsMap.get(compositeKey);
 			}
 		}
@@ -194,18 +199,34 @@ export class Node {
 	 * of the node identifier and cluster ID. This allows multiple clusters to
 	 * be used with the same node identifier.
 	 */
-	public updateSessionId(): void {
-		// Emit a debug event indicating that the session IDs are being updated
-		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Updating sessionIds to file: ${sessionIdsFilePath}`);
+	public async updateSessionId(): Promise<void> {
+		switch (this.manager.options.stateStorage.type) {
+			case StateStorageType.JSON: {
+				this.manager.emit(ManagerEventTypes.Debug, `[NODE] Updating sessionIds to file: ${sessionIdsFilePath}`);
 
-		// Create a composite key using identifier and clusterId
-		const compositeKey = `${this.options.identifier}::${this.manager.options.clusterId}`;
+				const compositeKey = `${this.options.identifier}::${this.manager.options.clusterId}`;
 
-		// Update the session IDs Map with the new session ID
-		sessionIdsMap.set(compositeKey, this.sessionId);
+				sessionIdsMap.set(compositeKey, this.sessionId);
+				fs.writeFileSync(sessionIdsFilePath, JSON.stringify(Object.fromEntries(sessionIdsMap)));
+				break;
+			}
 
-		// Write the updated session IDs Map to the sessionIds.json file
-		fs.writeFileSync(sessionIdsFilePath, JSON.stringify(Object.fromEntries(sessionIdsMap)));
+			case StateStorageType.Redis: {
+				const key = `${this.redisPrefix}:node:sessionIds`;
+				const compositeKey = `${this.options.identifier}::${this.manager.options.clusterId}`;
+
+				this.manager.emit(ManagerEventTypes.Debug, `[NODE] Updating sessionIds in Redis key: ${key}`);
+
+				const current = await this.manager.redis.get(key);
+
+				let sessionMap: Record<string, string> = current ? JSON.parse(current) : {};
+
+				sessionMap[compositeKey] = this.sessionId;
+
+				await this.manager.redis.set(key, JSON.stringify(sessionMap));
+				break;
+			}
+		}
 	}
 
 	/**
@@ -270,7 +291,6 @@ export class Node {
 	public async destroy(): Promise<void> {
 		if (!this.connected) return;
 
-		// Emit a debug event indicating that the node is being destroyed
 		const debugInfo = {
 			connected: this.connected,
 			identifier: this.options.identifier,
@@ -283,26 +303,20 @@ export class Node {
 
 		// Automove all players connected to that node
 		const players = this.manager.players.filter((p) => p.node == this);
+
 		if (players.size) {
 			for (const player of players.values()) {
 				await player.autoMoveNode();
 			}
 		}
 
-		// Close the WebSocket connection
 		this.socket.close(1000, "destroy");
-
-		// Remove all event listeners on the WebSocket
 		this.socket.removeAllListeners();
-
-		// Clear the reconnect timeout
 		this.reconnectAttempts = 1;
+
 		clearTimeout(this.reconnectTimeout);
 
-		// Emit a "nodeDestroy" event with the node as the argument
 		this.manager.emit(ManagerEventTypes.NodeDestroy, this);
-
-		// Remove the node from the manager
 		this.manager.nodes.delete(this.options.identifier);
 	}
 
@@ -323,7 +337,6 @@ export class Node {
 	 * @emits {nodeDestroy} - Emits a nodeDestroy event if the maximum number of retry attempts is reached.
 	 */
 	private async reconnect(): Promise<void> {
-		// Collect debug information regarding the current state of the node
 		const debugInfo = {
 			identifier: this.options.identifier,
 			connected: this.connected,
@@ -332,28 +345,21 @@ export class Node {
 			retryDelayMs: this.options.retryDelayMs,
 		};
 
-		// Emit a debug event indicating the node is attempting to reconnect
 		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Reconnecting node: ${JSON.stringify(debugInfo)}`);
 
-		// Schedule the reconnection attempt after the specified retry delay
 		this.reconnectTimeout = setTimeout(async () => {
-			// Check if the maximum number of retry attempts has been reached
 			if (this.reconnectAttempts >= this.options.maxRetryAttempts) {
-				// Emit an error event and destroy the node if retries are exhausted
 				const error = new Error(`Unable to connect after ${this.options.maxRetryAttempts} attempts.`);
 				this.manager.emit(ManagerEventTypes.NodeError, this, error);
 				return await this.destroy();
 			}
 
-			// Remove all listeners from the current WebSocket and reset it
 			this.socket?.removeAllListeners();
 			this.socket = null;
 
-			// Emit a nodeReconnect event and attempt to connect again
 			this.manager.emit(ManagerEventTypes.NodeReconnect, this);
 			this.connect();
 
-			// Increment the reconnect attempts counter
 			this.reconnectAttempts++;
 		}, this.options.retryDelayMs);
 	}
@@ -376,19 +382,14 @@ export class Node {
 	 * with the node as the argument.
 	 */
 	protected open(): void {
-		// Clear any existing reconnect timeouts
 		if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
 
-		// Collect debug information regarding the current state of the node
 		const debugInfo = {
 			identifier: this.options.identifier,
 			connected: this.connected,
 		};
 
-		// Emit a debug event indicating the node is connected
 		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Connected node: ${JSON.stringify(debugInfo)}`);
-
-		// Emit a "nodeConnect" event with the node as the argument
 		this.manager.emit(ManagerEventTypes.NodeConnect, this);
 	}
 
@@ -411,11 +412,9 @@ export class Node {
 			code,
 			reason,
 		};
-		// Emit a "nodeDisconnect" event with the node and the close event as arguments
+
 		this.manager.emit(ManagerEventTypes.NodeDisconnect, this, { code, reason });
-		// Emit a debug event indicating the node is disconnected
 		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Disconnected node: ${JSON.stringify(debugInfo)}`);
-		// Try moving all players connected to that node to a useable one
 
 		if (this.manager.useableNode) {
 			const players = this.manager.players.filter((p) => p.node.options.identifier == this.options.identifier);
@@ -423,7 +422,7 @@ export class Node {
 				await Promise.all(Array.from(players.values(), (player) => player.autoMoveNode()));
 			}
 		}
-		// If the close event was not initiated by the user, attempt to reconnect
+
 		if (code !== 1000 || reason !== "destroy") await this.reconnect();
 	}
 
@@ -437,14 +436,13 @@ export class Node {
 	 */
 	protected error(error: Error): void {
 		if (!error) return;
-		// Collect debug information regarding the error
+
 		const debugInfo = {
 			identifier: this.options.identifier,
 			error: error.message,
 		};
-		// Emit a debug event indicating the error on the node
+
 		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Error on node: ${JSON.stringify(debugInfo)}`);
-		// Emit a "nodeError" event with the node and the error as arguments
 		this.manager.emit(ManagerEventTypes.NodeError, this, error);
 	}
 
@@ -473,29 +471,35 @@ export class Node {
 				this.stats = { ...payload } as unknown as NodeStats;
 				break;
 			case "playerUpdate":
-				player = await this.manager.players.get(payload.guildId);
+				player = this.manager.players.get(payload.guildId);
+
 				if (player && player.node.options.identifier !== this.options.identifier) {
 					return;
 				}
+
 				if (player) player.position = payload.state.position || 0;
+
 				break;
 			case "event":
-				player = await this.manager.players.get(payload.guildId);
+				player = this.manager.players.get(payload.guildId);
+
 				if (player && player.node.options.identifier !== this.options.identifier) {
 					return;
 				}
+
 				this.manager.emit(ManagerEventTypes.Debug, `[NODE] Node message: ${JSON.stringify(payload)}`);
+
 				await this.handleEvent(payload);
+
 				break;
 			case "ready":
 				this.manager.emit(ManagerEventTypes.Debug, `[NODE] Node message: ${JSON.stringify(payload)}`);
 				this.rest.setSessionId(payload.sessionId);
 				this.sessionId = payload.sessionId;
-				this.updateSessionId(); // Call to update session ID
+				this.updateSessionId();
 				this.info = await this.fetchInfo();
-				// Log if the session was resumed successfully
+
 				if (payload.resumed) {
-					// Load player states from the JSON file
 					await this.manager.loadPlayerStates(this.options.identifier);
 				}
 
@@ -505,6 +509,7 @@ export class Node {
 						timeout: this.options.sessionTimeoutMs,
 					});
 				}
+
 				break;
 			default:
 				this.manager.emit(ManagerEventTypes.NodeError, this, new Error(`Unexpected op "${payload.op}" with data: ${payload.message}`));
@@ -521,7 +526,7 @@ export class Node {
 	protected async handleEvent(payload: PlayerEvent & PlayerEvents): Promise<void> {
 		if (!payload.guildId) return;
 
-		const player = await this.manager.players.get(payload.guildId);
+		const player = this.manager.players.get(payload.guildId);
 		if (!player) return;
 
 		const track = await player.queue.getCurrent();
@@ -532,6 +537,7 @@ export class Node {
 			case "TrackStartEvent":
 				this.trackStart(player, track as Track, payload);
 				break;
+
 			case "TrackEndEvent":
 				if (player?.nowPlayingMessage && player?.nowPlayingMessage.deletable) {
 					await player?.nowPlayingMessage?.delete().catch(() => {});
@@ -539,33 +545,43 @@ export class Node {
 
 				await this.trackEnd(player, track as Track, payload);
 				break;
+
 			case "TrackStuckEvent":
 				await this.trackStuck(player, track as Track, payload);
 				break;
+
 			case "TrackExceptionEvent":
 				await this.trackError(player, track as Track, payload);
 				break;
+
 			case "WebSocketClosedEvent":
 				this.socketClosed(player, payload);
 				break;
+
 			case "SegmentsLoaded":
 				this.sponsorBlockSegmentLoaded(player, track, payload);
 				break;
+
 			case "SegmentSkipped":
 				this.sponsorBlockSegmentSkipped(player, track, payload);
 				break;
+
 			case "ChaptersLoaded":
 				this.sponsorBlockChaptersLoaded(player, track, payload);
 				break;
+
 			case "ChapterStarted":
 				this.sponsorBlockChapterStarted(player, track, payload);
 				break;
+
 			case "LyricsFoundEvent":
 				this.lyricsFound(player, track, payload);
 				break;
+
 			case "LyricsNotFoundEvent":
 				this.lyricsNotFound(player, track, payload);
 				break;
+
 			case "LyricsLineEvent":
 				this.lyricsLine(player, track, payload);
 				break;
@@ -643,24 +659,24 @@ export class Node {
 		player.set("skipFlag", false);
 
 		const oldPlayer = player;
-		// Handle track end events
+
 		switch (reason) {
 			case TrackEndReasonTypes.LoadFailed:
 			case TrackEndReasonTypes.Cleanup:
-				// Handle the case when a track failed to load or was cleaned up
 				await this.handleFailedTrack(player, track, payload);
 				break;
+
 			case TrackEndReasonTypes.Replaced:
-				// Handle the case when a track was replaced
 				break;
+
 			case TrackEndReasonTypes.Stopped:
-				// If the track was forcibly replaced
 				if (await player.queue.size()) {
 					await this.playNextTrack(player, track, payload);
 				} else {
 					await this.queueEnd(player, track, payload);
 				}
 				break;
+
 			case TrackEndReasonTypes.Finished:
 				// If the track ended and it's set to repeat (track or queue)
 				if (track && (player.trackRepeat || player.queueRepeat)) {
@@ -674,6 +690,7 @@ export class Node {
 					await this.queueEnd(player, track, payload);
 				}
 				break;
+
 			default:
 				this.manager.emit(ManagerEventTypes.NodeError, this, new Error(`Unexpected track end reason "${reason}"`));
 				break;
@@ -775,10 +792,8 @@ export class Node {
 		// Move to the next track
 		await queue.setCurrent(await queue.dequeue());
 
-		// Emit track end event
 		this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
 
-		// If the track was stopped manually and no more tracks exist, end the queue
 		if (payload.reason === TrackEndReasonTypes.Stopped) {
 			const next = await queue.dequeue();
 			await queue.setCurrent(next ?? null);
@@ -789,7 +804,6 @@ export class Node {
 			}
 		}
 
-		// If autoplay is enabled, play the next track
 		if (playNextOnEnd) await player.play();
 	}
 
@@ -808,10 +822,8 @@ export class Node {
 		// Shift the queue to set the next track as current
 		await player.queue.setCurrent(await player.queue.dequeue());
 
-		// Emit the track end event
 		this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
 
-		// If autoplay is enabled, play the next track
 		if (this.manager.options.playNextOnEnd) await player.play();
 	}
 
@@ -842,7 +854,6 @@ export class Node {
 			attempt++;
 		}
 
-		// If all attempts fail, reset the player state and emit queueEnd
 		player.playing = false;
 		this.manager.emit(ManagerEventTypes.QueueEnd, player, track, payload);
 	}
