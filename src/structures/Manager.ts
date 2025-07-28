@@ -156,7 +156,7 @@ export class Manager extends EventEmitter {
 	 * @param clusterId - The cluster ID which runs the current process (required).
 	 * @returns The manager instance.
 	 */
-	public init(options: ManagerInitOptions = {}): this {
+	public async init(options: ManagerInitOptions = {}): Promise<this> {
 		if (this.initiated) {
 			return this;
 		}
@@ -177,14 +177,6 @@ export class Manager extends EventEmitter {
 			this.options.clusterId = clusterId;
 		}
 
-		for (const node of this.nodes.values()) {
-			try {
-				node.connect();
-			} catch (err) {
-				this.emit(ManagerEventTypes.NodeError, node, err);
-			}
-		}
-
 		if (this.options.stateStorage.type === StateStorageType.Redis) {
 			const config = this.options.stateStorage.redisConfig;
 
@@ -194,6 +186,14 @@ export class Manager extends EventEmitter {
 				password: config.password,
 				db: config.db ?? 0,
 			});
+		}
+
+		for (const node of this.nodes.values()) {
+			try {
+				await node.connect();
+			} catch (err) {
+				this.emit(ManagerEventTypes.NodeError, node, err);
+			}
 		}
 
 		this.loadPlugins();

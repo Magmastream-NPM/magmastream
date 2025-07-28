@@ -35,14 +35,6 @@ import { IncomingMessage } from "http";
 
 const validSponsorBlocks = Object.values(SponsorBlockSegment).map((v) => v.toLowerCase());
 
-const sessionIdsFilePath = path.join(process.cwd(), "magmastream", "dist", "sessionData", "sessionIds.json");
-let sessionIdsMap: Map<string, string> = new Map();
-
-const configDir = path.dirname(sessionIdsFilePath);
-if (!fs.existsSync(configDir)) {
-	fs.mkdirSync(configDir, { recursive: true });
-}
-
 export class Node {
 	/** The socket for the node. */
 	public socket: WebSocket | null = null;
@@ -62,6 +54,8 @@ export class Node {
 	private reconnectTimeout?: NodeJS.Timeout;
 	private reconnectAttempts = 1;
 	private redisPrefix?: string;
+	private sessionIdsFilePath?: string;
+	private sessionIdsMap: Map<string, string> = new Map();
 
 	/**
 	 * Creates an instance of Node.
@@ -125,8 +119,14 @@ export class Node {
 
 		switch (this.manager.options.stateStorage.type) {
 			case StateStorageType.JSON:
+				this.sessionIdsFilePath = path.join(process.cwd(), "magmastream", "dist", "sessionData", "sessionIds.json");
+
+				const configDir = path.dirname(this.sessionIdsFilePath);
+				if (!fs.existsSync(configDir)) {
+					fs.mkdirSync(configDir, { recursive: true });
+				}
+
 				this.createSessionIdsFile();
-				this.loadSessionIdsFromFile();
 				this.createReadmeFile();
 				break;
 
@@ -158,10 +158,10 @@ export class Node {
 	 * the node when resuming a session.
 	 */
 	public createSessionIdsFile(): void {
-		if (!fs.existsSync(sessionIdsFilePath)) {
-			this.manager.emit(ManagerEventTypes.Debug, `[NODE] Creating sessionId file at: ${sessionIdsFilePath}`);
+		if (!fs.existsSync(this.sessionIdsFilePath)) {
+			this.manager.emit(ManagerEventTypes.Debug, `[NODE] Creating sessionId file at: ${this.sessionIdsFilePath}`);
 
-			fs.writeFileSync(sessionIdsFilePath, JSON.stringify({}), "utf-8");
+			fs.writeFileSync(this.sessionIdsFilePath, JSON.stringify({}), "utf-8");
 		}
 	}
 
@@ -173,18 +173,58 @@ export class Node {
 	 * of the node identifier and cluster ID. This allows multiple clusters to
 	 * be used with the same node identifier.
 	 */
-	public loadSessionIdsFromFile(): void {
-		if (fs.existsSync(sessionIdsFilePath)) {
-			this.manager.emit(ManagerEventTypes.Debug, `[NODE] Loading sessionIds from file: ${sessionIdsFilePath}`);
+	public async loadSessionIds(): Promise<void> {
+		switch (this.manager.options.stateStorage.type) {
+			case StateStorageType.JSON: {
+				if (fs.existsSync(this.sessionIdsFilePath)) {
+					this.manager.emit(ManagerEventTypes.Debug, `[NODE] Loading sessionIds from file: ${this.sessionIdsFilePath}`);
 
-			const sessionIdsData = fs.readFileSync(sessionIdsFilePath, "utf-8");
+					const sessionIdsData = fs.readFileSync(this.sessionIdsFilePath, "utf-8");
 
-			sessionIdsMap = new Map(Object.entries(JSON.parse(sessionIdsData)));
+					this.sessionIdsMap = new Map(Object.entries(JSON.parse(sessionIdsData)));
 
-			const compositeKey = `${this.options.identifier}::${this.manager.options.clusterId}`;
-			if (sessionIdsMap.has(compositeKey)) {
-				this.sessionId = sessionIdsMap.get(compositeKey);
+					const compositeKey = `${this.options.identifier}::${this.manager.options.clusterId}`;
+					if (this.sessionIdsMap.has(compositeKey)) {
+						this.sessionId = this.sessionIdsMap.get(compositeKey);
+					}
+				}
+				break;
 			}
+
+			case StateStorageType.Redis:
+				const key = `${this.redisPrefix}node:sessionIds`;
+
+				this.manager.emit(ManagerEventTypes.Debug, `[NODE] Loading sessionIds from Redis key: ${key}`);
+
+				const currentRaw = await this.manager.redis.get(key);
+
+				if (currentRaw) {
+					try {
+						const sessionIds: Record<string, string> = JSON.parse(currentRaw);
+
+						if (typeof sessionIds !== "object" || Array.isArray(sessionIds)) {
+							throw new Error("[NODE] loadSessionIds invalid data type from Redis.");
+						}
+
+						this.sessionIdsMap = new Map(Object.entries(sessionIds));
+
+						const compositeKey = `${this.options.identifier}::${this.manager.options.clusterId}`;
+
+						if (this.sessionIdsMap.has(compositeKey)) {
+							this.sessionId = this.sessionIdsMap.get(compositeKey) || null;
+							this.manager.emit(ManagerEventTypes.Debug, `[NODE] Restored sessionId for ${compositeKey}: ${this.sessionId}`);
+						}
+					} catch (err) {
+						this.manager.emit(ManagerEventTypes.Debug, `[NODE] Failed to parse Redis sessionIds: ${(err as Error).message}`);
+						this.sessionIdsMap = new Map();
+					}
+				} else {
+					this.manager.emit(ManagerEventTypes.Debug, `[NODE] No sessionIds found in Redis — creating new key.`);
+
+					await this.manager.redis.set(key, JSON.stringify({}));
+					this.sessionIdsMap = new Map();
+				}
+				break;
 		}
 	}
 
@@ -202,28 +242,43 @@ export class Node {
 	public async updateSessionId(): Promise<void> {
 		switch (this.manager.options.stateStorage.type) {
 			case StateStorageType.JSON: {
-				this.manager.emit(ManagerEventTypes.Debug, `[NODE] Updating sessionIds to file: ${sessionIdsFilePath}`);
+				this.manager.emit(ManagerEventTypes.Debug, `[NODE] Updating sessionIds to file: ${this.sessionIdsFilePath}`);
 
 				const compositeKey = `${this.options.identifier}::${this.manager.options.clusterId}`;
 
-				sessionIdsMap.set(compositeKey, this.sessionId);
-				fs.writeFileSync(sessionIdsFilePath, JSON.stringify(Object.fromEntries(sessionIdsMap)));
+				this.sessionIdsMap.set(compositeKey, this.sessionId);
+				fs.writeFileSync(this.sessionIdsFilePath, JSON.stringify(Object.fromEntries(this.sessionIdsMap)));
 				break;
 			}
 
 			case StateStorageType.Redis: {
-				const key = `${this.redisPrefix}:node:sessionIds`;
+				const key = `${this.redisPrefix}node:sessionIds`;
 				const compositeKey = `${this.options.identifier}::${this.manager.options.clusterId}`;
 
 				this.manager.emit(ManagerEventTypes.Debug, `[NODE] Updating sessionIds in Redis key: ${key}`);
 
-				const current = await this.manager.redis.get(key);
+				const currentRaw = await this.manager.redis.get(key);
+				let sessionIds: Record<string, string>;
 
-				let sessionMap: Record<string, string> = current ? JSON.parse(current) : {};
+				if (currentRaw) {
+					try {
+						sessionIds = JSON.parse(currentRaw);
+						if (typeof sessionIds !== "object" || Array.isArray(sessionIds)) {
+							throw new Error("Invalid data type in Redis");
+						}
+					} catch (err) {
+						this.manager.emit(ManagerEventTypes.Debug, `[NODE] Corrupted Redis sessionIds, reinitializing: ${(err as Error).message}`);
+						sessionIds = {};
+					}
+				} else {
+					this.manager.emit(ManagerEventTypes.Debug, `[NODE] Redis key not found — creating new sessionIds key.`);
+					sessionIds = {};
+				}
 
-				sessionMap[compositeKey] = this.sessionId;
+				sessionIds[compositeKey] = this.sessionId;
 
-				await this.manager.redis.set(key, JSON.stringify(sessionMap));
+				this.sessionIdsMap = new Map(Object.entries(sessionIds));
+				await this.manager.redis.set(key, JSON.stringify(sessionIds));
 				break;
 			}
 		}
@@ -238,7 +293,9 @@ export class Node {
 	 * If the node has no session ID but the `enableSessionResumeOption` option is true, it will use the session ID
 	 * stored in the sessionIds.json file if it exists.
 	 */
-	public connect(): void {
+	public async connect(): Promise<void> {
+		await this.loadSessionIds();
+
 		if (this.connected) return;
 
 		const headers = {
@@ -251,8 +308,8 @@ export class Node {
 
 		if (this.sessionId) {
 			headers["Session-Id"] = this.sessionId;
-		} else if (this.options.enableSessionResumeOption && sessionIdsMap.has(compositeKey)) {
-			this.sessionId = sessionIdsMap.get(compositeKey) || null;
+		} else if (this.options.enableSessionResumeOption && this.sessionIdsMap.has(compositeKey)) {
+			this.sessionId = this.sessionIdsMap.get(compositeKey) || null;
 			headers["Session-Id"] = this.sessionId;
 		}
 
@@ -496,7 +553,9 @@ export class Node {
 				this.manager.emit(ManagerEventTypes.Debug, `[NODE] Node message: ${JSON.stringify(payload)}`);
 				this.rest.setSessionId(payload.sessionId);
 				this.sessionId = payload.sessionId;
-				this.updateSessionId();
+
+				await this.updateSessionId();
+
 				this.info = await this.fetchInfo();
 
 				if (payload.resumed) {
