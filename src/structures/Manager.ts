@@ -465,7 +465,7 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-	 * Saves player states to the JSON file.
+	 * Saves player states.
 	 * @param {string} guildId - The guild ID of the player to save
 	 */
 	public async savePlayerState(guildId: string): Promise<void> {
@@ -1368,8 +1368,8 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-	 * Cleans up an inactive player by removing its state files from the file system.
-	 * This is done to prevent stale state files from accumulating on the file system.
+	 * Cleans up an inactive player by removing its state data.
+	 * This is done to prevent stale state data from accumulating.
 	 * @param guildId The guild ID of the player to clean up.
 	 */
 	public async cleanupInactivePlayer(guildId: string): Promise<void> {
@@ -1489,37 +1489,40 @@ export class Manager extends EventEmitter {
 					? this.options.stateStorage.redisConfig.prefix
 					: this.options.stateStorage.redisConfig.prefix ?? "magmastream:";
 
-				const pattern = `${prefix}playerstore:*`;
+				const patterns = [`${prefix}playerstore:*`, `${prefix}queue:*`];
 
 				try {
-					const stream = this.redis.scanStream({
-						match: pattern,
-						count: 100,
-					});
+					for (const pattern of patterns) {
+						const stream = this.redis.scanStream({
+							match: pattern,
+							count: 100,
+						});
 
-					let totalDeleted = 0;
+						let totalDeleted = 0;
 
-					stream.on("data", async (keys: string[]) => {
-						if (keys.length) {
-							const pipeline = this.redis.pipeline();
-							keys.forEach((key) => pipeline.unlink(key));
-							await pipeline.exec();
-							totalDeleted += keys.length;
-						}
-					});
+						stream.on("data", async (keys: string[]) => {
+							if (keys.length) {
+								const pipeline = this.redis.pipeline();
+								keys.forEach((key) => pipeline.unlink(key));
+								await pipeline.exec();
+								totalDeleted += keys.length;
+							}
+						});
 
-					stream.on("end", () => {
-						this.emit(ManagerEventTypes.Debug, `[MANAGER] Cleared ${totalDeleted} Redis player state keys (pattern: ${pattern})`);
-					});
+						stream.on("end", () => {
+							this.emit(ManagerEventTypes.Debug, `[MANAGER] Cleared ${totalDeleted} Redis keys (pattern: ${pattern})`);
+						});
 
-					stream.on("error", (err) => {
-						console.error("[MANAGER] Error during Redis SCAN stream:", err);
-					});
+						stream.on("error", (err) => {
+							console.error(`[MANAGER] Error during Redis SCAN stream (${pattern}):`, err);
+						});
+					}
 				} catch (err) {
-					console.error("[MANAGER] Failed to clear Redis player state keys:", err);
+					console.error("[MANAGER] Failed to clear Redis keys:", err);
 				}
 				break;
 			}
+
 			default:
 				console.warn("[MANAGER] No valid stateStorage.type set, skipping state clearing.");
 		}
