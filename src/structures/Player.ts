@@ -792,6 +792,7 @@ export class Player {
 		const lastTrack = await this.queue.popPrevious();
 
 		if (!lastTrack) {
+			await this.queue.clearPrevious();
 			throw new Error("No previous track available.");
 		}
 
