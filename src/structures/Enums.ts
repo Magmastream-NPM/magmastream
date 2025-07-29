@@ -95,6 +95,7 @@ export enum TrackSourceTypes {
 	Bandcamp = "bandcamp",
 	Deezer = "deezer",
 	Jiosaavn = "jiosaavn",
+	Qobuz = "qobuz",
 	SoundCloud = "soundcloud",
 	Spotify = "spotify",
 	Tidal = "tidal",
