@@ -98,19 +98,6 @@ export interface StateStorageOptions {
 	jsonConfig?: JsonConfig;
 	deleteInactivePlayers?: boolean;
 }
-/**
- * Payload
- */
-export interface Payload {
-	/** The OP code */
-	op: number;
-	d: {
-		guild_id: string;
-		channel_id: string | null;
-		self_mute: boolean;
-		self_deaf: boolean;
-	};
-}
 
 /**
  * Node Options
@@ -169,20 +156,20 @@ export interface NodeOptions {
  */
 export interface DiscordPacket {
 	/**
-	 * opcode for the payload
+	 * The opcode for the payload
 	 */
 	op: number;
 	/**
-	 * event data
+	 * Event data
 	 */
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	d: any;
 	/**
-	 * sequence number, used for resuming sessions and heartbeats
+	 * Sequence number, used for resuming sessions and heartbeats
 	 */
 	s?: number;
 	/**
-	 * the event name for this payload
+	 * The event name for this payload
 	 */
 	t?: string;
 }
