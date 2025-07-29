@@ -10,7 +10,9 @@ import {
 	vaporwaveEqualizer,
 	demonEqualizer,
 } from "../utils/filtersEqualizers";
+import { AvailableFilters } from "./Enums";
 import { Player } from "./Player";
+import { distortionOptions, karaokeOptions, reverbOptions, rotationOptions, timescaleOptions, vibratoOptions } from "./Types";
 
 export class Filters {
 	public distortion: distortionOptions | null;
@@ -640,79 +642,4 @@ export class Filters {
 
 		return this;
 	}
-}
-
-/** Options for adjusting the timescale of audio. */
-interface timescaleOptions {
-	speed?: number;
-	pitch?: number;
-	rate?: number;
-}
-
-/** Options for applying vibrato effect to audio. */
-interface vibratoOptions {
-	frequency: number;
-	depth: number;
-}
-
-/** Options for applying rotation effect to audio. */
-interface rotationOptions {
-	rotationHz: number;
-}
-
-/** Options for applying karaoke effect to audio. */
-interface karaokeOptions {
-	level?: number;
-	monoLevel?: number;
-	filterBand?: number;
-	filterWidth?: number;
-}
-
-/** Options for applying distortion effect to audio. */
-interface distortionOptions {
-	sinOffset?: number;
-	sinScale?: number;
-	cosOffset?: number;
-	cosScale?: number;
-	tanOffset?: number;
-	tanScale?: number;
-	offset?: number;
-	scale?: number;
-}
-
-/** Options for applying reverb effect to audio. */
-interface reverbOptions {
-	wet?: number;
-	dry?: number;
-	roomSize?: number;
-	damping?: number;
-}
-
-export enum AvailableFilters {
-	BassBoost = "bassboost",
-	Distort = "distort",
-	SetDistortion = "setDistortion",
-	EightD = "eightD",
-	SetKaraoke = "setKaraoke",
-	Nightcore = "nightcore",
-	Slowmo = "slowmo",
-	Soft = "soft",
-	TrebleBass = "trebleBass",
-	SetTimescale = "setTimescale",
-	TV = "tv",
-	Vibrato = "vibrato",
-	Vaporwave = "vaporwave",
-	Pop = "pop",
-	Party = "party",
-	Earrape = "earrape",
-	Electronic = "electronic",
-	Radio = "radio",
-	SetRotation = "setRotation",
-	Tremolo = "tremolo",
-	China = "china",
-	Chipmunk = "chipmunk",
-	Darthvader = "darthvader",
-	Daycore = "daycore",
-	Doubletime = "doubletime",
-	Demon = "demon",
 }

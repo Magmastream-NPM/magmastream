@@ -221,3 +221,35 @@ export enum SponsorBlockSegment {
 	SelfPromo = "selfpromo",
 	Sponsor = "sponsor",
 }
+
+/**
+ * Available Filters Enum
+ */
+export enum AvailableFilters {
+	BassBoost = "bassboost",
+	Distort = "distort",
+	SetDistortion = "setDistortion",
+	EightD = "eightD",
+	SetKaraoke = "setKaraoke",
+	Nightcore = "nightcore",
+	Slowmo = "slowmo",
+	Soft = "soft",
+	TrebleBass = "trebleBass",
+	SetTimescale = "setTimescale",
+	TV = "tv",
+	Vibrato = "vibrato",
+	Vaporwave = "vaporwave",
+	Pop = "pop",
+	Party = "party",
+	Earrape = "earrape",
+	Electronic = "electronic",
+	Radio = "radio",
+	SetRotation = "setRotation",
+	Tremolo = "tremolo",
+	China = "china",
+	Chipmunk = "chipmunk",
+	Darthvader = "darthvader",
+	Daycore = "daycore",
+	Doubletime = "doubletime",
+	Demon = "demon",
+}

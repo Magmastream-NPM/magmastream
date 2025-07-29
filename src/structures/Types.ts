@@ -1097,6 +1097,51 @@ export interface EqualizerBand {
 	gain: number;
 }
 
+/** Options for adjusting the timescale of audio. */
+export interface timescaleOptions {
+	speed?: number;
+	pitch?: number;
+	rate?: number;
+}
+
+/** Options for applying vibrato effect to audio. */
+export interface vibratoOptions {
+	frequency: number;
+	depth: number;
+}
+
+/** Options for applying rotation effect to audio. */
+export interface rotationOptions {
+	rotationHz: number;
+}
+
+/** Options for applying karaoke effect to audio. */
+export interface karaokeOptions {
+	level?: number;
+	monoLevel?: number;
+	filterBand?: number;
+	filterWidth?: number;
+}
+
+/** Options for applying distortion effect to audio. */
+export interface distortionOptions {
+	sinOffset?: number;
+	sinScale?: number;
+	cosOffset?: number;
+	cosScale?: number;
+	tanOffset?: number;
+	tanScale?: number;
+	offset?: number;
+	scale?: number;
+}
+
+/** Options for applying reverb effect to audio. */
+export interface reverbOptions {
+	wet?: number;
+	dry?: number;
+	roomSize?: number;
+	damping?: number;
+}
 /**
  * Queue interface
  */
