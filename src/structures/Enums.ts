@@ -212,12 +212,12 @@ export enum SeverityTypes {
  * SponsorBlock Segment Enum
  */
 export enum SponsorBlockSegment {
-	Sponsor = "sponsor",
-	SelfPromo = "selfpromo",
+	Filler = "filler",
 	Interaction = "interaction",
 	Intro = "intro",
+	MusicOfftopic = "music_offtopic",
 	Outro = "outro",
 	Preview = "preview",
-	MusicOfftopic = "music_offtopic",
-	Filler = "filler",
+	SelfPromo = "selfpromo",
+	Sponsor = "sponsor",
 }
