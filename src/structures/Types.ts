@@ -238,19 +238,6 @@ export type PlayerStateUpdateEvent =
 	| { changeType: PlayerStateEventTypes.RepeatChange; details: RepeatChangeEvent };
 
 /**
- * Player State Change Data
- */
-export type PlayerStateChangeData =
-	| AutoplayChangeEvent
-	| ConnectionChangeEvent
-	| RepeatChangeEvent
-	| PauseChangeEvent
-	| QueueChangeEvent
-	| TrackChangeEvent
-	| VolumeChangeEvent
-	| ChannelChangeEvent;
-
-/**
  * Autoplay Change Event
  */
 interface AutoplayChangeEvent {
