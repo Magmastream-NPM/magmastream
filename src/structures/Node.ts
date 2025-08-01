@@ -787,8 +787,19 @@ export class Node {
 
 		const tracks = await AutoPlayUtils.getRecommendedTracks(lastTrack);
 
-		if (tracks.length) {
-			await player.queue.add(tracks[0]);
+		const normalize = (str: string) =>
+			str
+				.toLowerCase()
+				.replace(/\s+/g, "")
+				.replace(/[^a-z0-9]/g, "");
+
+		const filteredTracks = tracks.filter(
+			(track) => track.identifier !== lastTrack.identifier && track.uri !== lastTrack.uri && normalize(track.title) !== normalize(lastTrack.title)
+		);
+
+		if (filteredTracks.length) {
+			const randomTrack = filteredTracks[Math.floor(Math.random() * filteredTracks.length)];
+			await player.queue.add(randomTrack);
 			await player.play();
 			return true;
 		} else {
