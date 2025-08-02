@@ -1106,7 +1106,7 @@ export class Node {
 	 * @param {LyricsFoundEvent} payload - The event payload containing additional data about the lyrics found event.
 	 */
 	private lyricsFound(player: Player, track: Track, payload: LyricsFoundEvent) {
-		return this.manager.emit(ManagerEventTypes.LyricsFoundEvent, player, track, payload);
+		return this.manager.emit(ManagerEventTypes.LyricsFound, player, track, payload);
 	}
 
 	/**
@@ -1117,7 +1117,7 @@ export class Node {
 	 * @param {LyricsNotFoundEvent} payload - The event payload containing additional data about the lyrics not found event.
 	 */
 	private lyricsNotFound(player: Player, track: Track, payload: LyricsNotFoundEvent) {
-		return this.manager.emit(ManagerEventTypes.LyricsNotFoundEvent, player, track, payload);
+		return this.manager.emit(ManagerEventTypes.LyricsNotFound, player, track, payload);
 	}
 
 	/**
@@ -1128,7 +1128,7 @@ export class Node {
 	 * @param {LyricsLineEvent} payload - The event payload containing additional data about the lyrics line event.
 	 */
 	private lyricsLine(player: Player, track: Track, payload: LyricsLineEvent) {
-		return this.manager.emit(ManagerEventTypes.LyricsLineEvent, player, track, payload);
+		return this.manager.emit(ManagerEventTypes.LyricsLine, player, track, payload);
 	}
 
 	/**

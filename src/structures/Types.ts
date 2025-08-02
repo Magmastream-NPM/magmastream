@@ -565,9 +565,9 @@ export interface ManagerEvents {
 	[ManagerEventTypes.ChapterStarted]: [player: Player, track: Track, payload: SponsorBlockChapterStarted];
 	[ManagerEventTypes.ChaptersLoaded]: [player: Player, track: Track, payload: SponsorBlockChaptersLoaded];
 	[ManagerEventTypes.Debug]: [info: string];
-	[ManagerEventTypes.LyricsFoundEvent]: [player: Player, track: Track, payload: LyricsFoundEvent];
-	[ManagerEventTypes.LyricsLineEvent]: [player: Player, track: Track, payload: LyricsLineEvent];
-	[ManagerEventTypes.LyricsNotFoundEvent]: [player: Player, track: Track, payload: LyricsNotFoundEvent];
+	[ManagerEventTypes.LyricsFound]: [player: Player, track: Track, payload: LyricsFoundEvent];
+	[ManagerEventTypes.LyricsLine]: [player: Player, track: Track, payload: LyricsLineEvent];
+	[ManagerEventTypes.LyricsNotFound]: [player: Player, track: Track, payload: LyricsNotFoundEvent];
 	[ManagerEventTypes.NodeConnect]: [node: Node];
 	[ManagerEventTypes.NodeCreate]: [node: Node];
 	[ManagerEventTypes.NodeDestroy]: [node: Node];
