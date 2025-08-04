@@ -535,7 +535,7 @@ export interface PlaylistData {
 	/** Requester of playlist. */
 	requester: User | ClientUser;
 	/** More playlist information. */
-	playlistInfo: PlaylistInfoData[];
+	playlistInfo: PlaylistInfoData;
 	/** The length of the playlist. */
 	duration: number;
 	/** The songs of the playlist. */
