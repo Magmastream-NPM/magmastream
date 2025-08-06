@@ -968,6 +968,9 @@ export interface NodeLinkGetLyricsError {
 	};
 }
 
+/**
+ * Start Speaking Event Voice Receiver Data interface
+ */
 export interface StartSpeakingEventVoiceReceiverData {
 	/**
 	 * The user ID of the user who started speaking.
@@ -980,6 +983,9 @@ export interface StartSpeakingEventVoiceReceiverData {
 	guildId: string;
 }
 
+/**
+ * End Speaking Event Voice Receiver Data interface
+ */
 export interface EndSpeakingEventVoiceReceiverData {
 	/**
 	 * The user ID of the user who stopped speaking.
@@ -1054,11 +1060,17 @@ export interface PlayOptions {
 	readonly noReplace?: boolean;
 }
 
+/**
+ * ManagerInitOptions interface
+ */
 export interface ManagerInitOptions {
 	clientId?: string;
 	clusterId?: number;
 }
 
+/**
+ * EqualizerBand interface
+ */
 export interface EqualizerBand {
 	/** The band number being 0 to 14. */
 	band: number;
