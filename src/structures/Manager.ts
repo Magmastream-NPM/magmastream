@@ -1286,35 +1286,35 @@ export class Manager extends EventEmitter {
 		switch (this.options.stateStorage.type) {
 			case StateStorageType.JSON:
 				{
-					const playersStoreDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "playersStore");
-					const playersDataDir = this.options.stateStorage?.jsonConfig?.path ?? path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
+					const playerStoreDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "playerStore");
+					const playerDataDir = this.options.stateStorage?.jsonConfig?.path ?? path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
 
 					try {
-						await fs.mkdir(playersStoreDir, { recursive: true });
-						await fs.mkdir(playersDataDir, { recursive: true });
+						await fs.mkdir(playerStoreDir, { recursive: true });
+						await fs.mkdir(playerDataDir, { recursive: true });
 
 						const activeGuildIds = new Set(this.players.keys());
 
-						// Clean up playersStore/*.json
-						const playerStateFiles = await fs.readdir(playersStoreDir);
+						// Clean up playerStore/*.json
+						const playerStateFiles = await fs.readdir(playerStoreDir);
 						for (const file of playerStateFiles) {
 							const guildId = path.basename(file, ".json");
 
 							if (!activeGuildIds.has(guildId)) {
-								const filePath = path.join(playersStoreDir, file);
+								const filePath = path.join(playerStoreDir, file);
 								await fs.unlink(filePath);
 								this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleted inactive player state: ${guildId}`);
 							}
 						}
 
 						// Clean up players/<guildId>/ folders
-						const guildDirs = await fs.readdir(playersDataDir, { withFileTypes: true });
+						const guildDirs = await fs.readdir(playerDataDir, { withFileTypes: true });
 						for (const dirent of guildDirs) {
 							if (!dirent.isDirectory()) continue;
 
 							const guildId = dirent.name;
 							if (!activeGuildIds.has(guildId)) {
-								const guildPath = path.join(playersDataDir, guildId);
+								const guildPath = path.join(playerDataDir, guildId);
 								await fs.rm(guildPath, { recursive: true, force: true });
 								this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleted inactive player data folder: ${guildId}`);
 							}
@@ -1376,7 +1376,7 @@ export class Manager extends EventEmitter {
 		switch (this.options.stateStorage.type) {
 			case StateStorageType.JSON:
 				{
-					const playersStoreDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "playersStore");
+					const playersStoreDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "playerStore");
 					const playersDataDir = this.options.stateStorage?.jsonConfig?.path ?? path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
 
 					try {
