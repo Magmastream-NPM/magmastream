@@ -1041,8 +1041,8 @@ export interface PlayerOptions {
 	textChannelId: string;
 	/** The voice channel the Player belongs to. */
 	voiceChannelId?: string;
-	/** The node the Player uses. */
-	node?: string;
+	/** The node identifier the Player uses. */
+	nodeIdentifier?: string;
 	/** The initial volume the Player will use. */
 	volume?: number;
 	/** If the player should mute itself. */

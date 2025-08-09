@@ -582,7 +582,7 @@ export class Manager extends EventEmitter {
 										voiceChannelId: state.options.voiceChannelId,
 										selfDeafen: state.options.selfDeafen,
 										volume: lavaPlayer.volume || state.options.volume,
-										node: nodeId,
+										nodeIdentifier: nodeId,
 									};
 
 									this.emit(ManagerEventTypes.Debug, `[MANAGER] Recreating player: ${state.guildId} from saved file: ${JSON.stringify(state.options)}`);
@@ -796,7 +796,7 @@ export class Manager extends EventEmitter {
 										voiceChannelId: state.options.voiceChannelId,
 										selfDeafen: state.options.selfDeafen,
 										volume: lavaPlayer?.volume || state.options.volume,
-										node: nodeId,
+										nodeIdentifier: nodeId,
 									};
 
 									this.emit(ManagerEventTypes.Debug, `[MANAGER] Recreating player: ${guildId} from Redis`);

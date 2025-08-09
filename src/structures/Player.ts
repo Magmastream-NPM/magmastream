@@ -94,7 +94,7 @@ export class Player {
 		if (options.textChannelId) this.textChannelId = options.textChannelId;
 
 		// Set the node to use, either the specified node or the first available node.
-		const node = this.manager.nodes.get(options.node);
+		const node = this.manager.nodes.get(options.nodeIdentifier);
 		this.node = node || this.manager.useableNode;
 
 		// If no node is available, throw an error.
@@ -990,7 +990,7 @@ export class Player {
 			await newPlayer.destroy();
 		}
 
-		newOptions.node = newOptions.node ?? this.options.node;
+		newOptions.nodeIdentifier = newOptions.nodeIdentifier ?? this.options.nodeIdentifier;
 		newOptions.selfDeafen = newOptions.selfDeafen ?? oldPlayerProperties.selfDeafen;
 		newOptions.selfMute = newOptions.selfMute ?? oldPlayerProperties.selfMute;
 		newOptions.volume = newOptions.volume ?? oldPlayerProperties.volume;
