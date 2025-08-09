@@ -149,6 +149,10 @@ export interface NodeOptions {
 	 * @default false
 	 */
 	isNodeLink?: boolean;
+	/** Whether the node is a backup node.
+	 * @default false
+	 */
+	isBackup?: boolean;
 }
 
 /**

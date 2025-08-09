@@ -1536,7 +1536,7 @@ export class Manager extends EventEmitter {
 	 */
 	private get leastLoadNode(): Collection<string, Node> {
 		return this.nodes
-			.filter((node) => node.connected)
+			.filter((node) => node.connected && !node.options.isBackup)
 			.sort((a, b) => {
 				const aload = a.stats.cpu ? (a.stats.cpu.lavalinkLoad / a.stats.cpu.cores) * 100 : 0;
 				const bload = b.stats.cpu ? (b.stats.cpu.lavalinkLoad / b.stats.cpu.cores) * 100 : 0;
@@ -1553,8 +1553,8 @@ export class Manager extends EventEmitter {
 	 */
 	private get leastPlayersNode(): Collection<string, Node> {
 		return this.nodes
-			.filter((node) => node.connected) // Filter out nodes that are not connected
-			.sort((a, b) => a.stats.players - b.stats.players); // Sort by the number of players
+			.filter((node) => node.connected && !node.options.isBackup)
+			.sort((a, b) => a.stats.players - b.stats.players);
 	}
 
 	/**

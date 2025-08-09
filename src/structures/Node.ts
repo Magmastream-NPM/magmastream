@@ -85,6 +85,7 @@ export class Node {
 			apiRequestTimeoutMs: options.apiRequestTimeoutMs ?? 10000,
 			nodePriority: options.nodePriority ?? 0,
 			isNodeLink: options.isNodeLink ?? false,
+			isBackup: options.isBackup ?? false,
 		};
 
 		if (this.options.useSSL) {
@@ -448,6 +449,11 @@ export class Node {
 
 		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Connected node: ${JSON.stringify(debugInfo)}`);
 		this.manager.emit(ManagerEventTypes.NodeConnect, this);
+
+		const playersOnBackupNode = this.manager.players.filter((p) => p.node.options.isBackup);
+		if (playersOnBackupNode.size) {
+			Promise.all(Array.from(playersOnBackupNode.values(), (player) => player.moveNode(this.options.identifier)));
+		}
 	}
 
 	/**
@@ -477,6 +483,13 @@ export class Node {
 			const players = this.manager.players.filter((p) => p.node.options.identifier == this.options.identifier);
 			if (players.size) {
 				await Promise.all(Array.from(players.values(), (player) => player.autoMoveNode()));
+			}
+		} else {
+			const backUpNodes = this.manager.nodes.filter((node) => node.options.isBackup && node.connected);
+
+			const backupNode = backUpNodes.first();
+			if (backupNode) {
+				await Promise.all(Array.from(this.manager.players.values(), (player) => player.moveNode(backupNode.options.identifier)));
 			}
 		}
 
