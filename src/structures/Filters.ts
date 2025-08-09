@@ -12,17 +12,17 @@ import {
 } from "../utils/filtersEqualizers";
 import { AvailableFilters } from "./Enums";
 import { Player } from "./Player";
-import { distortionOptions, karaokeOptions, reverbOptions, rotationOptions, timescaleOptions, vibratoOptions } from "./Types";
+import { DistortionOptions, KaraokeOptions, ReverbOptions, RotationOptions, TimescaleOptions, VibratoOptions } from "./Types";
 
 export class Filters {
-	public distortion: distortionOptions | null;
+	public distortion: DistortionOptions | null;
 	public equalizer: Band[];
-	public karaoke: karaokeOptions | null;
+	public karaoke: KaraokeOptions | null;
 	public player: Player;
-	public rotation: rotationOptions | null;
-	public timescale: timescaleOptions | null;
-	public vibrato: vibratoOptions | null;
-	public reverb: reverbOptions | null;
+	public rotation: RotationOptions | null;
+	public timescale: TimescaleOptions | null;
+	public vibrato: VibratoOptions | null;
+	public reverb: ReverbOptions | null;
 	public volume: number;
 	public bassBoostlevel: number;
 	public filtersStatus: Record<AvailableFilters, boolean>;
@@ -170,10 +170,10 @@ export class Filters {
 	 * original vocals removed. Note that not all songs can be successfully made into
 	 * karaoke tracks, and some tracks may not sound as good.
 	 *
-	 * @param {karaokeOptions} [karaoke] - The karaoke settings to apply (level, monoLevel, filterBand, filterWidth).
+	 * @param {KaraokeOptions} [karaoke] - The karaoke settings to apply (level, monoLevel, filterBand, filterWidth).
 	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public async setKaraoke(karaoke?: karaokeOptions): Promise<this> {
+	public async setKaraoke(karaoke?: KaraokeOptions): Promise<this> {
 		const result = await this.applyFilter({ property: "karaoke", value: karaoke ?? null });
 		return karaoke
 			? result.setFilterStatus(AvailableFilters.SetKaraoke, true)
@@ -185,10 +185,10 @@ export class Filters {
 	 *
 	 * This method adjusts the speed and pitch of the audio, allowing you to control the playback speed.
 	 *
-	 * @param {timescaleOptions} [timescale] - The timescale settings to apply (speed and pitch).
+	 * @param {TimescaleOptions} [timescale] - The timescale settings to apply (speed and pitch).
 	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public async setTimescale(timescale?: timescaleOptions): Promise<this> {
+	public async setTimescale(timescale?: TimescaleOptions): Promise<this> {
 		const result = await this.applyFilter({ property: "timescale", value: timescale ?? null });
 		return timescale
 			? result.setFilterStatus(AvailableFilters.SetTimescale, true)
@@ -202,10 +202,10 @@ export class Filters {
 	 * pulsing quality to the sound. The effect is created by rapidly varying the
 	 * pitch of the audio.
 	 *
-	 * @param {vibratoOptions} [vibrato] - The vibrato settings to apply (frequency, depth).
+	 * @param {VibratoOptions} [vibrato] - The vibrato settings to apply (frequency, depth).
 	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public async setVibrato(vibrato?: vibratoOptions): Promise<this> {
+	public async setVibrato(vibrato?: VibratoOptions): Promise<this> {
 		const result = await this.applyFilter({ property: "vibrato", value: vibrato ?? null });
 		return vibrato
 			? result.setFilterStatus(AvailableFilters.Vibrato, true)
@@ -219,10 +219,10 @@ export class Filters {
 	 * moving around the listener's head. This effect can create a dynamic and immersive
 	 * audio experience by altering the directionality of the sound.
 	 *
-	 * @param {rotationOptions} [rotation] - The rotation settings to apply (rotationHz).
+	 * @param {RotationOptions} [rotation] - The rotation settings to apply (rotationHz).
 	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public async setRotation(rotation?: rotationOptions): Promise<this> {
+	public async setRotation(rotation?: RotationOptions): Promise<this> {
 		const result = await this.applyFilter({ property: "rotation", value: rotation ?? null });
 
 		return rotation
@@ -237,10 +237,10 @@ export class Filters {
 	 * more intense quality to the sound. The effect is created by altering the
 	 * audio signal to create a more jagged, irregular waveform.
 	 *
-	 * @param {distortionOptions} [distortion] - The distortion settings to apply (sinOffset, sinScale, cosOffset, cosScale, tanOffset, tanScale, offset, scale).
+	 * @param {DistortionOptions} [distortion] - The distortion settings to apply (sinOffset, sinScale, cosOffset, cosScale, tanOffset, tanScale, offset, scale).
 	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
-	public async setDistortion(distortion?: distortionOptions): Promise<this> {
+	public async setDistortion(distortion?: DistortionOptions): Promise<this> {
 		const result = await this.applyFilter({ property: "distortion", value: distortion ?? null });
 
 		return distortion

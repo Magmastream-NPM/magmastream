@@ -495,36 +495,54 @@ export interface PlaylistSearchResult {
 	playlist: PlaylistData;
 }
 
+/**
+ * Album Search Result
+ */
 export interface AlbumSearchResult {
 	loadType: LoadTypes.Album;
 	tracks: Track[];
 	playlist: PlaylistData;
 }
 
+/**
+ * Artist Search Result
+ */
 export interface ArtistSearchResult {
 	loadType: LoadTypes.Artist;
 	tracks: Track[];
 	playlist: PlaylistData;
 }
 
+/**
+ * Station Search Result
+ */
 export interface StationSearchResult {
 	loadType: LoadTypes.Station;
 	tracks: Track[];
 	playlist: PlaylistData;
 }
 
+/**
+ * Podcast Search Result
+ */
 export interface PodcastSearchResult {
 	loadType: LoadTypes.Podcast;
 	tracks: Track[];
 	playlist: PlaylistData;
 }
 
+/**
+ * Show Search Result
+ */
 export interface ShowSearchResult {
 	loadType: LoadTypes.Show;
 	tracks: Track[];
 	playlist: PlaylistData;
 }
 
+/**
+ * Short Search Result
+ */
 export interface ShortSearchResult {
 	loadType: LoadTypes.Short;
 	tracks: [Track];
@@ -1064,6 +1082,39 @@ export interface PlayOptions {
 }
 
 /**
+ * RestPlayOptions interface
+ */
+export interface RestPlayOptions {
+	guildId: string;
+	data: {
+		/** The base64 encoded track. */
+		encodedTrack?: string;
+		/** The track ID. */
+		identifier?: string;
+		/** The track time to start at. */
+		startTime?: number;
+		/** The track time to end at. */
+		endTime?: number;
+		/** The player volume level. */
+		volume?: number;
+		/** The player position in a track. */
+		position?: number;
+		/** Whether the player is paused. */
+		paused?: boolean;
+		/** The audio effects. */
+		filters?: object;
+		/** voice payload. */
+		voice?: {
+			token: string;
+			sessionId: string;
+			endpoint: string;
+		};
+		/** Whether to not replace the track if a play payload is sent. */
+		noReplace?: boolean;
+	};
+}
+
+/**
  * ManagerInitOptions interface
  */
 export interface ManagerInitOptions {
@@ -1082,25 +1133,25 @@ export interface EqualizerBand {
 }
 
 /** Options for adjusting the timescale of audio. */
-export interface timescaleOptions {
+export interface TimescaleOptions {
 	speed?: number;
 	pitch?: number;
 	rate?: number;
 }
 
 /** Options for applying vibrato effect to audio. */
-export interface vibratoOptions {
+export interface VibratoOptions {
 	frequency: number;
 	depth: number;
 }
 
 /** Options for applying rotation effect to audio. */
-export interface rotationOptions {
+export interface RotationOptions {
 	rotationHz: number;
 }
 
 /** Options for applying karaoke effect to audio. */
-export interface karaokeOptions {
+export interface KaraokeOptions {
 	level?: number;
 	monoLevel?: number;
 	filterBand?: number;
@@ -1108,7 +1159,7 @@ export interface karaokeOptions {
 }
 
 /** Options for applying distortion effect to audio. */
-export interface distortionOptions {
+export interface DistortionOptions {
 	sinOffset?: number;
 	sinScale?: number;
 	cosOffset?: number;
@@ -1120,7 +1171,7 @@ export interface distortionOptions {
 }
 
 /** Options for applying reverb effect to audio. */
-export interface reverbOptions {
+export interface ReverbOptions {
 	wet?: number;
 	dry?: number;
 	roomSize?: number;
