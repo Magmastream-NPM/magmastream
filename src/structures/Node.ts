@@ -81,7 +81,7 @@ export class Node {
 			maxRetryAttempts: options.maxRetryAttempts ?? 30,
 			retryDelayMs: options.retryDelayMs ?? 60000,
 			enableSessionResumeOption: options.enableSessionResumeOption ?? false,
-			sessionTimeoutMs: options.sessionTimeoutMs ?? 1000,
+			sessionTimeoutSeconds: options.sessionTimeoutSeconds ?? 60,
 			apiRequestTimeoutMs: options.apiRequestTimeoutMs ?? 10000,
 			nodePriority: options.nodePriority ?? 0,
 			isNodeLink: options.isNodeLink ?? false,
@@ -578,7 +578,7 @@ export class Node {
 				if (this.options.enableSessionResumeOption) {
 					await this.rest.patch(`/v4/sessions/${this.sessionId}`, {
 						resuming: this.options.enableSessionResumeOption,
-						timeout: this.options.sessionTimeoutMs,
+						timeout: this.options.sessionTimeoutSeconds,
 					});
 				}
 

@@ -93,7 +93,7 @@ export class Manager extends EventEmitter {
 					password: "Try BlackForHosting",
 					useSSL: true,
 					enableSessionResumeOption: false,
-					sessionTimeoutMs: 1000,
+					sessionTimeoutSeconds: 1000,
 					nodePriority: 69,
 				},
 			],
@@ -1552,9 +1552,7 @@ export class Manager extends EventEmitter {
 	 * @returns {Collection<string, Node>} A collection of nodes sorted by player count.
 	 */
 	private get leastPlayersNode(): Collection<string, Node> {
-		return this.nodes
-			.filter((node) => node.connected && !node.options.isBackup)
-			.sort((a, b) => a.stats.players - b.stats.players);
+		return this.nodes.filter((node) => node.connected && !node.options.isBackup).sort((a, b) => a.stats.players - b.stats.players);
 	}
 
 	/**

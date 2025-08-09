@@ -11,7 +11,7 @@ export default function nodeCheck(options: NodeOptions) {
 
 	// Validate the host option
 	// The host option must be present and be a non-empty string.
-	const { host, identifier, password, port, enableSessionResumeOption, sessionTimeoutMs, maxRetryAttempts, retryDelayMs, useSSL, nodePriority } = options;
+	const { host, identifier, password, port, enableSessionResumeOption, sessionTimeoutSeconds, maxRetryAttempts, retryDelayMs, useSSL, nodePriority } = options;
 
 	if (typeof host !== "string" || !/.+/.test(host)) {
 		throw new TypeError('Node option "host" must be present and be a non-empty string.');
@@ -41,10 +41,10 @@ export default function nodeCheck(options: NodeOptions) {
 		throw new TypeError('Node option "enableSessionResumeOption" must be a boolean.');
 	}
 
-	// Validate the sessionTimeoutMs option
-	// The sessionTimeoutMs option must be a number or undefined.
-	if (typeof sessionTimeoutMs !== "undefined" && typeof sessionTimeoutMs !== "number") {
-		throw new TypeError('Node option "sessionTimeoutMs" must be a number.');
+	// Validate the sessionTimeoutSeconds option
+	// The sessionTimeoutSeconds option must be a number or undefined.
+	if (typeof sessionTimeoutSeconds !== "undefined" && typeof sessionTimeoutSeconds !== "number") {
+		throw new TypeError('Node option "sessionTimeoutSeconds" must be a number.');
 	}
 
 	// Validate the maxRetryAttempts option

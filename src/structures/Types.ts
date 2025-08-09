@@ -133,10 +133,10 @@ export interface NodeOptions {
 	 * @default false
 	 */
 	enableSessionResumeOption?: boolean;
-	/** The time the lavalink server will wait before it removes the player.
-	 * @default 1000
+	/** The time in seconds the lavalink server will wait before it removes the player.
+	 * @default 60
 	 */
-	sessionTimeoutMs?: number;
+	sessionTimeoutSeconds?: number;
 	/** The timeout used for api calls.
 	 * @default 10000
 	 */
@@ -800,7 +800,6 @@ export interface SponsorBlockChaptersLoaded extends PlayerEvent {
 		duration: number;
 	}[];
 }
-
 
 /**
  * NodeStats interface
