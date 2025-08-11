@@ -120,7 +120,7 @@ export class Node {
 
 		switch (this.manager.options.stateStorage.type) {
 			case StateStorageType.JSON:
-				this.sessionIdsFilePath = path.join(process.cwd(), "magmastream", "dist", "sessionData", "sessionIds.json");
+				this.sessionIdsFilePath = path.join(process.cwd(), "magmastream", "sessionData", "sessionIds.json");
 
 				const configDir = path.dirname(this.sessionIdsFilePath);
 				if (!fs.existsSync(configDir)) {

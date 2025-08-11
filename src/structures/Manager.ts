@@ -1,4 +1,4 @@
-import { AutoPlayUtils, Structure, TrackUtils } from "./Utils";
+import { AutoPlayUtils, PlayerUtils, Structure, TrackUtils } from "./Utils";
 import { Collection } from "@discordjs/collection";
 import { GatewayVoiceStateUpdate } from "discord-api-types/v10";
 import { EventEmitter } from "events";
@@ -474,24 +474,24 @@ export class Manager extends EventEmitter {
 			case StateStorageType.JSON:
 				{
 					try {
-						const playerStateFilePath = await this.getPlayerFilePath(guildId);
+						const playerStateFilePath = PlayerUtils.getPlayerStatePath(guildId);
 						const player = this.getPlayer(guildId);
 
 						if (!player || player.state === StateTypes.Disconnected || !player.voiceChannelId) {
-							console.warn(`[MANAGER] Skipping save for inactive player: ${guildId}`);
+							this.emit(ManagerEventTypes.Debug, `[MANAGER] Skipping save for inactive player: ${guildId}`);
 							return;
 						}
 
-						const serializedPlayer = await this.serializePlayer(player);
-
+						const serializedPlayer = await PlayerUtils.serializePlayer(player);
 						await fs.writeFile(playerStateFilePath, JSON.stringify(serializedPlayer, null, 2), "utf-8");
 
 						this.emit(ManagerEventTypes.Debug, `[MANAGER] Player state saved: ${guildId}`);
 					} catch (error) {
-						console.error(`[MANAGER] Error saving player state for guild ${guildId}:`, error);
+						this.emit(ManagerEventTypes.Debug, `[MANAGER] Error saving player state for guild ${guildId}: ${error}`);
 					}
 				}
 				break;
+
 			case StateStorageType.Redis:
 				{
 					try {
@@ -502,7 +502,7 @@ export class Manager extends EventEmitter {
 							return;
 						}
 
-						const serializedPlayer = await this.serializePlayer(player);
+						const serializedPlayer = await PlayerUtils.serializePlayer(player);
 						const redisKey = `${
 							this.options.stateStorage.redisConfig.prefix?.endsWith(":")
 								? this.options.stateStorage.redisConfig.prefix
@@ -513,7 +513,7 @@ export class Manager extends EventEmitter {
 
 						this.emit(ManagerEventTypes.Debug, `[MANAGER] Player state saved to Redis: ${guildId}`);
 					} catch (error) {
-						console.error(`[MANAGER] Error saving player state to Redis for guild ${guildId}:`, error);
+						this.emit(ManagerEventTypes.Debug, `[MANAGER] Error saving player state to Redis for guild ${guildId}: ${error}`);
 					}
 				}
 				break;
@@ -546,215 +546,216 @@ export class Manager extends EventEmitter {
 		switch (this.options.stateStorage.type) {
 			case StateStorageType.JSON:
 				{
-					const playerStatesDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "playerStore");
+					const playersBaseDir = PlayerUtils.getPlayersBaseDir();
 
 					try {
-						// Check if the directory exists, and create it if it doesn't
-						await fs.access(playerStatesDir).catch(async () => {
-							await fs.mkdir(playerStatesDir, { recursive: true });
-							this.emit(ManagerEventTypes.Debug, `[MANAGER] Created directory: ${playerStatesDir}`);
+						// Ensure base players directory exists
+						await fs.access(playersBaseDir).catch(async () => {
+							await fs.mkdir(playersBaseDir, { recursive: true });
+							this.emit(ManagerEventTypes.Debug, `[MANAGER] Created directory: ${playersBaseDir}`);
 						});
 
-						// Read the contents of the directory
-						const playerFiles = await fs.readdir(playerStatesDir);
+						// Read guild directories inside players base dir
+						const guildDirs = await fs.readdir(playersBaseDir, { withFileTypes: true });
 
-						// Process each file in the directory
-						for (const file of playerFiles) {
-							const filePath = path.join(playerStatesDir, file);
+						for (const dirent of guildDirs) {
+							if (!dirent.isDirectory()) continue;
+
+							const guildId = dirent.name;
+							const stateFilePath = PlayerUtils.getPlayerStatePath(guildId);
 
 							try {
-								// Check if the file exists (though readdir should only return valid files)
-								await fs.access(filePath); // Check if the file exists
-								const data = await fs.readFile(filePath, "utf-8");
-								const state = JSON.parse(data);
+								await fs.access(stateFilePath);
+
+								const rawData = await fs.readFile(stateFilePath, "utf-8");
+								const state = JSON.parse(rawData);
 
 								if (state.clusterId !== this.options.clusterId) continue;
+								if (!state.guildId || state.node?.options?.identifier !== nodeId) continue;
 
-								if (state && typeof state === "object" && state.guildId && state.node.options.identifier === nodeId) {
-									const lavaPlayer = info.find((player) => player.guildId === state.guildId);
-									if (!lavaPlayer) {
-										await this.destroy(state.guildId);
+								const lavaPlayer = info.find((player) => player.guildId === state.guildId);
+								if (!lavaPlayer) {
+									await this.destroy(state.guildId);
+									continue;
+								}
+
+								const playerOptions: PlayerOptions = {
+									guildId: state.options.guildId,
+									textChannelId: state.options.textChannelId,
+									voiceChannelId: state.options.voiceChannelId,
+									selfDeafen: state.options.selfDeafen,
+									volume: lavaPlayer.volume || state.options.volume,
+									nodeIdentifier: nodeId,
+								};
+
+								this.emit(ManagerEventTypes.Debug, `[MANAGER] Recreating player: ${state.guildId} from saved file: ${JSON.stringify(state.options)}`);
+								const player = this.create(playerOptions);
+
+								await player.node.rest.updatePlayer({
+									guildId: state.options.guildId,
+									data: {
+										voice: {
+											token: state.voiceState.event.token,
+											endpoint: state.voiceState.event.endpoint,
+											sessionId: state.voiceState.sessionId,
+										},
+									},
+								});
+
+								player.connect();
+
+								const tracks: Track[] = [];
+								const currentTrack = state.queue.current;
+								const queueTracks = state.queue.tracks;
+
+								if (state.isAutoplay) {
+									Object.setPrototypeOf(state.data.clientUser, { constructor: { name: "User" } });
+									player.setAutoplay(true, state.data.clientUser, state.autoplayTries);
+								}
+
+								if (lavaPlayer?.track) {
+									tracks.push(...queueTracks);
+
+									if (currentTrack && currentTrack.uri === lavaPlayer.track.info.uri) {
+										await player.queue.setCurrent(TrackUtils.build(lavaPlayer.track as TrackData, currentTrack.requester));
 									}
 
-									const playerOptions: PlayerOptions = {
-										guildId: state.options.guildId,
-										textChannelId: state.options.textChannelId,
-										voiceChannelId: state.options.voiceChannelId,
-										selfDeafen: state.options.selfDeafen,
-										volume: lavaPlayer.volume || state.options.volume,
-										nodeIdentifier: nodeId,
-									};
-
-									this.emit(ManagerEventTypes.Debug, `[MANAGER] Recreating player: ${state.guildId} from saved file: ${JSON.stringify(state.options)}`);
-									const player = this.create(playerOptions);
-
-									await player.node.rest.updatePlayer({
-										guildId: state.options.guildId,
-										data: { voice: { token: state.voiceState.event.token, endpoint: state.voiceState.event.endpoint, sessionId: state.voiceState.sessionId } },
-									});
-
-									player.connect();
-
-									const tracks: Track[] = [];
-
-									const currentTrack = state.queue.current;
-									const queueTracks = state.queue.tracks;
-
-									if (state.isAutoplay) {
-										Object.setPrototypeOf(state.data.clientUser, { constructor: { name: "User" } });
-										player.setAutoplay(true, state.data.clientUser, state.autoplayTries);
+									if (tracks.length > 0) {
+										await player.queue.clear();
+										await player.queue.add(tracks);
 									}
-
-									if (lavaPlayer?.track) {
-										// If lavaPlayer has a track, push all queue tracks
-										tracks.push(...queueTracks);
-
-										// Set current track if matches lavaPlayer's track URI
-										if (currentTrack && currentTrack.uri === lavaPlayer.track.info.uri) {
-											await player.queue.setCurrent(TrackUtils.build(lavaPlayer.track as TrackData, currentTrack.requester));
-										}
-
-										// Add tracks to queue
-										if (tracks.length > 0) {
+								} else {
+									if (currentTrack) {
+										if (queueTracks.length > 0) {
+											tracks.push(...queueTracks);
 											await player.queue.clear();
 											await player.queue.add(tracks);
 										}
+
+										await node.trackEnd(player, currentTrack, {
+											reason: TrackEndReasonTypes.Finished,
+											type: "TrackEndEvent",
+										} as TrackEndEvent);
 									} else {
-										// LavaPlayer missing track or lavaPlayer is falsy
-										if (currentTrack) {
-											if (queueTracks.length > 0) {
+										const previousQueue = await player.queue.getPrevious();
+										const lastTrack = previousQueue?.at(-1);
+
+										if (lastTrack) {
+											if (queueTracks.length === 0) {
+												await node.trackEnd(player, lastTrack, {
+													reason: TrackEndReasonTypes.Finished,
+													type: "TrackEndEvent",
+												} as TrackEndEvent);
+											} else {
 												tracks.push(...queueTracks);
+												if (tracks.length > 0) {
+													await player.queue.clear();
+													await player.queue.add(tracks);
+												}
+											}
+										} else if (queueTracks.length > 0) {
+											tracks.push(...queueTracks);
+											if (tracks.length > 0) {
 												await player.queue.clear();
 												await player.queue.add(tracks);
 											}
 
-											await node.trackEnd(player, currentTrack, {
+											await node.trackEnd(player, lastTrack, {
 												reason: TrackEndReasonTypes.Finished,
 												type: "TrackEndEvent",
 											} as TrackEndEvent);
-										} else {
-											// No current track, check previous queue for last track
-											const previousQueue = await player.queue.getPrevious();
-											const lastTrack = previousQueue?.at(-1);
-
-											if (lastTrack) {
-												if (queueTracks.length === 0) {
-													// If no tracks in queue, end last track
-													await node.trackEnd(player, lastTrack, {
-														reason: TrackEndReasonTypes.Finished,
-														type: "TrackEndEvent",
-													} as TrackEndEvent);
-												} else {
-													// If there are queued tracks, add them
-													tracks.push(...queueTracks);
-
-													if (tracks.length > 0) {
-														await player.queue.clear();
-														await player.queue.add(tracks);
-													}
-												}
-											} else {
-												if (queueTracks.length > 0) {
-													tracks.push(...queueTracks);
-													if (tracks.length > 0) {
-														await player.queue.clear();
-														await player.queue.add(tracks);
-													}
-
-													await node.trackEnd(player, lastTrack, {
-														reason: TrackEndReasonTypes.Finished,
-														type: "TrackEndEvent",
-													} as TrackEndEvent);
-												}
-											}
 										}
 									}
-
-									if (state.queue.previous.length > 0) {
-										await player.queue.addPrevious(state.queue.previous);
-									} else {
-										await player.queue.clearPrevious();
-									}
-
-									if (state.paused) {
-										await player.pause(true);
-									} else {
-										player.paused = false;
-									}
-
-									if (state.trackRepeat) player.setTrackRepeat(true);
-									if (state.queueRepeat) player.setQueueRepeat(true);
-
-									if (state.dynamicRepeat) {
-										player.setDynamicRepeat(state.dynamicRepeat, state.dynamicLoopInterval._idleTimeout);
-									}
-									if (state.data) {
-										for (const [name, value] of Object.entries(state.data)) {
-											player.set(name, value);
-										}
-									}
-
-									const filterActions: Record<string, (enabled: boolean) => void> = {
-										bassboost: () => player.filters.bassBoost(state.filters.bassBoostlevel),
-										distort: (enabled) => player.filters.distort(enabled),
-										setDistortion: () => player.filters.setDistortion(state.filters.distortion),
-										eightD: (enabled) => player.filters.eightD(enabled),
-										setKaraoke: () => player.filters.setKaraoke(state.filters.karaoke),
-										nightcore: (enabled) => player.filters.nightcore(enabled),
-										slowmo: (enabled) => player.filters.slowmo(enabled),
-										soft: (enabled) => player.filters.soft(enabled),
-										trebleBass: (enabled) => player.filters.trebleBass(enabled),
-										setTimescale: () => player.filters.setTimescale(state.filters.timescale),
-										tv: (enabled) => player.filters.tv(enabled),
-										vibrato: () => player.filters.setVibrato(state.filters.vibrato),
-										vaporwave: (enabled) => player.filters.vaporwave(enabled),
-										pop: (enabled) => player.filters.pop(enabled),
-										party: (enabled) => player.filters.party(enabled),
-										earrape: (enabled) => player.filters.earrape(enabled),
-										electronic: (enabled) => player.filters.electronic(enabled),
-										radio: (enabled) => player.filters.radio(enabled),
-										setRotation: () => player.filters.setRotation(state.filters.rotation),
-										tremolo: (enabled) => player.filters.tremolo(enabled),
-										china: (enabled) => player.filters.china(enabled),
-										chipmunk: (enabled) => player.filters.chipmunk(enabled),
-										darthvader: (enabled) => player.filters.darthvader(enabled),
-										daycore: (enabled) => player.filters.daycore(enabled),
-										doubletime: (enabled) => player.filters.doubletime(enabled),
-										demon: (enabled) => player.filters.demon(enabled),
-									};
-
-									// Iterate through filterStatus and apply the enabled filters
-									for (const [filter, isEnabled] of Object.entries(state.filters.filterStatus)) {
-										if (isEnabled && filterActions[filter]) {
-											filterActions[filter](true);
-										}
-									}
-
-									this.emit(ManagerEventTypes.PlayerRestored, player, node);
-									await this.sleep(1000);
 								}
+
+								if (state.queue.previous.length > 0) {
+									await player.queue.addPrevious(state.queue.previous);
+								} else {
+									await player.queue.clearPrevious();
+								}
+
+								if (state.paused) {
+									await player.pause(true);
+								} else {
+									player.paused = false;
+								}
+
+								if (state.trackRepeat) player.setTrackRepeat(true);
+								if (state.queueRepeat) player.setQueueRepeat(true);
+
+								if (state.dynamicRepeat) {
+									player.setDynamicRepeat(state.dynamicRepeat, state.dynamicLoopInterval._idleTimeout);
+								}
+
+								if (state.data) {
+									for (const [name, value] of Object.entries(state.data)) {
+										player.set(name, value);
+									}
+								}
+
+								const filterActions: Record<string, (enabled: boolean) => void> = {
+									bassboost: () => player.filters.bassBoost(state.filters.bassBoostlevel),
+									distort: (enabled) => player.filters.distort(enabled),
+									setDistortion: () => player.filters.setDistortion(state.filters.distortion),
+									eightD: (enabled) => player.filters.eightD(enabled),
+									setKaraoke: () => player.filters.setKaraoke(state.filters.karaoke),
+									nightcore: (enabled) => player.filters.nightcore(enabled),
+									slowmo: (enabled) => player.filters.slowmo(enabled),
+									soft: (enabled) => player.filters.soft(enabled),
+									trebleBass: (enabled) => player.filters.trebleBass(enabled),
+									setTimescale: () => player.filters.setTimescale(state.filters.timescale),
+									tv: (enabled) => player.filters.tv(enabled),
+									vibrato: () => player.filters.setVibrato(state.filters.vibrato),
+									vaporwave: (enabled) => player.filters.vaporwave(enabled),
+									pop: (enabled) => player.filters.pop(enabled),
+									party: (enabled) => player.filters.party(enabled),
+									earrape: (enabled) => player.filters.earrape(enabled),
+									electronic: (enabled) => player.filters.electronic(enabled),
+									radio: (enabled) => player.filters.radio(enabled),
+									setRotation: () => player.filters.setRotation(state.filters.rotation),
+									tremolo: (enabled) => player.filters.tremolo(enabled),
+									china: (enabled) => player.filters.china(enabled),
+									chipmunk: (enabled) => player.filters.chipmunk(enabled),
+									darthvader: (enabled) => player.filters.darthvader(enabled),
+									daycore: (enabled) => player.filters.daycore(enabled),
+									doubletime: (enabled) => player.filters.doubletime(enabled),
+									demon: (enabled) => player.filters.demon(enabled),
+								};
+
+								for (const [filter, isEnabled] of Object.entries(state.filters.filterStatus)) {
+									if (isEnabled && filterActions[filter]) {
+										filterActions[filter](true);
+									}
+								}
+
+								this.emit(ManagerEventTypes.PlayerRestored, player, node);
+								await this.sleep(1000);
 							} catch (error) {
-								this.emit(ManagerEventTypes.Debug, `[MANAGER] Error processing file ${filePath}: ${error}`);
-								continue; // Skip to the next file if there's an error
+								this.emit(ManagerEventTypes.Debug, `[MANAGER] Error processing player state for guild ${guildId}: ${error}`);
+								continue;
 							}
 						}
 
-						// Delete all files inside playerStatesDir where nodeId matches
-						for (const file of playerFiles) {
-							const filePath = path.join(playerStatesDir, file);
+						// Cleanup old player state files from guild directories whose nodeId matches
+						for (const dirent of guildDirs) {
+							if (!dirent.isDirectory()) continue;
+
+							const guildId = dirent.name;
+							const stateFilePath = PlayerUtils.getPlayerStatePath(guildId);
 
 							try {
-								await fs.access(filePath); // Check if the file exists
-								const data = await fs.readFile(filePath, "utf-8");
+								await fs.access(stateFilePath);
+								const data = await fs.readFile(stateFilePath, "utf-8");
 								const state = JSON.parse(data);
 
-								if (state && typeof state === "object" && state.node.options.identifier === nodeId) {
-									await fs.unlink(filePath); // Delete the file asynchronously
-									this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleted player state file: ${filePath}`);
+								if (state && typeof state === "object" && state.node?.options?.identifier === nodeId) {
+									// Remove the entire guild directory or just the state file depending on your cleanup strategy
+									await fs.rm(PlayerUtils.getGuildDir(guildId), { recursive: true, force: true });
+									this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleted player state folder for guild ${guildId}`);
 								}
 							} catch (error) {
-								this.emit(ManagerEventTypes.Debug, `[MANAGER] Error deleting file ${filePath}: ${error}`);
-								continue; // Skip to the next file if there's an error
+								this.emit(ManagerEventTypes.Debug, `[MANAGER] Error deleting player state for guild ${guildId}: ${error}`);
+								continue;
 							}
 						}
 					} catch (error) {
@@ -1194,91 +1195,6 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-	 * Gets each player's JSON file
-	 * @param {string} guildId - The guild ID
-	 * @returns {string} The path to the player's JSON file
-	 */
-	private async getPlayerFilePath(guildId: string): Promise<string> {
-		const configDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "playerStore");
-
-		try {
-			await fs.mkdir(configDir, { recursive: true });
-			return path.join(configDir, `${guildId}.json`);
-		} catch (err) {
-			console.error(`[MANAGER] Error ensuring player data directory exists: ${err}`);
-			throw new Error(`Failed to resolve player file path for guild ${guildId}`);
-		}
-	}
-
-	/**
-	 * Serializes a Player instance to avoid circular references.
-	 * @param player The Player instance to serialize
-	 * @returns The serialized Player instance
-	 */
-	public async serializePlayer(player: Player): Promise<Record<string, unknown>> {
-		const seen = new WeakSet();
-
-		// Fetch async queue data once before serializing
-		const current = await player.queue.getCurrent();
-		const tracks = Array.isArray(await player.queue.getTracks()) ? await player.queue.getTracks() : [];
-		const previous = Array.isArray(await player.queue.getPrevious()) ? await player.queue.getPrevious() : [];
-
-		/**
-		 * Recursively serializes an object, avoiding circular references.
-		 * @param obj The object to serialize
-		 * @returns The serialized object
-		 */
-		const serialize = (obj: unknown): unknown => {
-			if (obj && typeof obj === "object") {
-				if (seen.has(obj)) return;
-
-				seen.add(obj);
-			}
-			return obj;
-		};
-
-		return JSON.parse(
-			JSON.stringify(player, (key, value) => {
-				if (key === "manager") {
-					return null;
-				}
-
-				if (key === "filters") {
-					if (!value || typeof value !== "object") return null;
-
-					return {
-						distortion: value.distortion ?? null,
-						equalizer: value.equalizer ?? [],
-						karaoke: value.karaoke ?? null,
-						rotation: value.rotation ?? null,
-						timescale: value.timescale ?? null,
-						vibrato: value.vibrato ?? null,
-						reverb: value.reverb ?? null,
-						volume: value.volume ?? 1.0,
-						bassBoostlevel: value.bassBoostlevel ?? null,
-						filterStatus: value.filtersStatus ? { ...value.filtersStatus } : {},
-					};
-				}
-				if (key === "queue") {
-					return {
-						current,
-						tracks,
-						previous,
-					};
-				}
-
-				if (key === "data") {
-					return {
-						clientUser: value?.Internal_BotUser ?? null,
-					};
-				}
-
-				return serialize(value);
-			})
-		);
-	}
-
-	/**
 	 * Cleans up inactive players by removing their state files from the file system.
 	 * This is done to prevent stale state files from accumulating on the file system.
 	 */
@@ -1286,35 +1202,21 @@ export class Manager extends EventEmitter {
 		switch (this.options.stateStorage.type) {
 			case StateStorageType.JSON:
 				{
-					const playerStoreDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "playerStore");
-					const playerDataDir = this.options.stateStorage?.jsonConfig?.path ?? path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
+					const playersBaseDir = PlayerUtils.getPlayersBaseDir();
 
 					try {
-						await fs.mkdir(playerStoreDir, { recursive: true });
-						await fs.mkdir(playerDataDir, { recursive: true });
+						await fs.mkdir(playersBaseDir, { recursive: true });
 
 						const activeGuildIds = new Set(this.players.keys());
 
-						// Clean up playerStore/*.json
-						const playerStateFiles = await fs.readdir(playerStoreDir);
-						for (const file of playerStateFiles) {
-							const guildId = path.basename(file, ".json");
-
-							if (!activeGuildIds.has(guildId)) {
-								const filePath = path.join(playerStoreDir, file);
-								await fs.unlink(filePath);
-								this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleted inactive player state: ${guildId}`);
-							}
-						}
-
-						// Clean up players/<guildId>/ folders
-						const guildDirs = await fs.readdir(playerDataDir, { withFileTypes: true });
+						// Cleanup inactive guild directories inside playersBaseDir
+						const guildDirs = await fs.readdir(playersBaseDir, { withFileTypes: true });
 						for (const dirent of guildDirs) {
 							if (!dirent.isDirectory()) continue;
 
 							const guildId = dirent.name;
 							if (!activeGuildIds.has(guildId)) {
-								const guildPath = path.join(playerDataDir, guildId);
+								const guildPath = PlayerUtils.getGuildDir(guildId);
 								await fs.rm(guildPath, { recursive: true, force: true });
 								this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleted inactive player data folder: ${guildId}`);
 							}
@@ -1325,6 +1227,7 @@ export class Manager extends EventEmitter {
 					return;
 				}
 				break;
+
 			case StateStorageType.Redis:
 				{
 					const prefix = this.options.stateStorage.redisConfig.prefix?.endsWith(":")
@@ -1376,14 +1279,12 @@ export class Manager extends EventEmitter {
 		switch (this.options.stateStorage.type) {
 			case StateStorageType.JSON:
 				{
-					const playersStoreDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "playerStore");
-					const playersDataDir = this.options.stateStorage?.jsonConfig?.path ?? path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
-
 					try {
 						if (!this.players.has(guildId)) {
-							await fs.unlink(path.join(playersStoreDir, `${guildId}.json`));
-							await fs.rm(path.join(playersDataDir, guildId), { recursive: true, force: true });
-							this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleting inactive player files: ${guildId}`);
+							const guildDir = PlayerUtils.getGuildDir(guildId);
+							await fs.rm(guildDir, { recursive: true, force: true });
+
+							this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleted inactive player data folder: ${guildId}`);
 						}
 					} catch (error) {
 						if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
@@ -1462,28 +1363,27 @@ export class Manager extends EventEmitter {
 		switch (this.options.stateStorage.type) {
 			case StateStorageType.Memory:
 			case StateStorageType.JSON: {
-				const configDir = path.join(process.cwd(), "magmastream", "dist", "sessionData", "playerStore");
+				const playersBaseDir = PlayerUtils.getPlayersBaseDir();
 
 				try {
-					// Check if the directory exists, and create it if it doesn't
-					await fs.access(configDir).catch(async () => {
-						await fs.mkdir(configDir, { recursive: true });
-						this.emit(ManagerEventTypes.Debug, `[MANAGER] Created directory: ${configDir}`);
+					await fs.access(playersBaseDir).catch(async () => {
+						await fs.mkdir(playersBaseDir, { recursive: true });
+						this.emit(ManagerEventTypes.Debug, `[MANAGER] Created directory: ${playersBaseDir}`);
 					});
 
-					const files = await fs.readdir(configDir);
-
+					const files = await fs.readdir(playersBaseDir);
 					await Promise.all(
-						files.map((file) => fs.unlink(path.join(configDir, file)).catch((err) => console.warn(`[MANAGER] Failed to delete file ${file}:`, err)))
+						files.map((file) =>
+							fs.unlink(path.join(playersBaseDir, file)).catch((err) => this.emit(ManagerEventTypes.Debug, `[MANAGER] Failed to delete file ${file}: ${err}`))
+						)
 					);
 
-					this.emit(ManagerEventTypes.Debug, `[MANAGER] Cleared all player state files in ${configDir}`);
+					this.emit(ManagerEventTypes.Debug, `[MANAGER] Cleared all player state files in ${playersBaseDir}`);
 				} catch (err) {
-					console.error("[MANAGER] Error clearing player state files:", err);
+					this.emit(ManagerEventTypes.Debug, `[MANAGER] Error clearing player state files: ${err}`);
 				}
 				break;
 			}
-
 			case StateStorageType.Redis: {
 				const prefix = this.options.stateStorage.redisConfig.prefix?.endsWith(":")
 					? this.options.stateStorage.redisConfig.prefix

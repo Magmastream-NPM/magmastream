@@ -362,7 +362,7 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 	/**
 	 * Shuffles the queue to play tracks requested by each user one by one.
 	 */
-	public async roundRobinShuffle() {
+	public async roundRobinShuffle(): Promise<void> {
 		// Capture the current state of the player for event emission.
 		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 

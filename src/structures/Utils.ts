@@ -5,6 +5,8 @@ import { JSDOM } from "jsdom";
 import { AutoPlayPlatform, LoadTypes, SearchPlatform, TrackPartial } from "./Enums";
 import { Manager } from "./Manager";
 import { ErrorOrEmptySearchResult, Extendable, LavalinkResponse, PlaylistRawData, SearchResult, Track, TrackData, TrackSourceName } from "./Types";
+import { Player } from "./Player";
+import path from "path";
 // import playwright from "playwright";
 
 /** @hidden */
@@ -696,6 +698,129 @@ export abstract class AutoPlayUtils {
 	}
 }
 
+export abstract class PlayerUtils {
+	private static manager: Manager;
+
+	/**
+	 * Initializes the PlayerUtils class with the given manager.
+	 * @param manager The manager instance to use.
+	 * @hidden
+	 */
+	public static init(manager: Manager): void {
+		if (!manager) throw new Error("PlayerUtils.init() requires a valid Manager instance.");
+		this.manager = manager;
+	}
+
+	/**
+	 * Serializes a Player instance to avoid circular references.
+	 * @param player The Player instance to serialize
+	 * @returns The serialized Player instance
+	 */
+	public static async serializePlayer(player: Player): Promise<Record<string, unknown>> {
+		const seen = new WeakSet();
+
+		// Fetch async queue data once before serializing
+		const current = await player.queue.getCurrent();
+		const tracks = Array.isArray(await player.queue.getTracks()) ? await player.queue.getTracks() : [];
+		const previous = Array.isArray(await player.queue.getPrevious()) ? await player.queue.getPrevious() : [];
+
+		/**
+		 * Recursively serializes an object, avoiding circular references.
+		 * @param obj The object to serialize
+		 * @returns The serialized object
+		 */
+		const serialize = (obj: unknown): unknown => {
+			if (obj && typeof obj === "object") {
+				if (seen.has(obj)) return;
+
+				seen.add(obj);
+			}
+			return obj;
+		};
+
+		return JSON.parse(
+			JSON.stringify(player, (key, value) => {
+				if (key === "manager") {
+					return null;
+				}
+
+				if (key === "filters") {
+					if (!value || typeof value !== "object") return null;
+
+					return {
+						distortion: value.distortion ?? null,
+						equalizer: value.equalizer ?? [],
+						karaoke: value.karaoke ?? null,
+						rotation: value.rotation ?? null,
+						timescale: value.timescale ?? null,
+						vibrato: value.vibrato ?? null,
+						reverb: value.reverb ?? null,
+						volume: value.volume ?? 1.0,
+						bassBoostlevel: value.bassBoostlevel ?? null,
+						filterStatus: value.filtersStatus ? { ...value.filtersStatus } : {},
+					};
+				}
+				if (key === "queue") {
+					return {
+						current,
+						tracks,
+						previous,
+					};
+				}
+
+				if (key === "data") {
+					return {
+						clientUser: value?.Internal_BotUser ?? null,
+					};
+				}
+
+				return serialize(value);
+			})
+		);
+	}
+
+	/**
+	 * Gets the base directory for player data.
+	 */
+	public static getPlayersBaseDir(): string {
+		return path.join(process.cwd(), "magmastream", "sessionData", "players");
+	}
+
+	/**
+	 * Gets the path to the player's directory.
+	 */
+	public static getGuildDir(guildId: string): string {
+		return path.join(this.getPlayersBaseDir(), guildId);
+	}
+
+	/**
+	 * Gets the path to the player's state file.
+	 */
+	public static getPlayerStatePath(guildId: string): string {
+		return path.join(this.getGuildDir(guildId), "state.json");
+	}
+
+	/**
+	 * Gets the path to the player's current track file.
+	 */
+	public static getPlayerCurrentPath(guildId: string): string {
+		return path.join(this.getGuildDir(guildId), "current.json");
+	}
+
+	/**
+	 * Gets the path to the player's queue file.
+	 */
+	public static getPlayerQueuePath(guildId: string): string {
+		return path.join(this.getGuildDir(guildId), "queue.json");
+	}
+
+	/**
+	 * Gets the path to the player's previous tracks file.
+	 */
+	public static getPlayerPreviousPath(guildId: string): string {
+		return path.join(this.getGuildDir(guildId), "previous.json");
+	}
+}
 /** Gets or extends structures to extend the built in, or already extended, classes to add more functionality. */
 export abstract class Structure {
 	/**

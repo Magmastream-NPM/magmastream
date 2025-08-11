@@ -17,7 +17,7 @@ export class JsonQueue implements IQueue {
 	 * @param manager The manager.
 	 */
 	constructor(public readonly guildId: string, public readonly manager: Manager) {
-		const base = manager.options.stateStorage?.jsonConfig?.path ?? path.join(process.cwd(), "magmastream", "dist", "sessionData", "players");
+		const base = manager.options.stateStorage?.jsonConfig?.path ?? path.join(process.cwd(), "magmastream", "sessionData", "players");
 
 		this.basePath = path.join(base, this.guildId);
 	}
