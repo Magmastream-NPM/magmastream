@@ -62,6 +62,7 @@ export class JsonQueue implements IQueue {
 	 * @param queue The queue.
 	 */
 	private async setQueue(queue: Track[]): Promise<void> {
+		await this.deleteFile(this.queuePath);
 		await this.writeJSON(this.queuePath, queue);
 	}
 
@@ -142,6 +143,7 @@ export class JsonQueue implements IQueue {
 		const tracks = Array.isArray(track) ? track : [track];
 		if (!tracks.length) return;
 
+		await this.deleteFile(this.previousPath);
 		await this.writeJSON(this.previousPath, tracks);
 	}
 
