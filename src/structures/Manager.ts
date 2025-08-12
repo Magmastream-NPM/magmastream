@@ -535,6 +535,7 @@ export class Manager extends EventEmitter {
 		const info = (await node.rest.getAllPlayers()) as LavaPlayer[];
 
 		switch (this.options.stateStorage.type) {
+			case StateStorageType.Memory:
 			case StateStorageType.JSON:
 				{
 					const playersBaseDir = PlayerUtils.getPlayersBaseDir();

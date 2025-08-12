@@ -143,7 +143,6 @@ export class JsonQueue implements IQueue {
 		const tracks = Array.isArray(track) ? track : [track];
 		if (!tracks.length) return;
 
-		await this.deleteFile(this.previousPath);
 		await this.writeJSON(this.previousPath, tracks);
 	}
 
