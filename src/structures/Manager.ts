@@ -313,16 +313,6 @@ export class Manager extends EventEmitter {
 	}
 
 	/**
-	 * @deprecated - Will be removed with v2.10.0 use {@link getPlayer} instead
-	 * Returns a player or undefined if it does not exist.
-	 * @param guildId The guild ID of the player to retrieve.
-	 * @returns The player if it exists, undefined otherwise.
-	 */
-	public async get(guildId: string): Promise<Player | undefined> {
-		return this.players.get(guildId);
-	}
-
-	/**
 	 * Creates a player or returns one if it already exists.
 	 * @param options The options to create the player with.
 	 * @returns The created player.
