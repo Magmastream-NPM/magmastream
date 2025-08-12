@@ -743,8 +743,7 @@ export class Manager extends EventEmitter {
 								const state = JSON.parse(data);
 
 								if (state && typeof state === "object" && state.node?.options?.identifier === nodeId) {
-									// Remove the entire guild directory or just the state file depending on your cleanup strategy
-									await fs.rm(PlayerUtils.getGuildDir(guildId), { recursive: true, force: true });
+									await fs.rm(PlayerUtils.getPlayerStatePath(guildId), { force: true });
 									this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleted player state folder for guild ${guildId}`);
 								}
 							} catch (error) {
