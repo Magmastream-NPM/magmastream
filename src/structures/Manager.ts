@@ -437,7 +437,7 @@ export class Manager extends EventEmitter {
 	 * @returns A promise that resolves to an array of TrackData objects.
 	 * @throws Will throw an error if no nodes are available or if the API request fails.
 	 */
-	public decodeTracks(tracks: string[]): Promise<TrackData[]> {
+	public async decodeTracks(tracks: string[]): Promise<TrackData[]> {
 		this.emit(ManagerEventTypes.Debug, `[MANAGER] Decoding tracks: ${JSON.stringify(tracks)}`);
 		return new Promise(async (resolve, reject) => {
 			const node = this.nodes.first();
