@@ -119,6 +119,7 @@ export class Node {
 		this.rest = new Rest(this, this.manager);
 
 		switch (this.manager.options.stateStorage.type) {
+			case StateStorageType.Memory:
 			case StateStorageType.JSON:
 				this.sessionIdsFilePath = path.join(process.cwd(), "magmastream", "sessionData", "sessionIds.json");
 
@@ -242,6 +243,7 @@ export class Node {
 	 */
 	public async updateSessionId(): Promise<void> {
 		switch (this.manager.options.stateStorage.type) {
+			case StateStorageType.Memory:
 			case StateStorageType.JSON: {
 				this.manager.emit(ManagerEventTypes.Debug, `[NODE] Updating sessionIds to file: ${this.sessionIdsFilePath}`);
 
