@@ -72,6 +72,7 @@ export class Manager extends EventEmitter {
 		// Initialize structures
 		Structure.get("Player").init(this);
 		TrackUtils.init(this);
+		PlayerUtils.init(this);
 
 		if (options.trackPartial) {
 			TrackUtils.setTrackPartial(options.trackPartial);
