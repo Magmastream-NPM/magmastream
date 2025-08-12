@@ -177,6 +177,7 @@ export class Node {
 	 */
 	public async loadSessionIds(): Promise<void> {
 		switch (this.manager.options.stateStorage.type) {
+			case StateStorageType.Memory:
 			case StateStorageType.JSON: {
 				if (fs.existsSync(this.sessionIdsFilePath)) {
 					this.manager.emit(ManagerEventTypes.Debug, `[NODE] Loading sessionIds from file: ${this.sessionIdsFilePath}`);
@@ -248,9 +249,43 @@ export class Node {
 				this.manager.emit(ManagerEventTypes.Debug, `[NODE] Updating sessionIds to file: ${this.sessionIdsFilePath}`);
 
 				const compositeKey = `${this.options.identifier}::${this.manager.options.clusterId}`;
+				const filePath = this.sessionIdsFilePath!;
 
-				this.sessionIdsMap.set(compositeKey, this.sessionId);
-				fs.writeFileSync(this.sessionIdsFilePath, JSON.stringify(Object.fromEntries(this.sessionIdsMap)));
+				let updated = false;
+				let retries = 3;
+
+				while (!updated && retries > 0) {
+					try {
+						let fileData: Record<string, string> = {};
+						if (fs.existsSync(filePath)) {
+							try {
+								const raw = fs.readFileSync(filePath, "utf-8");
+								fileData = raw.trim() ? JSON.parse(raw) : {};
+							} catch (err) {
+								this.manager.emit(ManagerEventTypes.Debug, `[NODE] Failed to read/parse sessionIds.json: ${(err as Error).message}`);
+								fileData = {};
+							}
+						}
+
+						fileData[compositeKey] = this.sessionId;
+
+						const tmpPath = `${filePath}.tmp`;
+						fs.writeFileSync(tmpPath, JSON.stringify(fileData, null, 2), "utf-8");
+						fs.renameSync(tmpPath, filePath);
+
+						this.sessionIdsMap = new Map(Object.entries(fileData));
+						updated = true;
+					} catch (err) {
+						retries--;
+						if (retries === 0) {
+							this.manager.emit(ManagerEventTypes.Debug, `[NODE] Failed to update sessionIds after retries: ${(err as Error).message}`);
+							throw err;
+						}
+
+						await new Promise((r) => setTimeout(r, 50));
+					}
+				}
+
 				break;
 			}
 
