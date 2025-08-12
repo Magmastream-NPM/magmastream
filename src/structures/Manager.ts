@@ -474,6 +474,8 @@ export class Manager extends EventEmitter {
 						}
 
 						const serializedPlayer = await PlayerUtils.serializePlayer(player);
+
+						await fs.mkdir(path.dirname(playerStateFilePath), { recursive: true });
 						await fs.writeFile(playerStateFilePath, JSON.stringify(serializedPlayer, null, 2), "utf-8");
 
 						this.emit(ManagerEventTypes.Debug, `[MANAGER] Player state saved: ${guildId}`);
