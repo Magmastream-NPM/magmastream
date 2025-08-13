@@ -1176,6 +1176,7 @@ export class Manager extends EventEmitter {
 
 			player.voiceState.sessionId = update.session_id;
 			player.voiceChannelId = update.channel_id;
+			player.options.voiceChannelId = update.channel_id;
 			return;
 		}
 
