@@ -304,6 +304,7 @@ export class Player {
 
 		// Update the player voice channel
 		this.voiceChannelId = channel;
+		this.options.voiceChannelId = channel;
 		this.connect();
 
 		// Emit a player state update event
