@@ -340,6 +340,7 @@ export class Player {
 
 		// Update the text channel property
 		this.textChannelId = channel;
+		this.options.textChannelId = channel;
 
 		// Emit a player state update event with channel change details
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
