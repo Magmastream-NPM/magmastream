@@ -175,7 +175,7 @@ export class Player {
 	 * @throws {RangeError} If no voice channel has been set.
 	 * @returns {void}
 	 */
-	public async connect(): Promise<void> {
+	public connect(): void {
 		// Check if the voice channel has been set.
 		if (!this.voiceChannelId) {
 			throw new RangeError("No voice channel has been set. You must use the `setVoiceChannelId()` method to set the voice channel before connecting.");
