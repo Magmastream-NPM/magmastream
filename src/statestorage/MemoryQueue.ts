@@ -32,87 +32,7 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 		this.guildId = guildId;
 	}
 
-	/**
-	 * @returns The current track.
-	 */
-	async getCurrent(): Promise<Track | null> {
-		return this.current;
-	}
-
-	/**
-	 * @param track The track to set.
-	 */
-	async setCurrent(track: Track | null): Promise<void> {
-		this.current = track;
-	}
-
-	/**
-	 * @returns The previous tracks.
-	 */
-	async getPrevious(): Promise<Track[]> {
-		return [...this.previous];
-	}
-
-	public async addPrevious(track: Track | Track[]): Promise<void> {
-		if (Array.isArray(track)) {
-			const newTracks = track.filter((t) => !this.previous.some((p) => p.identifier === t.identifier));
-			this.previous.unshift(...newTracks);
-		} else {
-			const exists = this.previous.some((p) => p.identifier === track.identifier);
-			if (!exists) {
-				this.previous.unshift(track);
-			}
-		}
-	}
-
-	/**
-	 * @param tracks The tracks to set.
-	 */
-	public async setPrevious(tracks: Track[]): Promise<void> {
-		this.previous = [...tracks];
-	}
-
-	/**
-	 * @returns The newest track.
-	 */
-	public async popPrevious(): Promise<Track | null> {
-		return this.previous.shift() || null; // get newest track
-	}
-
-	/**
-	 * Clears the previous tracks.
-	 */
-	public async clearPrevious(): Promise<void> {
-		this.previous = [];
-	}
-
-	/**
-	 * The total duration of the queue in milliseconds.
-	 * This includes the duration of the currently playing track.
-	 */
-	public async duration(): Promise<number> {
-		const current = this.current?.duration ?? 0;
-		return this.reduce((acc, cur) => acc + (cur.duration || 0), current);
-	}
-
-	/**
-	 * The total size of tracks in the queue including the current track.
-	 * This includes the current track if it is not null.
-	 * @returns The total size of tracks in the queue including the current track.
-	 */
-	public async totalSize(): Promise<number> {
-		return this.length + (this.current ? 1 : 0);
-	}
-
-	/**
-	 * The size of tracks in the queue.
-	 * This does not include the currently playing track.
-	 * @returns The size of tracks in the queue.
-	 */
-	public async size(): Promise<number> {
-		return this.length;
-	}
-
+	// #region Public
 	/**
 	 * Adds a track to the queue.
 	 * @param track The track or tracks to add. Can be a single `Track` or an array of `Track`s.
@@ -196,6 +116,156 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 	}
 
 	/**
+	 * Adds a track to the previous tracks.
+	 * @param track The track or tracks to add. Can be a single `Track` or an array of `Track`s.
+	 */
+	public async addPrevious(track: Track | Track[]): Promise<void> {
+		if (Array.isArray(track)) {
+			const newTracks = track.filter((t) => !this.previous.some((p) => p.identifier === t.identifier));
+			this.previous.unshift(...newTracks);
+		} else {
+			const exists = this.previous.some((p) => p.identifier === track.identifier);
+			if (!exists) {
+				this.previous.unshift(track);
+			}
+		}
+	}
+
+	/**
+	 * Clears the queue.
+	 * This will remove all tracks from the queue and emit a state update event.
+	 */
+	public async clear(): Promise<void> {
+		// Capture the current state of the player for event emission.
+		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
+
+		// Remove all items from the queue.
+		this.splice(0);
+
+		// Emit an event to update the player state indicating the queue has been cleared.
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+			changeType: PlayerStateEventTypes.QueueChange,
+			details: {
+				type: "queue",
+				action: "clear",
+				tracks: [], // No tracks are left after clearing
+			},
+		} as PlayerStateUpdateEvent);
+
+		// Emit a debug message indicating the queue has been cleared for a specific guild ID.
+		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Cleared the queue for: ${this.guildId}`);
+	}
+
+	/**
+	 * Clears the previous tracks.
+	 */
+	public async clearPrevious(): Promise<void> {
+		this.previous = [];
+	}
+
+	/**
+	 * Removes the first element from the queue.
+	 */
+	public async dequeue(): Promise<Track | undefined> {
+		return super.shift();
+	}
+
+	/**
+	 * The total duration of the queue in milliseconds.
+	 * This includes the duration of the currently playing track.
+	 */
+	public async duration(): Promise<number> {
+		const current = this.current?.duration ?? 0;
+		return this.reduce((acc, cur) => acc + (cur.duration || 0), current);
+	}
+
+	/**
+	 * Adds the specified track or tracks to the front of the queue.
+	 * @param track The track or tracks to add.
+	 */
+	public async enqueueFront(track: Track | Track[]): Promise<void> {
+		if (Array.isArray(track)) {
+			this.unshift(...track);
+		} else {
+			this.unshift(track);
+		}
+	}
+
+	/**
+	 * @returns Whether all elements in the queue satisfy the provided testing function.
+	 */
+	public async everyAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<boolean> {
+		return this.every(callback);
+	}
+
+	/**
+	 * @returns A new array with all elements that pass the test implemented by the provided function.
+	 */
+	public async filterAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<Track[]> {
+		return this.filter(callback);
+	}
+
+	/**
+	 * @returns The first element in the queue that satisfies the provided testing function.
+	 */
+	public async findAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<Track | undefined> {
+		return this.find(callback);
+	}
+
+	/**
+	 * @returns The current track.
+	 */
+	public async getCurrent(): Promise<Track | null> {
+		return this.current;
+	}
+
+	/**
+	 * @returns The previous tracks.
+	 */
+	public async getPrevious(): Promise<Track[]> {
+		return [...this.previous];
+	}
+
+	/**
+	 * @returns The tracks in the queue from start to end.
+	 */
+	public async getSlice(start?: number, end?: number): Promise<Track[]> {
+		return this.slice(start, end); // Native sync method, still wrapped in a Promise
+	}
+
+	/**
+	 * @returns The tracks in the queue.
+	 */
+	public async getTracks(): Promise<Track[]> {
+		return [...this]; // clone to avoid direct mutation
+	}
+
+	/**
+	 * @returns A new array with the results of calling a provided function on every element in the queue.
+	 */
+	public async mapAsync<T>(callback: (track: Track, index: number, array: Track[]) => T): Promise<T[]> {
+		return this.map(callback);
+	}
+
+	/**
+	 * Modifies the queue at the specified index.
+	 * @param start The index at which to start modifying the queue.
+	 * @param deleteCount The number of elements to remove from the queue.
+	 * @param items The elements to add to the queue.
+	 * @returns The modified queue.
+	 */
+	public async modifyAt(start: number, deleteCount = 0, ...items: Track[]): Promise<Track[]> {
+		return super.splice(start, deleteCount, ...items);
+	}
+
+	/**
+	 * @returns The newest track.
+	 */
+	public async popPrevious(): Promise<Track | null> {
+		return this.previous.shift() || null; // get newest track
+	}
+
+	/**
 	 * Removes track(s) from the queue.
 	 * @param startOrPosition If a single number is provided, it will be treated as the position of the track to remove.
 	 *                         If two numbers are provided, they will be used as the start and end of a range of tracks to remove.
@@ -255,108 +325,6 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 		} as PlayerStateUpdateEvent);
 
 		return removedTrack;
-	}
-
-	/**
-	 * Clears the queue.
-	 * This will remove all tracks from the queue and emit a state update event.
-	 */
-	public async clear(): Promise<void> {
-		// Capture the current state of the player for event emission.
-		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
-
-		// Remove all items from the queue.
-		this.splice(0);
-
-		// Emit an event to update the player state indicating the queue has been cleared.
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
-			changeType: PlayerStateEventTypes.QueueChange,
-			details: {
-				type: "queue",
-				action: "clear",
-				tracks: [], // No tracks are left after clearing
-			},
-		} as PlayerStateUpdateEvent);
-
-		// Emit a debug message indicating the queue has been cleared for a specific guild ID.
-		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Cleared the queue for: ${this.guildId}`);
-	}
-
-	/**
-	 * Shuffles the queue.
-	 * This will randomize the order of the tracks in the queue and emit a state update event.
-	 */
-	public async shuffle(): Promise<void> {
-		// Capture the current state of the player for event emission.
-		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
-
-		// Shuffle the queue.
-		for (let i = this.length - 1; i > 0; i--) {
-			const j = Math.floor(Math.random() * (i + 1));
-			[this[i], this[j]] = [this[j], this[i]];
-		}
-
-		// Emit an event to update the player state indicating the queue has been shuffled.
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
-			changeType: PlayerStateEventTypes.QueueChange,
-			details: {
-				type: "queue",
-				action: "shuffle",
-			},
-		} as PlayerStateUpdateEvent);
-
-		// Emit a debug message indicating the queue has been shuffled for a specific guild ID.
-		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Shuffled the queue for: ${this.guildId}`);
-	}
-
-	/**
-	 * Shuffles the queue to play tracks requested by each user one block at a time.
-	 */
-	public async userBlockShuffle(): Promise<void> {
-		// Capture the current state of the player for event emission.
-		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
-
-		// Group the tracks in the queue by the user that requested them.
-		const userTracks = new Map<string, Array<Track>>();
-		this.forEach((track) => {
-			const user = track.requester.id;
-
-			if (!userTracks.has(user)) {
-				userTracks.set(user, []);
-			}
-
-			userTracks.get(user).push(track);
-		});
-
-		// Create a new array for the shuffled queue.
-		const shuffledQueue: Array<Track> = [];
-
-		// Iterate over the user tracks and add one track from each user to the shuffled queue.
-		// This will ensure that all the tracks requested by each user are played in a block order.
-		while (shuffledQueue.length < this.length) {
-			userTracks.forEach((tracks) => {
-				const track = tracks.shift();
-				if (track) {
-					shuffledQueue.push(track);
-				}
-			});
-		}
-
-		// Clear the queue and add the shuffled tracks.
-		this.splice(0);
-		this.add(shuffledQueue);
-
-		// Emit an event to update the player state indicating the queue has been shuffled.
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
-			changeType: PlayerStateEventTypes.QueueChange,
-			details: {
-				type: "queue",
-				action: "userBlock",
-			},
-		} as PlayerStateUpdateEvent);
-
-		// Emit a debug message indicating the queue has been shuffled for a specific guild ID.
-		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] userBlockShuffled the queue for: ${this.guildId}`);
 	}
 
 	/**
@@ -423,68 +391,53 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 	}
 
 	/**
-	 * Removes the first element from the queue.
+	 * @param track The track to set.
 	 */
-	public async dequeue(): Promise<Track | undefined> {
-		return super.shift();
+	public async setCurrent(track: Track | null): Promise<void> {
+		this.current = track;
 	}
 
 	/**
-	 * Adds the specified track or tracks to the front of the queue.
-	 * @param track The track or tracks to add.
+	 * @param tracks The tracks to set.
 	 */
-	public async enqueueFront(track: Track | Track[]): Promise<void> {
-		if (Array.isArray(track)) {
-			this.unshift(...track);
-		} else {
-			this.unshift(track);
+	public async setPrevious(tracks: Track[]): Promise<void> {
+		this.previous = [...tracks];
+	}
+
+	/**
+	 * Shuffles the queue.
+	 * This will randomize the order of the tracks in the queue and emit a state update event.
+	 */
+	public async shuffle(): Promise<void> {
+		// Capture the current state of the player for event emission.
+		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
+
+		// Shuffle the queue.
+		for (let i = this.length - 1; i > 0; i--) {
+			const j = Math.floor(Math.random() * (i + 1));
+			[this[i], this[j]] = [this[j], this[i]];
 		}
+
+		// Emit an event to update the player state indicating the queue has been shuffled.
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+			changeType: PlayerStateEventTypes.QueueChange,
+			details: {
+				type: "queue",
+				action: "shuffle",
+			},
+		} as PlayerStateUpdateEvent);
+
+		// Emit a debug message indicating the queue has been shuffled for a specific guild ID.
+		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Shuffled the queue for: ${this.guildId}`);
 	}
 
 	/**
-	 * @returns A shallow copy of the queue.
+	 * The size of tracks in the queue.
+	 * This does not include the currently playing track.
+	 * @returns The size of tracks in the queue.
 	 */
-	public async getTracks(): Promise<Track[]> {
-		return [...this]; // clone to avoid direct mutation
-	}
-
-	/**
-	 * @returns A shallow copy of the queue.
-	 */
-	public async getSlice(start?: number, end?: number): Promise<Track[]> {
-		return this.slice(start, end); // Native sync method, still wrapped in a Promise
-	}
-
-	/**
-	 * Modifies the queue at the specified index.
-	 * @param start The index at which to start modifying the queue.
-	 * @param deleteCount The number of elements to remove from the queue.
-	 * @param items The elements to add to the queue.
-	 * @returns The modified queue.
-	 */
-	public async modifyAt(start: number, deleteCount = 0, ...items: Track[]): Promise<Track[]> {
-		return super.splice(start, deleteCount, ...items);
-	}
-
-	/**
-	 * @returns A new array with the results of calling a provided function on every element in the queue.
-	 */
-	public async mapAsync<T>(callback: (track: Track, index: number, array: Track[]) => T): Promise<T[]> {
-		return this.map(callback);
-	}
-
-	/**
-	 * @returns A new array with all elements that pass the test implemented by the provided function.
-	 */
-	public async filterAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<Track[]> {
-		return this.filter(callback);
-	}
-
-	/**
-	 * @returns The first element in the queue that satisfies the provided testing function.
-	 */
-	public async findAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<Track | undefined> {
-		return this.find(callback);
+	public async size(): Promise<number> {
+		return this.length;
 	}
 
 	/**
@@ -495,9 +448,66 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 	}
 
 	/**
-	 * @returns Whether all elements in the queue satisfy the provided testing function.
+	 * The total size of tracks in the queue including the current track.
+	 * This includes the current track if it is not null.
+	 * @returns The total size of tracks in the queue including the current track.
 	 */
-	public async everyAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<boolean> {
-		return this.every(callback);
+	public async totalSize(): Promise<number> {
+		return this.length + (this.current ? 1 : 0);
 	}
+
+	/**
+	 * Shuffles the queue to play tracks requested by each user one block at a time.
+	 */
+	public async userBlockShuffle(): Promise<void> {
+		// Capture the current state of the player for event emission.
+		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
+
+		// Group the tracks in the queue by the user that requested them.
+		const userTracks = new Map<string, Array<Track>>();
+		this.forEach((track) => {
+			const user = track.requester.id;
+
+			if (!userTracks.has(user)) {
+				userTracks.set(user, []);
+			}
+
+			userTracks.get(user).push(track);
+		});
+
+		// Create a new array for the shuffled queue.
+		const shuffledQueue: Array<Track> = [];
+
+		// Iterate over the user tracks and add one track from each user to the shuffled queue.
+		// This will ensure that all the tracks requested by each user are played in a block order.
+		while (shuffledQueue.length < this.length) {
+			userTracks.forEach((tracks) => {
+				const track = tracks.shift();
+				if (track) {
+					shuffledQueue.push(track);
+				}
+			});
+		}
+
+		// Clear the queue and add the shuffled tracks.
+		this.splice(0);
+		this.add(shuffledQueue);
+
+		// Emit an event to update the player state indicating the queue has been shuffled.
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+			changeType: PlayerStateEventTypes.QueueChange,
+			details: {
+				type: "queue",
+				action: "userBlock",
+			},
+		} as PlayerStateUpdateEvent);
+
+		// Emit a debug message indicating the queue has been shuffled for a specific guild ID.
+		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] userBlockShuffled the queue for: ${this.guildId}`);
+	}
+	// #endregion Public
+	// #region Private
+	// #endregion Private
+	// #region Protected
+	// #endregion Protected
 }

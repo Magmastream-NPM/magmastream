@@ -113,10 +113,6 @@ export class Player {
 				break;
 		}
 
-		// if (this.queue instanceof MemoryQueue) {
-		// 	this.queue.previous = [];
-		// }
-
 		// Add the player to the manager's player collection.
 		this.manager.players.set(options.guildId, this);
 
