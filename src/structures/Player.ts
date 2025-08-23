@@ -120,7 +120,7 @@ export class Player {
 		this.setVolume(options.volume ?? 100);
 
 		// Initialize the filters.
-		this.filters = new Filters(this);
+		this.filters = new Filters(this, this.manager);
 
 		// Emit the playerCreate event.
 		this.manager.emit(ManagerEventTypes.PlayerCreate, this);

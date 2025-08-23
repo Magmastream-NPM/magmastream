@@ -10,14 +10,16 @@ import {
 	vaporwaveEqualizer,
 	demonEqualizer,
 } from "../utils/filtersEqualizers";
-import { AvailableFilters } from "./Enums";
+import { AvailableFilters, ManagerEventTypes, PlayerStateEventTypes } from "./Enums";
+import { Manager } from "./Manager";
 import { Player } from "./Player";
-import { DistortionOptions, KaraokeOptions, ReverbOptions, RotationOptions, TimescaleOptions, VibratoOptions } from "./Types";
+import { DistortionOptions, KaraokeOptions, PlayerStateUpdateEvent, ReverbOptions, RotationOptions, TimescaleOptions, VibratoOptions } from "./Types";
 
 export class Filters {
 	public distortion: DistortionOptions | null;
 	public equalizer: Band[];
 	public karaoke: KaraokeOptions | null;
+	public manager: Manager;
 	public player: Player;
 	public rotation: RotationOptions | null;
 	public timescale: TimescaleOptions | null;
@@ -27,10 +29,11 @@ export class Filters {
 	public bassBoostlevel: number;
 	public filtersStatus: Record<AvailableFilters, boolean>;
 
-	constructor(player: Player) {
+	constructor(player: Player, manager: Manager) {
 		this.distortion = null;
 		this.equalizer = [];
 		this.karaoke = null;
+		this.manager = manager;
 		this.player = player;
 		this.rotation = null;
 		this.timescale = null;
@@ -89,12 +92,17 @@ export class Filters {
 	 */
 	private async applyFilter<T extends keyof Filters>(filter: { property: T; value: Filters[T] }, updateFilters: boolean = true): Promise<this> {
 		this[filter.property] = filter.value as this[T];
-
 		if (updateFilters) {
 			await this.updateFilters();
 		}
-
 		return this;
+	}
+
+	private emitPlayersTasteUpdate(oldState: Filters) {
+		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldState, this, {
+			changeType: PlayerStateEventTypes.FilterChange,
+			details: { action: "change" },
+		} as PlayerStateUpdateEvent);
 	}
 
 	/**
@@ -133,12 +141,13 @@ export class Filters {
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public async clearFilters(): Promise<this> {
+		const oldPlayer = { ...this };
 		this.filtersStatus = Object.values(AvailableFilters).reduce((acc, filter) => {
 			acc[filter] = false;
 			return acc;
 		}, {} as Record<AvailableFilters, boolean>);
 
-		this.player.filters = new Filters(this.player);
+		this.player.filters = new Filters(this.player, this.manager);
 		await this.setEqualizer([]);
 		await this.setDistortion(null);
 		await this.setKaraoke(null);
@@ -147,6 +156,9 @@ export class Filters {
 		await this.setVibrato(null);
 
 		await this.updateFilters();
+
+		this.emitPlayersTasteUpdate(oldPlayer);
+
 		return this;
 	}
 
@@ -160,7 +172,10 @@ export class Filters {
 	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public async setEqualizer(bands?: Band[]): Promise<this> {
-		return await this.applyFilter({ property: "equalizer", value: bands });
+		const oldPlayer = { ...this };
+		await this.applyFilter({ property: "equalizer", value: bands });
+		this.emitPlayersTasteUpdate(oldPlayer);
+		return this;
 	}
 
 	/**
@@ -174,10 +189,11 @@ export class Filters {
 	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public async setKaraoke(karaoke?: KaraokeOptions): Promise<this> {
-		const result = await this.applyFilter({ property: "karaoke", value: karaoke ?? null });
-		return karaoke
-			? result.setFilterStatus(AvailableFilters.SetKaraoke, true)
-			: (await this.applyFilter({ property: "karaoke", value: null })).setFilterStatus(AvailableFilters.SetKaraoke, false);
+		const oldPlayer = { ...this };
+		await this.applyFilter({ property: "karaoke", value: karaoke ?? null });
+		this.setFilterStatus(AvailableFilters.SetKaraoke, !!karaoke);
+		this.emitPlayersTasteUpdate(oldPlayer);
+		return this;
 	}
 
 	/**
@@ -189,10 +205,11 @@ export class Filters {
 	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public async setTimescale(timescale?: TimescaleOptions): Promise<this> {
-		const result = await this.applyFilter({ property: "timescale", value: timescale ?? null });
-		return timescale
-			? result.setFilterStatus(AvailableFilters.SetTimescale, true)
-			: (await this.applyFilter({ property: "timescale", value: null })).setFilterStatus(AvailableFilters.SetTimescale, false);
+		const oldPlayer = { ...this };
+		await this.applyFilter({ property: "timescale", value: timescale ?? null });
+		this.setFilterStatus(AvailableFilters.SetTimescale, !!timescale);
+		this.emitPlayersTasteUpdate(oldPlayer);
+		return this;
 	}
 
 	/**
@@ -206,10 +223,11 @@ export class Filters {
 	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public async setVibrato(vibrato?: VibratoOptions): Promise<this> {
-		const result = await this.applyFilter({ property: "vibrato", value: vibrato ?? null });
-		return vibrato
-			? result.setFilterStatus(AvailableFilters.Vibrato, true)
-			: (await this.applyFilter({ property: "vibrato", value: null })).setFilterStatus(AvailableFilters.Vibrato, false);
+		const oldPlayer = { ...this };
+		await this.applyFilter({ property: "vibrato", value: vibrato ?? null });
+		this.setFilterStatus(AvailableFilters.Vibrato, !!vibrato);
+		this.emitPlayersTasteUpdate(oldPlayer);
+		return this;
 	}
 
 	/**
@@ -223,11 +241,11 @@ export class Filters {
 	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public async setRotation(rotation?: RotationOptions): Promise<this> {
-		const result = await this.applyFilter({ property: "rotation", value: rotation ?? null });
-
-		return rotation
-			? result.setFilterStatus(AvailableFilters.SetRotation, true)
-			: (await this.applyFilter({ property: "rotation", value: null })).setFilterStatus(AvailableFilters.SetRotation, false);
+		const oldPlayer = { ...this };
+		await this.applyFilter({ property: "rotation", value: rotation ?? null });
+		this.setFilterStatus(AvailableFilters.SetRotation, !!rotation);
+		this.emitPlayersTasteUpdate(oldPlayer);
+		return this;
 	}
 
 	/**
@@ -241,11 +259,11 @@ export class Filters {
 	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public async setDistortion(distortion?: DistortionOptions): Promise<this> {
-		const result = await this.applyFilter({ property: "distortion", value: distortion ?? null });
-
-		return distortion
-			? result.setFilterStatus(AvailableFilters.SetDistortion, true)
-			: (await this.applyFilter({ property: "distortion", value: null })).setFilterStatus(AvailableFilters.SetDistortion, false);
+		const oldPlayer = { ...this };
+		await this.applyFilter({ property: "distortion", value: distortion ?? null });
+		this.setFilterStatus(AvailableFilters.SetDistortion, !!distortion);
+		this.emitPlayersTasteUpdate(oldPlayer);
+		return this;
 	}
 
 	/**
@@ -271,6 +289,8 @@ export class Filters {
 	 * await player.bassBoost(-3); // Maximum Bass Removal
 	 */
 	public async bassBoost(stage: number): Promise<this> {
+		const oldPlayer = { ...this };
+
 		// Ensure stage is between -3 and 3
 		stage = Math.max(-3, Math.min(3, stage));
 
@@ -280,13 +300,14 @@ export class Filters {
 		// Generate a dynamic equalizer by scaling bassBoostEqualizer
 		const equalizer = bassBoostEqualizer.map((band) => ({
 			band: band.band,
-			gain: band.gain * level, // Scale the gain dynamically
+			gain: band.gain * level,
 		}));
 
 		await this.applyFilter({ property: "equalizer", value: equalizer });
-		this.setFilterStatus(AvailableFilters.BassBoost, stage !== 0); // Active if stage is not 0
+		this.setFilterStatus(AvailableFilters.BassBoost, stage !== 0);
 		this.bassBoostlevel = stage;
 
+		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
 	}
 
@@ -301,11 +322,11 @@ export class Filters {
 	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public async chipmunk(status: boolean): Promise<this> {
-		const result = await this.applyFilter({ property: "timescale", value: status ? { speed: 1.5, pitch: 1.5, rate: 1.5 } : null });
-
-		return status
-			? result.setFilterStatus(AvailableFilters.Chipmunk, true)
-			: (await this.applyFilter({ property: "timescale", value: null })).setFilterStatus(AvailableFilters.Chipmunk, false);
+		const oldPlayer = { ...this };
+		await this.applyFilter({ property: "timescale", value: status ? { speed: 1.5, pitch: 1.5, rate: 1.5 } : null });
+		this.setFilterStatus(AvailableFilters.Chipmunk, status);
+		this.emitPlayersTasteUpdate(oldPlayer);
+		return this;
 	}
 
 	/**
@@ -318,11 +339,11 @@ export class Filters {
 	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public async china(status: boolean): Promise<this> {
-		const result = await this.applyFilter({ property: "timescale", value: status ? { speed: 1.0, pitch: 0.5, rate: 1.0 } : null });
-
-		return status
-			? result.setFilterStatus(AvailableFilters.China, true)
-			: (await this.applyFilter({ property: "timescale", value: null })).setFilterStatus(AvailableFilters.China, false);
+		const oldPlayer = { ...this };
+		await this.applyFilter({ property: "timescale", value: status ? { speed: 1.0, pitch: 0.5, rate: 1.0 } : null });
+		this.setFilterStatus(AvailableFilters.China, status);
+		this.emitPlayersTasteUpdate(oldPlayer);
+		return this;
 	}
 
 	/**
@@ -336,11 +357,11 @@ export class Filters {
 	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public async eightD(status: boolean): Promise<this> {
-		const result = await this.applyFilter({ property: "rotation", value: status ? { rotationHz: 0.2 } : null });
-
-		return status
-			? result.setFilterStatus(AvailableFilters.EightD, true)
-			: (await this.applyFilter({ property: "rotation", value: null })).setFilterStatus(AvailableFilters.EightD, false);
+		const oldPlayer = { ...this };
+		await this.applyFilter({ property: "rotation", value: status ? { rotationHz: 0.2 } : null });
+		this.setFilterStatus(AvailableFilters.EightD, status);
+		this.emitPlayersTasteUpdate(oldPlayer);
+		return this;
 	}
 
 	/**
@@ -354,11 +375,11 @@ export class Filters {
 	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public async nightcore(status: boolean): Promise<this> {
-		const result = await this.applyFilter({ property: "timescale", value: status ? { speed: 1.1, pitch: 1.125, rate: 1.05 } : null });
-
-		return status
-			? result.setFilterStatus(AvailableFilters.Nightcore, true)
-			: (await this.applyFilter({ property: "timescale", value: null })).setFilterStatus(AvailableFilters.Nightcore, false);
+		const oldPlayer = { ...this };
+		await this.applyFilter({ property: "timescale", value: status ? { speed: 1.1, pitch: 1.125, rate: 1.05 } : null });
+		this.setFilterStatus(AvailableFilters.Nightcore, status);
+		this.emitPlayersTasteUpdate(oldPlayer);
+		return this;
 	}
 
 	/**
@@ -372,11 +393,11 @@ export class Filters {
 	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public async slowmo(status: boolean): Promise<this> {
-		const result = await this.applyFilter({ property: "timescale", value: status ? { speed: 0.7, pitch: 1.0, rate: 0.8 } : null });
-
-		return status
-			? result.setFilterStatus(AvailableFilters.Slowmo, true)
-			: (await this.applyFilter({ property: "timescale", value: null })).setFilterStatus(AvailableFilters.Slowmo, false);
+		const oldPlayer = { ...this };
+		await this.applyFilter({ property: "timescale", value: status ? { speed: 0.7, pitch: 1.0, rate: 0.8 } : null });
+		this.setFilterStatus(AvailableFilters.Slowmo, status);
+		this.emitPlayersTasteUpdate(oldPlayer);
+		return this;
 	}
 
 	/**
@@ -390,11 +411,11 @@ export class Filters {
 	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public async soft(status: boolean): Promise<this> {
-		const result = await this.applyFilter({ property: "equalizer", value: status ? softEqualizer : [] });
-
-		return status
-			? result.setFilterStatus(AvailableFilters.Soft, true)
-			: (await this.applyFilter({ property: "equalizer", value: [] })).setFilterStatus(AvailableFilters.Soft, false);
+		const oldPlayer = { ...this };
+		await this.applyFilter({ property: "equalizer", value: status ? softEqualizer : [] });
+		this.setFilterStatus(AvailableFilters.Soft, status);
+		this.emitPlayersTasteUpdate(oldPlayer);
+		return this;
 	}
 
 	/**
@@ -408,11 +429,11 @@ export class Filters {
 	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public async tv(status: boolean): Promise<this> {
-		const result = await this.applyFilter({ property: "equalizer", value: status ? tvEqualizer : [] });
-
-		return status
-			? result.setFilterStatus(AvailableFilters.TV, true)
-			: (await this.applyFilter({ property: "equalizer", value: [] })).setFilterStatus(AvailableFilters.TV, false);
+		const oldPlayer = { ...this };
+		await this.applyFilter({ property: "equalizer", value: status ? tvEqualizer : [] });
+		this.setFilterStatus(AvailableFilters.TV, status);
+		this.emitPlayersTasteUpdate(oldPlayer);
+		return this;
 	}
 
 	/**
@@ -425,11 +446,11 @@ export class Filters {
 	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public async trebleBass(status: boolean): Promise<this> {
-		const result = await this.applyFilter({ property: "equalizer", value: status ? trebleBassEqualizer : [] });
-
-		return status
-			? result.setFilterStatus(AvailableFilters.TrebleBass, true)
-			: (await this.applyFilter({ property: "equalizer", value: [] })).setFilterStatus(AvailableFilters.TrebleBass, false);
+		const oldPlayer = { ...this };
+		await this.applyFilter({ property: "equalizer", value: status ? trebleBassEqualizer : [] });
+		this.setFilterStatus(AvailableFilters.TrebleBass, status);
+		this.emitPlayersTasteUpdate(oldPlayer);
+		return this;
 	}
 
 	/**
@@ -442,11 +463,11 @@ export class Filters {
 	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public async vaporwave(status: boolean): Promise<this> {
-		const result = await this.applyFilter({ property: "equalizer", value: status ? vaporwaveEqualizer : [] });
-
-		return status
-			? result.setFilterStatus(AvailableFilters.Vaporwave, true)
-			: (await this.applyFilter({ property: "equalizer", value: [] })).setFilterStatus(AvailableFilters.Vaporwave, false);
+		const oldPlayer = { ...this };
+		await this.applyFilter({ property: "equalizer", value: status ? vaporwaveEqualizer : [] });
+		this.setFilterStatus(AvailableFilters.Vaporwave, status);
+		this.emitPlayersTasteUpdate(oldPlayer);
+		return this;
 	}
 
 	/**
@@ -460,18 +481,25 @@ export class Filters {
 	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public async distort(status: boolean): Promise<this> {
-		return status
-			? this.setDistortion({
-					sinOffset: 0,
-					sinScale: 0.2,
-					cosOffset: 0,
-					cosScale: 0.2,
-					tanOffset: 0,
-					tanScale: 0.2,
-					offset: 0,
-					scale: 1.2,
-			  }).then((result) => result.setFilterStatus(AvailableFilters.Distort, true))
-			: this.setDistortion().then((result) => result.setFilterStatus(AvailableFilters.Distort, false));
+		const oldPlayer = { ...this };
+		if (status) {
+			await this.setDistortion({
+				sinOffset: 0,
+				sinScale: 0.2,
+				cosOffset: 0,
+				cosScale: 0.2,
+				tanOffset: 0,
+				tanScale: 0.2,
+				offset: 0,
+				scale: 1.2,
+			});
+			this.setFilterStatus(AvailableFilters.Distort, true);
+		} else {
+			await this.setDistortion();
+			this.setFilterStatus(AvailableFilters.Distort, false);
+		}
+		this.emitPlayersTasteUpdate(oldPlayer);
+		return this;
 	}
 
 	/**
@@ -484,11 +512,11 @@ export class Filters {
 	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public async pop(status: boolean): Promise<this> {
-		const result = await this.applyFilter({ property: "equalizer", value: status ? popEqualizer : [] });
-
-		return status
-			? result.setFilterStatus(AvailableFilters.Pop, true)
-			: (await this.applyFilter({ property: "equalizer", value: [] })).setFilterStatus(AvailableFilters.Pop, false);
+		const oldPlayer = { ...this };
+		await this.applyFilter({ property: "equalizer", value: status ? popEqualizer : [] });
+		this.setFilterStatus(AvailableFilters.Pop, status);
+		this.emitPlayersTasteUpdate(oldPlayer);
+		return this;
 	}
 
 	/**
@@ -499,11 +527,11 @@ export class Filters {
 	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public async party(status: boolean): Promise<this> {
-		const result = await this.applyFilter({ property: "equalizer", value: status ? popEqualizer : [] });
-
-		return status
-			? result.setFilterStatus(AvailableFilters.Party, true)
-			: (await this.applyFilter({ property: "equalizer", value: [] })).setFilterStatus(AvailableFilters.Party, false);
+		const oldPlayer = { ...this };
+		await this.applyFilter({ property: "equalizer", value: status ? popEqualizer : [] });
+		this.setFilterStatus(AvailableFilters.Party, status);
+		this.emitPlayersTasteUpdate(oldPlayer);
+		return this;
 	}
 
 	/**
@@ -514,13 +542,16 @@ export class Filters {
 	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public async earrape(status: boolean): Promise<this> {
+		const oldPlayer = { ...this };
 		if (status) {
 			await this.player.setVolume(200);
-			return this.setFilterStatus(AvailableFilters.Earrape, true);
+			this.setFilterStatus(AvailableFilters.Earrape, true);
 		} else {
 			await this.player.setVolume(100);
-			return this.setFilterStatus(AvailableFilters.Earrape, false);
+			this.setFilterStatus(AvailableFilters.Earrape, false);
 		}
+		this.emitPlayersTasteUpdate(oldPlayer);
+		return this;
 	}
 
 	/**
@@ -531,11 +562,11 @@ export class Filters {
 	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public async electronic(status: boolean): Promise<this> {
-		const result = await this.applyFilter({ property: "equalizer", value: status ? electronicEqualizer : [] });
-
-		return status
-			? result.setFilterStatus(AvailableFilters.Electronic, true)
-			: (await this.applyFilter({ property: "equalizer", value: [] })).setFilterStatus(AvailableFilters.Electronic, false);
+		const oldPlayer = { ...this };
+		await this.applyFilter({ property: "equalizer", value: status ? electronicEqualizer : [] });
+		this.setFilterStatus(AvailableFilters.Electronic, status);
+		this.emitPlayersTasteUpdate(oldPlayer);
+		return this;
 	}
 
 	/**
@@ -546,11 +577,11 @@ export class Filters {
 	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public async radio(status: boolean): Promise<this> {
-		const result = await this.applyFilter({ property: "equalizer", value: status ? radioEqualizer : [] });
-
-		return status
-			? result.setFilterStatus(AvailableFilters.Radio, true)
-			: (await this.applyFilter({ property: "equalizer", value: [] })).setFilterStatus(AvailableFilters.Radio, false);
+		const oldPlayer = { ...this };
+		await this.applyFilter({ property: "equalizer", value: status ? radioEqualizer : [] });
+		this.setFilterStatus(AvailableFilters.Radio, status);
+		this.emitPlayersTasteUpdate(oldPlayer);
+		return this;
 	}
 
 	/**
@@ -561,11 +592,11 @@ export class Filters {
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public async tremolo(status: boolean): Promise<this> {
-		const result = await this.applyFilter({ property: "vibrato", value: status ? { frequency: 5, depth: 0.5 } : null });
-
-		return status
-			? result.setFilterStatus(AvailableFilters.Tremolo, true)
-			: (await this.applyFilter({ property: "vibrato", value: null })).setFilterStatus(AvailableFilters.Tremolo, false);
+		const oldPlayer = { ...this };
+		await this.applyFilter({ property: "vibrato", value: status ? { frequency: 5, depth: 0.5 } : null });
+		this.setFilterStatus(AvailableFilters.Tremolo, status);
+		this.emitPlayersTasteUpdate(oldPlayer);
+		return this;
 	}
 
 	/**
@@ -576,11 +607,11 @@ export class Filters {
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public async darthvader(status: boolean): Promise<this> {
-		const result = await this.applyFilter({ property: "timescale", value: status ? { speed: 1.0, pitch: 0.5, rate: 1.0 } : null });
-
-		return status
-			? result.setFilterStatus(AvailableFilters.Darthvader, true)
-			: (await this.applyFilter({ property: "timescale", value: null })).setFilterStatus(AvailableFilters.Darthvader, false);
+		const oldPlayer = { ...this };
+		await this.applyFilter({ property: "timescale", value: status ? { speed: 1.0, pitch: 0.5, rate: 1.0 } : null });
+		this.setFilterStatus(AvailableFilters.Darthvader, status);
+		this.emitPlayersTasteUpdate(oldPlayer);
+		return this;
 	}
 
 	/**
@@ -591,11 +622,11 @@ export class Filters {
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public async daycore(status: boolean): Promise<this> {
-		const result = await this.applyFilter({ property: "timescale", value: status ? { speed: 0.7, pitch: 0.8, rate: 0.8 } : null });
-
-		return status
-			? result.setFilterStatus(AvailableFilters.Daycore, true)
-			: (await this.applyFilter({ property: "timescale", value: null })).setFilterStatus(AvailableFilters.Daycore, false);
+		const oldPlayer = { ...this };
+		await this.applyFilter({ property: "timescale", value: status ? { speed: 0.7, pitch: 0.8, rate: 0.8 } : null });
+		this.setFilterStatus(AvailableFilters.Daycore, status);
+		this.emitPlayersTasteUpdate(oldPlayer);
+		return this;
 	}
 
 	/**
@@ -606,11 +637,11 @@ export class Filters {
 	 * @returns {this} - Returns the current instance of the Filters class for method chaining
 	 */
 	public async doubletime(status: boolean): Promise<this> {
-		const result = await this.applyFilter({ property: "timescale", value: status ? { speed: 2.0, pitch: 1.0, rate: 2.0 } : null });
-
-		return status
-			? result.setFilterStatus(AvailableFilters.Doubletime, true)
-			: (await this.applyFilter({ property: "timescale", value: null })).setFilterStatus(AvailableFilters.Doubletime, false);
+		const oldPlayer = { ...this };
+		await this.applyFilter({ property: "timescale", value: status ? { speed: 2.0, pitch: 1.0, rate: 2.0 } : null });
+		this.setFilterStatus(AvailableFilters.Doubletime, status);
+		this.emitPlayersTasteUpdate(oldPlayer);
+		return this;
 	}
 
 	/**
@@ -624,22 +655,24 @@ export class Filters {
 	 * @returns {Promise<this>} - Returns the current instance of the Filters class for method chaining.
 	 */
 	public async demon(status: boolean): Promise<this> {
+		const oldPlayer = { ...this };
 		const filters = status
 			? {
 					equalizer: demonEqualizer,
-					timescale: { pitch: 0.8 },
-					reverb: { wet: 0.7, dry: 0.3, roomSize: 0.8, damping: 0.5 },
+					timescale: { pitch: 0.8 } as TimescaleOptions,
+					reverb: { wet: 0.7, dry: 0.3, roomSize: 0.8, damping: 0.5 } as ReverbOptions,
 			  }
 			: {
-					equalizer: [],
-					timescale: null,
-					reverb: null,
+					equalizer: [] as Band[],
+					timescale: null as TimescaleOptions | null,
+					reverb: null as ReverbOptions | null,
 			  };
 
 		await Promise.all(Object.entries(filters).map(([property, value]) => this.applyFilter({ property: property as keyof Filters, value })));
 
 		this.setFilterStatus(AvailableFilters.Demon, status);
 
+		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
 	}
 }

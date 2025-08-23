@@ -85,6 +85,7 @@ export enum PlayerStateEventTypes {
 	ChannelChange = "channelChange",
 	PlayerCreate = "playerCreate",
 	PlayerDestroy = "playerDestroy",
+	FilterChange = "filterChange",
 }
 
 /**

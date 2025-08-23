@@ -239,7 +239,8 @@ export type PlayerStateUpdateEvent =
 	| { changeType: PlayerStateEventTypes.AutoPlayChange; details: AutoplayChangeEvent }
 	| { changeType: PlayerStateEventTypes.ChannelChange; details: ChannelChangeEvent }
 	| { changeType: PlayerStateEventTypes.VolumeChange; details: VolumeChangeEvent }
-	| { changeType: PlayerStateEventTypes.RepeatChange; details: RepeatChangeEvent };
+	| { changeType: PlayerStateEventTypes.RepeatChange; details: RepeatChangeEvent }
+	| { changeType: PlayerStateEventTypes.FilterChange; details: FilterChangeEvent };
 
 /**
  * Autoplay Change Event
@@ -259,6 +260,11 @@ interface ConnectionChangeEvent {
 	action: "connect" | "disconnect";
 	previousConnection: boolean | null;
 	currentConnection: boolean | null;
+}
+
+interface FilterChangeEvent {
+	type: "filter";
+	action: "change";
 }
 
 /**
