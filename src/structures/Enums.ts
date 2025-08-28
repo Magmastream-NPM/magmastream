@@ -148,6 +148,9 @@ export enum TrackPartial {
 	CustomData = "customData",
 }
 
+/**
+ * Manager Event Types Enum
+ */
 export enum ManagerEventTypes {
 	ChapterStarted = "chapterStarted",
 	ChaptersLoaded = "chaptersLoaded",

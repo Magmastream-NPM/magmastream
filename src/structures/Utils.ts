@@ -332,13 +332,14 @@ export abstract class AutoPlayUtils {
 					track = resolvedTrack;
 				}
 
-				const extractSpotifyArtistID = (url: string): string | null => {
-					const regex = /https:\/\/open\.spotify\.com\/artist\/([a-zA-Z0-9]+)/;
-					const match = url.match(regex);
-					return match ? match[1] : null;
-				};
+				// const extractSpotifyArtistID = (url: string): string | null => {
+				// 	const regex = /https:\/\/open\.spotify\.com\/artist\/([a-zA-Z0-9]+)/;
+				// 	const match = url.match(regex);
+				// 	return match ? match[1] : null;
+				// };
 
-				const identifier = `sprec:seed_artists=${extractSpotifyArtistID(track.pluginInfo.artistUrl)}&seed_tracks=${track.identifier}`;
+				// const identifier = `sprec:seed_artists=${extractSpotifyArtistID(track.pluginInfo.artistUrl)}&seed_tracks=${track.identifier}`;
+				const identifier = `sprec:mix:track:${track.identifier}`;
 				const recommendedResult = (await this.manager.useableNode.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(identifier)}`)) as LavalinkResponse;
 				const tracks = this.buildTracksFromResponse(recommendedResult, requester);
 
