@@ -12,7 +12,7 @@ export class DiscordJSManager extends BaseManager {
 	public constructor(public readonly client: Client, options?: ManagerOptions) {
 		super(options);
 
-		client.once("ready", () => {
+		client.once("clientReady", () => {
 			if (!this.options.clientId) this.options.clientId = client.user!.id;
 		});
 		client.on("raw", async (data) => {
