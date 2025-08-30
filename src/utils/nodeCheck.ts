@@ -1,4 +1,4 @@
-import { NodeOptions } from "../structures/Node";
+import { NodeOptions } from "../structures/Types";
 
 /**
  * Validates the provided NodeOptions object.
@@ -11,7 +11,7 @@ export default function nodeCheck(options: NodeOptions) {
 
 	// Validate the host option
 	// The host option must be present and be a non-empty string.
-	const { host, identifier, password, port, resumeStatus, resumeTimeout, retryAmount, retryDelay, secure, priority } = options;
+	const { host, identifier, password, port, enableSessionResumeOption, sessionTimeoutSeconds, maxRetryAttempts, retryDelayMs, useSSL, nodePriority } = options;
 
 	if (typeof host !== "string" || !/.+/.test(host)) {
 		throw new TypeError('Node option "host" must be present and be a non-empty string.');
@@ -35,39 +35,39 @@ export default function nodeCheck(options: NodeOptions) {
 		throw new TypeError('Node option "port" must be a number.');
 	}
 
-	// Validate the resumeStatus option
-	// The resumeStatus option must be a boolean or undefined.
-	if (typeof resumeStatus !== "undefined" && typeof resumeStatus !== "boolean") {
-		throw new TypeError('Node option "resumeStatus" must be a boolean.');
+	// Validate the enableSessionResumeOption option
+	// The enableSessionResumeOption option must be a boolean or undefined.
+	if (typeof enableSessionResumeOption !== "undefined" && typeof enableSessionResumeOption !== "boolean") {
+		throw new TypeError('Node option "enableSessionResumeOption" must be a boolean.');
 	}
 
-	// Validate the resumeTimeout option
-	// The resumeTimeout option must be a number or undefined.
-	if (typeof resumeTimeout !== "undefined" && typeof resumeTimeout !== "number") {
-		throw new TypeError('Node option "resumeTimeout" must be a number.');
+	// Validate the sessionTimeoutSeconds option
+	// The sessionTimeoutSeconds option must be a number or undefined.
+	if (typeof sessionTimeoutSeconds !== "undefined" && typeof sessionTimeoutSeconds !== "number") {
+		throw new TypeError('Node option "sessionTimeoutSeconds" must be a number.');
 	}
 
-	// Validate the retryAmount option
-	// The retryAmount option must be a number or undefined.
-	if (typeof retryAmount !== "undefined" && typeof retryAmount !== "number") {
-		throw new TypeError('Node option "retryAmount" must be a number.');
+	// Validate the maxRetryAttempts option
+	// The maxRetryAttempts option must be a number or undefined.
+	if (typeof maxRetryAttempts !== "undefined" && typeof maxRetryAttempts !== "number") {
+		throw new TypeError('Node option "maxRetryAttempts" must be a number.');
 	}
 
-	// Validate the retryDelay option
-	// The retryDelay option must be a number or undefined.
-	if (typeof retryDelay !== "undefined" && typeof retryDelay !== "number") {
-		throw new TypeError('Node option "retryDelay" must be a number.');
+	// Validate the retryDelayMs option
+	// The retryDelayMs option must be a number or undefined.
+	if (typeof retryDelayMs !== "undefined" && typeof retryDelayMs !== "number") {
+		throw new TypeError('Node option "retryDelayMs" must be a number.');
 	}
 
-	// Validate the secure option
-	// The secure option must be a boolean or undefined.
-	if (typeof secure !== "undefined" && typeof secure !== "boolean") {
-		throw new TypeError('Node option "secure" must be a boolean.');
+	// Validate the useSSL option
+	// The useSSL option must be a boolean or undefined.
+	if (typeof useSSL !== "undefined" && typeof useSSL !== "boolean") {
+		throw new TypeError('Node option "useSSL" must be a boolean.');
 	}
 
-	// Validate the priority option
-	// The priority option must be a number or undefined.
-	if (typeof priority !== "undefined" && typeof priority !== "number") {
-		throw new TypeError('Node option "priority" must be a number.');
+	// Validate the nodePriority option
+	// The nodePriority option must be a number or undefined.
+	if (typeof nodePriority !== "undefined" && typeof nodePriority !== "number") {
+		throw new TypeError('Node option "nodePriority" must be a number.');
 	}
 }

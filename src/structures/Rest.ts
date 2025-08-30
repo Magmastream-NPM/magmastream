@@ -1,6 +1,8 @@
 import { Node } from "./Node";
 import axios, { AxiosRequestConfig } from "axios";
-import { Manager, ManagerEventTypes } from "./Manager";
+import { Manager } from "./Manager";
+import { ManagerEventTypes } from "./Enums";
+import { RestPlayOptions } from "./Types";
 
 /** Handles the requests sent to the Lavalink REST API. */
 export class Rest {
@@ -14,13 +16,16 @@ export class Rest {
 	private readonly url: string;
 	/** The Manager instance. */
 	public manager: Manager;
+	/** Whether the node is a NodeLink. */
+	public isNodeLink: boolean = false;
 
 	constructor(node: Node, manager: Manager) {
 		this.node = node;
-		this.url = `http${node.options.secure ? "s" : ""}://${node.options.host}:${node.options.port}`;
+		this.url = `http${node.options.useSSL ? "s" : ""}://${node.options.host}:${node.options.port}`;
 		this.sessionId = node.sessionId;
 		this.password = node.options.password;
 		this.manager = manager;
+		this.isNodeLink = node.isNodeLink;
 	}
 
 	/**
@@ -51,10 +56,10 @@ export class Rest {
 
 	/**
 	 * Sends a PATCH request to update player related data.
-	 * @param {playOptions} options The options to update the player with.
+	 * @param {RestPlayOptions} options The options to update the player with.
 	 * @returns {Promise<unknown>} Returns the result of the PATCH request.
 	 */
-	public async updatePlayer(options: playOptions): Promise<unknown> {
+	public async updatePlayer(options: RestPlayOptions): Promise<unknown> {
 		// Log the request.
 		this.manager.emit(ManagerEventTypes.Debug, `[REST] Updating player: ${options.guildId}: ${JSON.stringify(options)}`);
 
@@ -107,6 +112,7 @@ export class Rest {
 				Authorization: this.password,
 			},
 			data: body,
+			timeout: this.node.options.apiRequestTimeoutMs,
 		};
 
 		try {
@@ -114,17 +120,17 @@ export class Rest {
 			return response.data;
 		} catch (error) {
 			if (!error.response) {
-				console.error("No response from node:", error.message);
+				console.error(`[REST] No response from node: ${error.message}`);
 				return null;
 			}
-		
+
 			if (error.response.data?.message === "Guild not found") {
 				return [];
 			} else if (error.response.status === 404) {
 				await this.node.destroy();
 				this.node.manager.createNode(this.node.options).connect();
 			}
-		
+
 			return null;
 		}
 	}
@@ -180,34 +186,4 @@ export class Rest {
 		// Send a DELETE request using the request method and return the response data.
 		return await this.request("DELETE", endpoint);
 	}
-}
-
-interface playOptions {
-	guildId: string;
-	data: {
-		/** The base64 encoded track. */
-		encodedTrack?: string;
-		/** The track ID. */
-		identifier?: string;
-		/** The track time to start at. */
-		startTime?: number;
-		/** The track time to end at. */
-		endTime?: number;
-		/** The player volume level. */
-		volume?: number;
-		/** The player position in a track. */
-		position?: number;
-		/** Whether the player is paused. */
-		paused?: boolean;
-		/** The audio effects. */
-		filters?: object;
-		/** voice payload. */
-		voice?: {
-			token: string;
-			sessionId: string;
-			endpoint: string;
-		};
-		/** Whether to not replace the track if a play payload is sent. */
-		noReplace?: boolean;
-	};
 }

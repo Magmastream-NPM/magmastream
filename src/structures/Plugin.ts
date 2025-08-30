@@ -1,8 +1,12 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Manager } from "./Manager";
 
-export class Plugin {
-	name: string;
+/**
+ * Base abstract class for all plugins.
+ * Users must extend this and implement load and unload methods.
+ */
+export abstract class Plugin {
+	public readonly name: string;
+
 	/**
 	 * @param name The name of the plugin
 	 */
@@ -10,5 +14,16 @@ export class Plugin {
 		this.name = name;
 	}
 
-	public load(manager: Manager): void {}
+	/**
+	 * Load the plugin.
+	 * @param manager The MagmaStream Manager instance
+	 */
+	abstract load(manager: Manager): void;
+
+	/**
+	 * Unload the plugin.
+	 * Called on shutdown to gracefully cleanup resources or detach listeners.
+	 * @param manager The MagmaStream Manager instance
+	 */
+	abstract unload(manager: Manager): void;
 }

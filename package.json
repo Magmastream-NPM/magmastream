@@ -1,6 +1,6 @@
 {
 	"name": "magmastream",
-	"version": "2.8.7",
+	"version": "2.9.0",
 	"description": "A user-friendly Lavalink client designed for NodeJS.",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
@@ -16,27 +16,34 @@
 	},
 	"devDependencies": {
 		"@favware/rollup-type-bundler": "^4.0.0",
-		"@types/lodash": "^4.17.15",
-		"@types/node": "^22.13.5",
-		"@types/ws": "^8.5.14",
-		"@typescript-eslint/eslint-plugin": "^8.24.1",
-		"@typescript-eslint/parser": "^8.24.1",
-		"eslint": "^9.21.0",
+		"@types/jsdom": "^21.1.7",
+		"@types/lodash": "^4.17.20",
+		"@types/node": "^22.16.5",
+		"@types/ws": "^8.18.1",
+		"@typescript-eslint/eslint-plugin": "^8.37.0",
+		"@typescript-eslint/parser": "^8.37.0",
+		"eslint": "^9.31.0",
 		"npm-run-all": "^4.1.5",
-		"typedoc": "^0.27.8",
-		"typedoc-plugin-no-inherit": "^1.5.0",
-		"typescript": "^5.7.3"
+		"typedoc": "^0.27.9",
+		"typedoc-plugin-no-inherit": "^1.6.1",
+		"typescript": "^5.8.3"
 	},
 	"dependencies": {
 		"@discordjs/collection": "^2.1.1",
-		"axios": "^1.7.9",
+		"axios": "^1.10.0",
 		"events": "^3.3.0",
+		"ioredis": "^5.6.1",
+		"jsdom": "^26.1.0",
 		"lodash": "^4.17.21",
 		"tslib": "^2.8.1",
-		"ws": "^8.18.1"
+		"ws": "^8.18.3"
 	},
-	"peerDependencies": {
-		"discord.js": ">=13.0.0 <15.0.0"
+	"optionalDependencies": {
+		"detritus-client": "0.16.x",
+		"discord.js": "14.x",
+		"eris": "0.18.x",
+		"oceanic.js": "1.12.0",
+		"seyfert": "3.2.x"
 	},
 	"engines": {
 		"node": ">=16.0.0"

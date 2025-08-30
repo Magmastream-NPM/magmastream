@@ -1,9 +1,13 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
+import axios from "axios";
 import { ClientUser, User } from "discord.js";
-import { Manager, TrackPartial } from "./Manager";
-import { Node, NodeStats } from "./Node";
-import { Player, Track } from "./Player";
-import { Queue } from "./Queue";
+import { JSDOM } from "jsdom";
+import { AutoPlayPlatform, LoadTypes, SearchPlatform, TrackPartial } from "./Enums";
+import { Manager } from "./Manager";
+import { ErrorOrEmptySearchResult, Extendable, LavalinkResponse, PlaylistRawData, SearchResult, Track, TrackData, TrackSourceName } from "./Types";
+import { Player } from "./Player";
+import path from "path";
+// import playwright from "playwright";
 
 /** @hidden */
 const SIZES = ["0", "1", "2", "3", "default", "mqdefault", "hqdefault", "maxresdefault"];
@@ -141,8 +145,683 @@ export abstract class TrackUtils {
 			throw new RangeError(`Argument "data" is not a valid track: ${error.message}`);
 		}
 	}
+
+	/**
+	 * Validates a search result.
+	 * @param result The search result to validate.
+	 * @returns Whether the search result is valid.
+	 */
+	static isErrorOrEmptySearchResult(result: SearchResult): result is ErrorOrEmptySearchResult {
+		return result.loadType === LoadTypes.Empty || result.loadType === LoadTypes.Error;
+	}
 }
 
+export abstract class AutoPlayUtils {
+	private static manager: Manager;
+	// private static cachedAccessToken: string | null = null;
+	// private static cachedAccessTokenExpiresAt: number = 0;
+
+	/**
+	 * Initializes the AutoPlayUtils class with the given manager.
+	 * @param manager The manager instance to use.
+	 * @hidden
+	 */
+	public static async init(manager: Manager): Promise<void> {
+		if (!manager) throw new Error("AutoPlayUtils.init() requires a valid Manager instance.");
+		this.manager = manager;
+
+		// if (this.manager.options.autoPlaySearchPlatforms.includes(AutoPlayPlatform.Spotify)) {
+		// 	await this.getSpotifyAccessToken();
+		// }
+	}
+
+	/**
+	 * Gets recommended tracks for the given track.
+	 * @param track The track to get recommended tracks for.
+	 * @returns An array of recommended tracks.
+	 */
+	public static async getRecommendedTracks(track: Track): Promise<Track[]> {
+		const node = this.manager.useableNode;
+		if (!node) {
+			throw new Error("No available nodes.");
+		}
+
+		const apiKey = this.manager.options.lastFmApiKey;
+
+		// Check if Last.fm API is available
+		if (apiKey) {
+			return await this.getRecommendedTracksFromLastFm(track, apiKey);
+		}
+
+		const enabledSources = node.info.sourceManagers;
+		const autoPlaySearchPlatforms: AutoPlayPlatform[] = this.manager.options.autoPlaySearchPlatforms;
+
+		// Iterate over autoplay platforms in order of priority
+		for (const platform of autoPlaySearchPlatforms) {
+			if (enabledSources.includes(platform)) {
+				const recommendedTracks = await this.getRecommendedTracksFromSource(track, platform);
+
+				// If tracks are found, return them immediately
+				if (recommendedTracks.length > 0) {
+					return recommendedTracks;
+				}
+			}
+		}
+
+		return [];
+	}
+
+	/**
+	 * Gets recommended tracks from Last.fm for the given track.
+	 * @param track The track to get recommended tracks for.
+	 * @param apiKey The API key for Last.fm.
+	 * @returns An array of recommended tracks.
+	 */
+	static async getRecommendedTracksFromLastFm(track: Track, apiKey: string): Promise<Track[]> {
+		let { author: artist } = track;
+		const { title } = track;
+
+		if (!artist || !title) {
+			if (!title) {
+				// No title provided, search for the artist's top tracks
+				const noTitleUrl = `https://ws.audioscrobbler.com/2.0/?method=artist.getTopTracks&artist=${artist}&autocorrect=1&api_key=${apiKey}&format=json`;
+
+				const response = await axios.get(noTitleUrl);
+
+				if (response.data.error || !response.data.toptracks?.track?.length) {
+					return [];
+				}
+
+				const randomTrack = response.data.toptracks.track[Math.floor(Math.random() * response.data.toptracks.track.length)];
+				const resolvedTracks = await this.resolveTracksFromQuery(
+					`${randomTrack.artist.name} - ${randomTrack.name}`,
+					this.manager.options.defaultSearchPlatform,
+					track.requester
+				);
+
+				if (!resolvedTracks.length) return [];
+
+				return resolvedTracks;
+			}
+			if (!artist) {
+				// No artist provided, search for the track title
+				const noArtistUrl = `https://ws.audioscrobbler.com/2.0/?method=track.search&track=${title}&api_key=${apiKey}&format=json`;
+
+				const response = await axios.get(noArtistUrl);
+				artist = response.data.results.trackmatches?.track?.[0]?.artist;
+
+				if (!artist) {
+					return [];
+				}
+			}
+		}
+
+		// Search for similar tracks to the current track
+		const url = `https://ws.audioscrobbler.com/2.0/?method=track.getSimilar&artist=${artist}&track=${title}&limit=10&autocorrect=1&api_key=${apiKey}&format=json`;
+
+		let response: axios.AxiosResponse;
+
+		try {
+			response = await axios.get(url);
+		} catch (error) {
+			console.error("[AutoPlay] Error fetching similar tracks from Last.fm:", error);
+			return [];
+		}
+
+		if (response.data.error || !response.data.similartracks?.track?.length) {
+			// Retry the request if the first attempt fails
+			const retryUrl = `https://ws.audioscrobbler.com/2.0/?method=artist.getTopTracks&artist=${artist}&autocorrect=1&api_key=${apiKey}&format=json`;
+			const retryResponse = await axios.get(retryUrl);
+
+			if (retryResponse.data.error || !retryResponse.data.toptracks?.track?.length) {
+				return [];
+			}
+
+			const randomTrack = retryResponse.data.toptracks.track[Math.floor(Math.random() * retryResponse.data.toptracks.track.length)];
+			const resolvedTracks = await this.resolveTracksFromQuery(
+				`${randomTrack.artist.name} - ${randomTrack.name}`,
+				this.manager.options.defaultSearchPlatform,
+				track.requester
+			);
+
+			if (!resolvedTracks.length) return [];
+
+			const filteredTracks = resolvedTracks.filter((t) => t.uri !== track.uri);
+			if (!filteredTracks.length) {
+				return [];
+			}
+
+			return filteredTracks;
+		}
+
+		const randomTrack = response.data.similartracks.track.sort(() => Math.random() - 0.5).shift();
+
+		if (!randomTrack) {
+			return [];
+		}
+
+		const resolvedTracks = await this.resolveTracksFromQuery(
+			`${randomTrack.artist.name} - ${randomTrack.name}`,
+			this.manager.options.defaultSearchPlatform,
+			track.requester
+		);
+
+		if (!resolvedTracks.length) return [];
+
+		return resolvedTracks;
+	}
+
+	/**
+	 * Gets recommended tracks from the given source.
+	 * @param track The track to get recommended tracks for.
+	 * @param platform The source to get recommended tracks from.
+	 * @returns An array of recommended tracks.
+	 */
+	static async getRecommendedTracksFromSource(track: Track, platform: AutoPlayPlatform): Promise<Track[]> {
+		const requester = track.requester;
+		const parsedURL = new URL(track.uri);
+
+		switch (platform) {
+			case AutoPlayPlatform.Spotify: {
+				const allowedSpotifyHosts = ["open.spotify.com", "www.spotify.com"];
+				if (!allowedSpotifyHosts.includes(parsedURL.host)) {
+					const resolvedTrack = await this.resolveFirstTrackFromQuery(`${track.author} - ${track.title}`, SearchPlatform.Spotify, requester);
+
+					if (!resolvedTrack) return [];
+
+					track = resolvedTrack;
+				}
+
+				// const extractSpotifyArtistID = (url: string): string | null => {
+				// 	const regex = /https:\/\/open\.spotify\.com\/artist\/([a-zA-Z0-9]+)/;
+				// 	const match = url.match(regex);
+				// 	return match ? match[1] : null;
+				// };
+
+				// const identifier = `sprec:seed_artists=${extractSpotifyArtistID(track.pluginInfo.artistUrl)}&seed_tracks=${track.identifier}`;
+				const identifier = `sprec:mix:track:${track.identifier}`;
+				const recommendedResult = (await this.manager.useableNode.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(identifier)}`)) as LavalinkResponse;
+				const tracks = this.buildTracksFromResponse(recommendedResult, requester);
+
+				return tracks;
+			}
+
+			case AutoPlayPlatform.Deezer: {
+				const allowedDeezerHosts = ["deezer.com", "www.deezer.com", "www.deezer.page.link"];
+				if (!allowedDeezerHosts.includes(parsedURL.host)) {
+					const resolvedTrack = await this.resolveFirstTrackFromQuery(`${track.author} - ${track.title}`, SearchPlatform.Deezer, requester);
+
+					if (!resolvedTrack) return [];
+
+					track = resolvedTrack;
+				}
+
+				const identifier = `dzrec:${track.identifier}`;
+				const recommendedResult = (await this.manager.useableNode.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(identifier)}`)) as LavalinkResponse;
+				const tracks = this.buildTracksFromResponse(recommendedResult, requester);
+
+				return tracks;
+			}
+
+			case AutoPlayPlatform.SoundCloud: {
+				const allowedSoundCloudHosts = ["soundcloud.com", "www.soundcloud.com"];
+				if (!allowedSoundCloudHosts.includes(parsedURL.host)) {
+					const resolvedTrack = await this.resolveFirstTrackFromQuery(`${track.author} - ${track.title}`, SearchPlatform.SoundCloud, requester);
+
+					if (!resolvedTrack) return [];
+
+					track = resolvedTrack;
+				}
+
+				try {
+					const recommendedRes = await axios.get(`${track.uri}/recommended`).catch((err) => {
+						console.error(`[AutoPlay] Failed to fetch SoundCloud recommendations. Status: ${err.response?.status || "Unknown"}`, err.message);
+						return null;
+					});
+
+					if (!recommendedRes) {
+						return [];
+					}
+
+					const html = recommendedRes.data;
+
+					const dom = new JSDOM(html);
+					const window = dom.window;
+
+					// Narrow the element types using instanceof
+					const secondNoscript = window.querySelectorAll("noscript")[1];
+					if (!secondNoscript || !(secondNoscript instanceof window.Element)) return [];
+
+					const sectionElement = secondNoscript.querySelector("section");
+					if (!sectionElement || !(sectionElement instanceof window.HTMLElement)) return [];
+
+					const articleElements = sectionElement.querySelectorAll("article");
+
+					if (!articleElements || articleElements.length === 0) return [];
+
+					const urls = Array.from(articleElements)
+						.map((element) => {
+							const h2 = element.querySelector('h2[itemprop="name"]');
+							if (!h2) return null;
+
+							const a = h2.querySelector('a[itemprop="url"]');
+							if (!a) return null;
+
+							const href = a.getAttribute("href");
+							return href ? `https://soundcloud.com${href}` : null;
+						})
+						.filter(Boolean);
+
+					if (!urls.length) return [];
+
+					const randomUrl = urls[Math.floor(Math.random() * urls.length)];
+					const resolvedTrack = await this.resolveFirstTrackFromQuery(randomUrl, SearchPlatform.SoundCloud, requester);
+
+					return resolvedTrack ? [resolvedTrack] : [];
+				} catch (error) {
+					console.error("[AutoPlay] Error occurred while fetching soundcloud recommendations:", error);
+					return [];
+				}
+			}
+
+			case AutoPlayPlatform.YouTube: {
+				const allowedYouTubeHosts = ["youtube.com", "youtu.be"];
+				const hasYouTubeURL = allowedYouTubeHosts.some((url) => track.uri.includes(url));
+				let videoID: string | null = null;
+
+				if (hasYouTubeURL) {
+					videoID = track.uri.split("=").pop();
+				} else {
+					const resolvedTrack = await this.resolveFirstTrackFromQuery(`${track.author} - ${track.title}`, SearchPlatform.YouTube, requester);
+
+					if (!resolvedTrack) return [];
+
+					videoID = resolvedTrack.uri.split("=").pop();
+				}
+
+				if (!videoID) {
+					return [];
+				}
+
+				let randomIndex: number;
+				let searchURI: string;
+
+				do {
+					randomIndex = Math.floor(Math.random() * 23) + 2;
+					searchURI = `https://www.youtube.com/watch?v=${videoID}&list=RD${videoID}&index=${randomIndex}`;
+				} while (track.uri.includes(searchURI));
+				const resolvedTracks = await this.resolveTracksFromQuery(searchURI, SearchPlatform.YouTube, requester);
+				const filteredTracks = resolvedTracks.filter((t) => t.uri !== track.uri);
+
+				return filteredTracks;
+			}
+
+			case AutoPlayPlatform.Tidal: {
+				const allowedTidalHosts = ["tidal.com", "www.tidal.com"];
+				if (!allowedTidalHosts.includes(parsedURL.host)) {
+					const resolvedTrack = await this.resolveFirstTrackFromQuery(`${track.author} - ${track.title}`, SearchPlatform.Tidal, requester);
+
+					if (!resolvedTrack) return [];
+
+					track = resolvedTrack;
+				}
+
+				const identifier = `tdrec:${track.identifier}`;
+				const recommendedResult = (await this.manager.useableNode.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(identifier)}`)) as LavalinkResponse;
+				const tracks = this.buildTracksFromResponse(recommendedResult, requester);
+
+				return tracks;
+			}
+
+			case AutoPlayPlatform.VKMusic: {
+				const allowedVKHosts = ["vk.com", "www.vk.com", "vk.ru", "www.vk.ru"];
+				if (!allowedVKHosts.includes(parsedURL.host)) {
+					const resolvedTrack = await this.resolveFirstTrackFromQuery(`${track.author} - ${track.title}`, SearchPlatform.VKMusic, requester);
+
+					if (!resolvedTrack) return [];
+
+					track = resolvedTrack;
+				}
+
+				const identifier = `vkrec:${track.identifier}`;
+				const recommendedResult = (await this.manager.useableNode.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(identifier)}`)) as LavalinkResponse;
+				const tracks = this.buildTracksFromResponse(recommendedResult, requester);
+
+				return tracks;
+			}
+
+			case AutoPlayPlatform.Qobuz: {
+				const allowedQobuzHosts = ["qobuz.com", "www.qobuz.com", "play.qobuz.com"];
+				if (!allowedQobuzHosts.includes(parsedURL.host)) {
+					const resolvedTrack = await this.resolveFirstTrackFromQuery(`${track.author} - ${track.title}`, SearchPlatform.Qobuz, requester);
+
+					if (!resolvedTrack) return [];
+
+					track = resolvedTrack;
+				}
+
+				const identifier = `qbrec:${track.identifier}`;
+				const recommendedResult = (await this.manager.useableNode.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(identifier)}`)) as LavalinkResponse;
+				const tracks = this.buildTracksFromResponse(recommendedResult, requester);
+
+				return tracks;
+			}
+
+			default:
+				return [];
+		}
+	}
+
+	/**
+	 * Searches for a track using the manager and returns resolved tracks.
+	 * @param query The search query (artist - title).
+	 * @param requester The requester who initiated the search.
+	 * @returns An array of resolved tracks, or an empty array if not found or error occurred.
+	 */
+	private static async resolveTracksFromQuery(query: string, source: SearchPlatform, requester: unknown): Promise<Track[]> {
+		try {
+			const searchResult = await this.manager.search({ query, source }, requester);
+
+			if (TrackUtils.isErrorOrEmptySearchResult(searchResult)) {
+				return [];
+			}
+
+			switch (searchResult.loadType) {
+				case LoadTypes.Album:
+				case LoadTypes.Artist:
+				case LoadTypes.Station:
+				case LoadTypes.Podcast:
+				case LoadTypes.Show:
+				case LoadTypes.Playlist:
+					return searchResult.playlist.tracks;
+				case LoadTypes.Track:
+				case LoadTypes.Search:
+				case LoadTypes.Short:
+					return searchResult.tracks;
+				default:
+					return [];
+			}
+		} catch (error) {
+			console.error("[TrackResolver] Failed to resolve query:", query, error);
+			return [];
+		}
+	}
+
+	/**
+	 * Resolves the first available track from a search query using the specified source.
+	 * Useful for normalizing tracks that lack platform-specific metadata or URIs.
+	 *
+	 * @param query - The search query string (usually "Artist - Title").
+	 * @param source - The search platform to use (e.g., Spotify, Deezer, YouTube).
+	 * @param requester - The requester object, used for context or attribution.
+	 * @returns A single resolved {@link Track} object if found, or `null` if the search fails or returns no results.
+	 */
+	private static async resolveFirstTrackFromQuery(query: string, source: SearchPlatform, requester: unknown): Promise<Track | null> {
+		try {
+			const searchResult = await this.manager.search({ query, source }, requester);
+
+			if (TrackUtils.isErrorOrEmptySearchResult(searchResult)) return null;
+
+			switch (searchResult.loadType) {
+				case LoadTypes.Album:
+				case LoadTypes.Artist:
+				case LoadTypes.Station:
+				case LoadTypes.Podcast:
+				case LoadTypes.Show:
+				case LoadTypes.Playlist:
+					return searchResult.playlist.tracks[0] || null;
+				case LoadTypes.Track:
+				case LoadTypes.Search:
+				case LoadTypes.Short:
+					return searchResult.tracks[0] || null;
+				default:
+					return null;
+			}
+		} catch (err) {
+			console.error(`[AutoPlay] Failed to resolve track from query: "${query}" on source: ${source}`, err);
+			return null;
+		}
+	}
+
+	// static async getSpotifyAccessToken() {
+	// 	const timeoutMs = 15000;
+
+	// 	let browser;
+	// 	let timeout;
+
+	// 	try {
+	// 		browser = await playwright.chromium.launch({ headless: true, args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"] });
+	// 		const page = await browser.newPage();
+
+	// 		let tokenCaptured = false;
+
+	// 		timeout = setTimeout(async () => {
+	// 			if (!tokenCaptured) {
+	// 				console.warn("[Spotify] Token request timeout — did Spotify change their internals?");
+	// 				await browser?.close();
+	// 			}
+	// 		}, timeoutMs);
+
+	// 		page.on("requestfinished", async (request) => {
+	// 			if (!request.url().includes("/api/token")) return;
+
+	// 			tokenCaptured = true;
+
+	// 			try {
+	// 				const response = await request.response();
+	// 				if (response && response.ok()) {
+	// 					const data = await response.json();
+	// 					this.cachedAccessToken = data?.accessToken ?? null;
+	// 					this.cachedAccessTokenExpiresAt = data?.accessTokenExpirationTimestampMs ?? 0;
+	// 				}
+	// 			} catch (err) {
+	// 				console.error("[Spotify] Error reading token response:", err);
+	// 			}
+
+	// 			clearTimeout(timeout);
+	// 			page.removeAllListeners();
+	// 			await browser.close();
+	// 		});
+
+	// 		try {
+	// 			await page.goto("https://open.spotify.com/", { waitUntil: "domcontentloaded" });
+	// 		} catch (err) {
+	// 			clearTimeout(timeout);
+	// 			await browser.close();
+	// 			console.error("[Spotify] Failed to navigate:", err);
+	// 			return [];
+	// 		}
+	// 	} catch (err) {
+	// 		clearTimeout(timeout);
+	// 		await browser?.close();
+	// 		console.error("[Spotify] Failed to launch Playwright:", err);
+	// 	}
+	// }
+
+	private static isPlaylistRawData(data: unknown): data is PlaylistRawData {
+		return typeof data === "object" && data !== null && Array.isArray((data as PlaylistRawData).tracks);
+	}
+
+	private static isTrackData(data: unknown): data is TrackData {
+		return typeof data === "object" && data !== null && "encoded" in data && "info" in data;
+	}
+
+	private static isTrackDataArray(data: unknown): data is TrackData[] {
+		return (
+			Array.isArray(data) &&
+			data.every((track) => typeof track === "object" && track !== null && "encoded" in track && "info" in track && typeof track.encoded === "string")
+		);
+	}
+
+	static buildTracksFromResponse<T>(recommendedResult: LavalinkResponse, requester?: T): Track[] {
+		if (!recommendedResult) return [];
+
+		if (TrackUtils.isErrorOrEmptySearchResult(recommendedResult as unknown as SearchResult)) return [];
+
+		switch (recommendedResult.loadType) {
+			case LoadTypes.Track: {
+				const data = recommendedResult.data;
+
+				if (!this.isTrackData(data)) {
+					throw new Error("[TrackBuilder] Invalid TrackData object.");
+				}
+
+				return [TrackUtils.build(data, requester)];
+			}
+
+			case LoadTypes.Short:
+			case LoadTypes.Search: {
+				const data = recommendedResult.data;
+
+				if (!this.isTrackDataArray(data)) {
+					throw new Error("[TrackBuilder] Invalid TrackData[] array for LoadTypes.Search or Short.");
+				}
+
+				return data.map((d) => TrackUtils.build(d, requester));
+			}
+			case LoadTypes.Album:
+			case LoadTypes.Artist:
+			case LoadTypes.Station:
+			case LoadTypes.Podcast:
+			case LoadTypes.Show:
+			case LoadTypes.Playlist: {
+				const data = recommendedResult.data;
+
+				if (this.isPlaylistRawData(data)) {
+					return data.tracks.map((d) => TrackUtils.build(d, requester));
+				}
+
+				throw new Error(`[TrackBuilder] Invalid playlist data for loadType: ${recommendedResult.loadType}`);
+			}
+			default:
+				throw new Error(`[TrackBuilder] Unsupported loadType: ${recommendedResult.loadType}`);
+		}
+	}
+}
+
+export abstract class PlayerUtils {
+	private static manager: Manager;
+
+	/**
+	 * Initializes the PlayerUtils class with the given manager.
+	 * @param manager The manager instance to use.
+	 * @hidden
+	 */
+	public static init(manager: Manager): void {
+		if (!manager) throw new Error("PlayerUtils.init() requires a valid Manager instance.");
+		this.manager = manager;
+	}
+
+	/**
+	 * Serializes a Player instance to avoid circular references.
+	 * @param player The Player instance to serialize
+	 * @returns The serialized Player instance
+	 */
+	public static async serializePlayer(player: Player): Promise<Record<string, unknown>> {
+		const seen = new WeakSet();
+
+		// Fetch async queue data once before serializing
+		const current = await player.queue.getCurrent();
+		const tracks = Array.isArray(await player.queue.getTracks()) ? await player.queue.getTracks() : [];
+		const previous = Array.isArray(await player.queue.getPrevious()) ? await player.queue.getPrevious() : [];
+
+		/**
+		 * Recursively serializes an object, avoiding circular references.
+		 * @param obj The object to serialize
+		 * @returns The serialized object
+		 */
+		const serialize = (obj: unknown): unknown => {
+			if (obj && typeof obj === "object") {
+				if (seen.has(obj)) return;
+
+				seen.add(obj);
+			}
+			return obj;
+		};
+
+		return JSON.parse(
+			JSON.stringify(player, (key, value) => {
+				if (key === "manager") {
+					return null;
+				}
+
+				if (key === "filters") {
+					if (!value || typeof value !== "object") return null;
+
+					return {
+						distortion: value.distortion ?? null,
+						equalizer: value.equalizer ?? [],
+						karaoke: value.karaoke ?? null,
+						rotation: value.rotation ?? null,
+						timescale: value.timescale ?? null,
+						vibrato: value.vibrato ?? null,
+						reverb: value.reverb ?? null,
+						volume: value.volume ?? 1.0,
+						bassBoostlevel: value.bassBoostlevel ?? null,
+						filterStatus: value.filtersStatus ? { ...value.filtersStatus } : {},
+					};
+				}
+				if (key === "queue") {
+					return {
+						current,
+						tracks,
+						previous,
+					};
+				}
+
+				if (key === "data") {
+					return {
+						clientUser: value?.Internal_BotUser ?? null,
+					};
+				}
+
+				return serialize(value);
+			})
+		);
+	}
+
+	/**
+	 * Gets the base directory for player data.
+	 */
+	public static getPlayersBaseDir(): string {
+		return path.join(process.cwd(), "magmastream", "sessionData", "players");
+	}
+
+	/**
+	 * Gets the path to the player's directory.
+	 */
+	public static getGuildDir(guildId: string): string {
+		return path.join(this.getPlayersBaseDir(), guildId);
+	}
+
+	/**
+	 * Gets the path to the player's state file.
+	 */
+	public static getPlayerStatePath(guildId: string): string {
+		return path.join(this.getGuildDir(guildId), "state.json");
+	}
+
+	/**
+	 * Gets the path to the player's current track file.
+	 */
+	public static getPlayerCurrentPath(guildId: string): string {
+		return path.join(this.getGuildDir(guildId), "current.json");
+	}
+
+	/**
+	 * Gets the path to the player's queue file.
+	 */
+	public static getPlayerQueuePath(guildId: string): string {
+		return path.join(this.getGuildDir(guildId), "queue.json");
+	}
+
+	/**
+	 * Gets the path to the player's previous tracks file.
+	 */
+	public static getPlayerPreviousPath(guildId: string): string {
+		return path.join(this.getGuildDir(guildId), "previous.json");
+	}
+}
 /** Gets or extends structures to extend the built in, or already extended, classes to add more functionality. */
 export abstract class Structure {
 	/**
@@ -170,7 +849,7 @@ export abstract class Structure {
 
 const structures = {
 	Player: require("./Player").Player,
-	Queue: require("./Queue").Queue,
+	Queue: require("../statestorage/MemoryQueue").MemoryQueue,
 	Node: require("./Node").Node,
 	Filters: require("./Filters").Filters,
 	Manager: require("./Manager").Manager,
@@ -178,243 +857,3 @@ const structures = {
 	Rest: require("./Rest").Rest,
 	Utils: require("./Utils"),
 };
-
-export type Sizes = "0" | "1" | "2" | "3" | "default" | "mqdefault" | "hqdefault" | "maxresdefault";
-
-export enum LoadTypes {
-	Track = "track",
-	Playlist = "playlist",
-	Search = "search",
-	Empty = "empty",
-	Error = "error",
-}
-
-export type LoadType = keyof typeof LoadTypes;
-
-export enum StateTypes {
-	Connected = "CONNECTED",
-	Connecting = "CONNECTING",
-	Disconnected = "DISCONNECTED",
-	Disconnecting = "DISCONNECTING",
-	Destroying = "DESTROYING",
-}
-
-export type State = keyof typeof StateTypes;
-
-export type SponsorBlockSegmentEvents = SponsorBlockSegmentSkipped | SponsorBlockSegmentsLoaded | SponsorBlockChapterStarted | SponsorBlockChaptersLoaded;
-
-export type SponsorBlockSegmentEventType = "SegmentSkipped" | "SegmentsLoaded" | "ChapterStarted" | "ChaptersLoaded";
-
-export type PlayerEvents = TrackStartEvent | TrackEndEvent | TrackStuckEvent | TrackExceptionEvent | WebSocketClosedEvent | SponsorBlockSegmentEvents;
-
-export type PlayerEventType =
-	| "TrackStartEvent"
-	| "TrackEndEvent"
-	| "TrackExceptionEvent"
-	| "TrackStuckEvent"
-	| "WebSocketClosedEvent"
-	| "SegmentSkipped"
-	| "SegmentsLoaded"
-	| "ChaptersLoaded"
-	| "ChapterStarted";
-
-export enum TrackEndReasonTypes {
-	Finished = "finished",
-	LoadFailed = "loadFailed",
-	Stopped = "stopped",
-	Replaced = "replaced",
-	Cleanup = "cleanup",
-}
-export type TrackEndReason = keyof typeof TrackEndReasonTypes;
-
-export enum SeverityTypes {
-	Common = "common",
-	Suspicious = "suspicious",
-	Fault = "fault",
-}
-export type Severity = keyof typeof SeverityTypes;
-
-export interface TrackData {
-	/** The track information. */
-	encoded: string;
-	/** The detailed information of the track. */
-	info: TrackDataInfo;
-	/** Additional track info provided by plugins. */
-	pluginInfo: Record<string, string>;
-}
-
-export interface TrackDataInfo {
-	identifier: string;
-	isSeekable: boolean;
-	author: string;
-	length: number;
-	isrc?: string;
-	isStream: boolean;
-	title: string;
-	uri?: string;
-	artworkUrl?: string;
-	sourceName?: TrackSourceName;
-}
-
-export enum TrackSourceTypes {
-	AppleMusic = "applemusic",
-	Bandcamp = "bandcamp",
-	Deezer = "deezer",
-	Jiosaavn = "jiosaavn",
-	SoundCloud = "soundcloud",
-	Spotify = "spotify",
-	Tidal = "tidal",
-	VKMusic = "vkmusic",
-	YouTube = "youtube",
-}
-
-export type TrackSourceName = keyof typeof TrackSourceTypes;
-
-export interface Extendable {
-	Player: typeof Player;
-	Queue: typeof Queue;
-	Node: typeof Node;
-}
-
-export interface VoiceState {
-	op: "voiceUpdate";
-	guildId: string;
-	event: VoiceServer;
-	sessionId?: string;
-}
-
-export interface VoiceServer {
-	token: string;
-	guild_id: string;
-	endpoint: string;
-}
-
-export interface VoiceState {
-	guild_id: string;
-	user_id: string;
-	session_id: string;
-	channel_id: string;
-}
-
-export interface VoicePacket {
-	t?: "VOICE_SERVER_UPDATE" | "VOICE_STATE_UPDATE";
-	d: VoiceState | VoiceServer;
-}
-
-export interface NodeMessage extends NodeStats {
-	type: PlayerEventType;
-	op: "stats" | "playerUpdate" | "event";
-	guildId: string;
-}
-
-export interface PlayerEvent {
-	op: "event";
-	type: PlayerEventType;
-	guildId: string;
-}
-
-export interface Exception {
-	message: string;
-	severity: SeverityTypes;
-	cause: string;
-}
-
-export interface TrackStartEvent extends PlayerEvent {
-	type: "TrackStartEvent";
-	track: TrackData;
-}
-
-export interface TrackEndEvent extends PlayerEvent {
-	type: "TrackEndEvent";
-	track: TrackData;
-	reason: TrackEndReasonTypes;
-}
-
-export interface TrackExceptionEvent extends PlayerEvent {
-	exception?: Exception;
-	guildId: string;
-	type: "TrackExceptionEvent";
-}
-
-export interface TrackStuckEvent extends PlayerEvent {
-	type: "TrackStuckEvent";
-	thresholdMs: number;
-}
-
-export interface WebSocketClosedEvent extends PlayerEvent {
-	type: "WebSocketClosedEvent";
-	code: number;
-	reason: string;
-	byRemote: boolean;
-}
-
-export interface SponsorBlockSegmentsLoaded extends PlayerEvent {
-	type: "SegmentsLoaded";
-	/* The loaded segments */
-	segments: {
-		/* The category name */
-		category: string;
-		/* In milliseconds */
-		start: number;
-		/* In milliseconds */
-		end: number;
-	}[];
-}
-export interface SponsorBlockSegmentSkipped extends PlayerEvent {
-	type: "SegmentSkipped";
-	/* The skipped segment*/
-	segment: {
-		/* The category name */
-		category: string;
-		/* In milliseconds */
-		start: number;
-		/* In milliseconds */
-		end: number;
-	};
-}
-
-export interface SponsorBlockChapterStarted extends PlayerEvent {
-	type: "ChapterStarted";
-	/** The chapter which started */
-	chapter: {
-		/** The name of the chapter */
-		name: string;
-		/* In milliseconds */
-		start: number;
-		/* In milliseconds */
-		end: number;
-		/* In milliseconds */
-		duration: number;
-	};
-}
-
-export interface SponsorBlockChaptersLoaded extends PlayerEvent {
-	type: "ChaptersLoaded";
-	/** All chapters loaded */
-	chapters: {
-		/** The name of the chapter */
-		name: string;
-		/* In milliseconds */
-		start: number;
-		/* In milliseconds */
-		end: number;
-		/* In milliseconds */
-		duration: number;
-	}[];
-}
-
-export interface PlayerUpdate {
-	op: "playerUpdate";
-	/** The guild id of the player. */
-	guildId: string;
-	state: {
-		/** Unix timestamp in milliseconds. */
-		time: number;
-		/** The position of the track in milliseconds. */
-		position: number;
-		/** Whether Lavalink is connected to the voice gateway. */
-		connected: boolean;
-		/** The ping of the node to the Discord voice server in milliseconds (-1 if not connected). */
-		ping: number;
-	};
-}
