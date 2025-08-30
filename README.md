@@ -99,8 +99,9 @@
 | [Soundy](https://dsc.gg/sndy)                                                                                                                                                                                                                         | iaMJ          |
 | [HamBot](https://discord.com/oauth2/authorize?client_id=1049314312776335390)                                                                                                                                                                          | yanishamburger|
 | [Miyu](https://discord.com/oauth2/authorize?client_id=1277180179273482280&permissions=572851999731703&response_type=code&redirect_uri=https%3A%2F%2Fdiscord.gg%2Ftn3nbFB8nX&integration_type=0&scope=identify+applications.commands+bot)              | Kenver        |
-| [Savage Bot](https://discord.com/oauth2/authorize?client_id=823703707522433054&permissions=8&scope=bot%20applications.commands)                                                                                                                       | Savage   
-| [lost](https://discord.com/oauth2/authorize?client_id=1280681209604739204)                                                                                                                                                                            | pomice                                                                                                                                                                      
+| [Savage Bot](https://discord.com/oauth2/authorize?client_id=823703707522433054&permissions=8&scope=bot%20applications.commands)                                                                                                                       | Savage        |
+| [rive](https://discord.com/oauth2/authorize?client_id=1384158871207280651)                                                                                                                                                                            | bob, xrm0s    |                                                                                                                                                                                                                                                                                                                                                                                                                    | pomice        | 
+| [Pepper](https://discord.com/oauth2/authorize?client_id=871808444502540379&permissions=6575631696&integration_type=0&scope=bot+applications.commands)                                                                                                 | murlee        |                                                               
 
 
 Want to showcase your bot? Feel free to create a pull request and add it to our growing list of amazing bots powered by Magmastream!
@@ -109,43 +110,24 @@ Want to showcase your bot? Feel free to create a pull request and add it to our 
 
 <div align="center">
 
-<!-- ALL-CONTRIBUTORS-LIST:START -->
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section!! -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
 <table>
   <tbody>
     <tr>
-      <td align="center" valign="top" width="14.28%">
-        <a href="https://discord.gg/JCaTDJRz7P">
-          <img src="https://avatars.githubusercontent.com/u/58607083?v=4?s=100" width="100px;" alt="Darek"/>
-          <br />
-          <sub><b>Darek</b></sub>
-        </a>
-        <br />
-        <a href="#doc-realdarek" title="Documentation">📖</a>
-      </td>
-      <td align="center" valign="top" width="14.28%">
-        <a href="https://github.com/Vexify4103">
-          <img src="https://avatars.githubusercontent.com/u/47192617?v=4?s=100" width="100px;" alt="Vexify4103"/>
-          <br />
-          <sub><b>Vexify4103</b></sub>
-        </a>
-        <br />
-        <a href="#code-Vexify4103" title="Code">💻</a> 
-        <a href="#doc-Vexify4103" title="Documentation">📖</a>
-      </td>
-      <td align="center" valign="top" width="14.28%">
-        <a href="https://github.com/ItzRandom23">
-          <img src="https://avatars.githubusercontent.com/u/100831398?v=4?s=100" width="100px;" alt="Itz Random"/>
-          <br />
-          <sub><b>Itz Random</b></sub>
-        </a>
-        <br />
-        <a href="#code-ItzRandom23" title="Code">💻</a>
-      </td>
+      <td align="center" valign="top" width="14.28%"><a href="https://discord.gg/JCaTDJRz7P"><img src="https://avatars.githubusercontent.com/u/58607083?v=4?s=100" width="100px;" alt="Darek"/><br /><sub><b>Darek</b></sub></a><br /><a href="#doc-realdarek" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Vexify4103"><img src="https://avatars.githubusercontent.com/u/47192617?v=4?s=100" width="100px;" alt="Vexify4103"/><br /><sub><b>Vexify4103</b></sub></a><br /><a href="#code-Vexify4103" title="Code">💻</a> <a href="#doc-Vexify4103" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/ItzRandom23"><img src="https://avatars.githubusercontent.com/u/100831398?v=4?s=100" width="100px;" alt="Itz Random"/><br /><sub><b>Itz Random</b></sub></a><br /><a href="#code-ItzRandom23" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Yanishamburger"><img src="https://avatars.githubusercontent.com/u/121449519?v=4?s=100" width="100px;" alt="Yanis_Hamburger"/><br /><sub><b>Yanis_Hamburger</b></sub></a><br /><a href="#bug-Yanishamburger" title="Bug reports">🐛</a></td>
     </tr>
   </tbody>
 </table>
 
-<br />
+<!-- markdownlint-restore -->
+<!-- prettier-ignore-end -->
+
+<!-- ALL-CONTRIBUTORS-LIST:END -->
 
 <img src="https://contributers.code-fy.tech/Magmastream-NPM?yousuck" alt="Contributors" />
 
