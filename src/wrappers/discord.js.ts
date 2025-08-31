@@ -2,6 +2,8 @@ import { Manager as BaseManager } from "../structures/Manager";
 import type { GatewayVoiceStateUpdate } from "discord-api-types/v10";
 import { Client } from "discord.js";
 import { ManagerOptions, VoicePacket } from "../structures/Types";
+import { version as djsVersion } from "discord.js";
+const [major, minor] = djsVersion.split('.').map(Number);
 
 export * from "../index";
 
@@ -9,19 +11,34 @@ export * from "../index";
  * Discord.js wrapper for Magmastream.
  */
 export class DiscordJSManager extends BaseManager {
-	public constructor(public readonly client: Client, options?: ManagerOptions) {
-		super(options);
+    public constructor(public readonly client: Client, options?: ManagerOptions) {
+        super(options);
 
-		client.once("clientReady", () => {
-			if (!this.options.clientId) this.options.clientId = client.user!.id;
-		});
-		client.on("raw", async (data) => {
-			await this.updateVoiceState(data as unknown as VoicePacket);
-		});
-	}
+        const attachReadyHandler = () => {
+            const handler = () => {
+                if (!this.options.clientId) this.options.clientId = this.client.user!.id;
+            };
 
-	protected override send(packet: GatewayVoiceStateUpdate) {
-		const guild = this.client.guilds.cache.get(packet.d.guild_id);
-		if (guild) guild.shard.send(packet);
-	}
+            // Only attach clientReady if Discord.js >= 14.22.0
+            if (major > 14 || (major === 14 && minor >= 22)) {
+                client.once('clientReady', handler);
+            }
+
+            // Only attach ready if Discord.js < 14.22.0
+            if (major < 14 || (major === 14 && minor < 22)) {
+                client.once('ready', handler);
+            }
+        };
+
+        attachReadyHandler();
+
+        client.on("raw", async (data) => {
+            await this.updateVoiceState(data as unknown as VoicePacket);
+        });
+    }
+
+    protected override send(packet: GatewayVoiceStateUpdate) {
+        const guild = this.client.guilds.cache.get(packet.d.guild_id);
+        if (guild) guild.shard.send(packet);
+    }
 }
