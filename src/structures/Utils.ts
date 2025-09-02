@@ -107,6 +107,8 @@ export abstract class TrackUtils {
 				tidal: "Tidal",
 				youtube: "YouTube",
 				vkmusic: "VKMusic",
+				qobuz: "Qobuz",
+				audius: "Audius"
 			};
 
 			const track: Track = {
