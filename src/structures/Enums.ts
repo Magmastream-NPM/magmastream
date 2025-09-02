@@ -69,6 +69,7 @@ export enum SearchPlatform {
 	VKMusic = "vksearch",
 	YouTube = "ytsearch",
 	YouTubeMusic = "ytmsearch",
+	Audius = "audsearch"
 }
 
 /**
@@ -102,6 +103,7 @@ export enum TrackSourceTypes {
 	Tidal = "tidal",
 	VKMusic = "vkmusic",
 	YouTube = "youtube",
+	Audius = "audius"
 }
 
 /**
