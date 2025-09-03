@@ -1,3 +1,10 @@
+
+Save
+New
+Duplicate & Edit
+Just Text
+Twitter
+
 <div align="center">
 
 <p align="center">
@@ -120,6 +127,7 @@ Want to showcase your bot? Feel free to create a pull request and add it to our 
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Vexify4103"><img src="https://avatars.githubusercontent.com/u/47192617?v=4?s=100" width="100px;" alt="Vexify4103"/><br /><sub><b>Vexify4103</b></sub></a><br /><a href="#code-Vexify4103" title="Code">💻</a> <a href="#doc-Vexify4103" title="Documentation">📖</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/ItzRandom23"><img src="https://avatars.githubusercontent.com/u/100831398?v=4?s=100" width="100px;" alt="Itz Random"/><br /><sub><b>Itz Random</b></sub></a><br /><a href="#code-ItzRandom23" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Yanishamburger"><img src="https://avatars.githubusercontent.com/u/121449519?v=4?s=100" width="100px;" alt="Yanis_Hamburger"/><br /><sub><b>Yanis_Hamburger</b></sub></a><br /><a href="#bug-Yanishamburger" title="Bug reports">🐛</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Kenver123"><img src="https://avatars.githubusercontent.com/u/165576302?v=4?s=100" width="100px;" alt="Kenver"/><br /><sub><b>Kenver</b></sub></a><br /><a href="#platform-Kenver123" title="Packaging/porting to new platform">📦</a></td>
     </tr>
   </tbody>
 </table>
