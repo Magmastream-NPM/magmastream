@@ -1,10 +1,3 @@
-
-Save
-New
-Duplicate & Edit
-Just Text
-Twitter
-
 <div align="center">
 
 <p align="center">
