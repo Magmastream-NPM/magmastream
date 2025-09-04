@@ -19,10 +19,10 @@ export class OceanicManager extends BaseManager {
 		client.on("packet", async (packet) => {
 			await this.updateVoiceState(packet as unknown as VoicePacket);
 		});
-	}
+	};
 
 	protected override send(packet: GatewayVoiceStateUpdate) {
 		const guild = this.client.guilds.get(packet.d.guild_id);
 		if (guild) guild.shard.send(packet.op as number, packet.d);
-	}
-}
+	};
+};

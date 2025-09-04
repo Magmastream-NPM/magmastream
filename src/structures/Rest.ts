@@ -26,7 +26,7 @@ export class Rest {
 		this.password = node.options.password;
 		this.manager = manager;
 		this.isNodeLink = node.isNodeLink;
-	}
+	};
 
 	/**
 	 * Sets the session ID.
@@ -37,7 +37,7 @@ export class Rest {
 	public setSessionId(sessionId: string): string {
 		this.sessionId = sessionId;
 		return this.sessionId;
-	}
+	};
 
 	/**
 	 * Retrieves all the players that are currently running on the node.
@@ -52,7 +52,7 @@ export class Rest {
 
 		// Return the result of the request.
 		return result;
-	}
+	};
 
 	/**
 	 * Sends a PATCH request to update player related data.
@@ -65,7 +65,7 @@ export class Rest {
 
 		// Send the PATCH request.
 		return await this.patch(`/v4/sessions/${this.sessionId}/players/${options.guildId}?noReplace=false`, options.data);
-	}
+	};
 
 	/**
 	 * Sends a DELETE request to the server to destroy the player.
@@ -77,7 +77,7 @@ export class Rest {
 		this.manager.emit(ManagerEventTypes.Debug, `[REST] Destroying player: ${guildId}`);
 		// Send the DELETE request.
 		return await this.delete(`/v4/sessions/${this.sessionId}/players/${guildId}`);
-	}
+	};
 
 	/**
 	 * Updates the session status for resuming.
@@ -93,7 +93,7 @@ export class Rest {
 
 		// Send a PATCH request to update the session with the provided resuming status and timeout
 		return await this.patch(`/v4/sessions/${this.sessionId}`, { resuming, timeout });
-	}
+	};
 
 	/**
 	 * Sends a request to the specified endpoint and returns the response data.
@@ -122,18 +122,18 @@ export class Rest {
 			if (!error.response) {
 				console.error(`[REST] No response from node: ${error.message}`);
 				return null;
-			}
+			};
 
 			if (error.response.data?.message === "Guild not found") {
 				return [];
 			} else if (error.response.status === 404) {
 				await this.node.destroy();
 				this.node.manager.createNode(this.node.options).connect();
-			}
+			};
 
 			return null;
-		}
-	}
+		};
+	};
 
 	/**
 	 * Sends a GET request to the specified endpoint and returns the response data.
@@ -143,7 +143,7 @@ export class Rest {
 	public async get(endpoint: string): Promise<unknown> {
 		// Send a GET request to the specified endpoint and return the response data.
 		return await this.request("GET", endpoint);
-	}
+	};
 
 	/**
 	 * Sends a PATCH request to the specified endpoint and returns the response data.
@@ -154,7 +154,7 @@ export class Rest {
 	public async patch(endpoint: string, body: unknown): Promise<unknown> {
 		// Send a PATCH request to the specified endpoint and return the response data.
 		return await this.request("PATCH", endpoint, body);
-	}
+	};
 
 	/**
 	 * Sends a POST request to the specified endpoint and returns the response data.
@@ -164,7 +164,7 @@ export class Rest {
 	 */
 	public async post(endpoint: string, body: unknown): Promise<unknown> {
 		return await this.request("POST", endpoint, body);
-	}
+	};
 
 	/**
 	 * Sends a PUT request to the specified endpoint and returns the response data.
@@ -175,7 +175,7 @@ export class Rest {
 	public async put(endpoint: string, body: unknown): Promise<unknown> {
 		// Send a PUT request to the specified endpoint and return the response data.
 		return await this.request("PUT", endpoint, body);
-	}
+	};
 
 	/**
 	 * Sends a DELETE request to the specified endpoint.
@@ -185,5 +185,5 @@ export class Rest {
 	public async delete(endpoint: string): Promise<unknown> {
 		// Send a DELETE request using the request method and return the response data.
 		return await this.request("DELETE", endpoint);
-	}
-}
+	};
+};

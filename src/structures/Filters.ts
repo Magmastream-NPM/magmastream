@@ -45,7 +45,7 @@ export class Filters {
 			acc[filter] = false;
 			return acc;
 		}, {} as Record<AvailableFilters, boolean>);
-	}
+	};
 
 	/**
 	 * Updates the player's audio filters.
@@ -78,7 +78,7 @@ export class Filters {
 		});
 
 		return this;
-	}
+	};
 
 	/**
 	 * Applies a specific filter to the player.
@@ -94,16 +94,16 @@ export class Filters {
 		this[filter.property] = filter.value as this[T];
 		if (updateFilters) {
 			await this.updateFilters();
-		}
+		};
 		return this;
-	}
+	};
 
 	private emitPlayersTasteUpdate(oldState: Filters) {
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldState, this, {
 			changeType: PlayerStateEventTypes.FilterChange,
 			details: { action: "change" },
 		} as PlayerStateUpdateEvent);
-	}
+	};
 
 	/**
 	 * Sets the status of a specific filter.
@@ -118,7 +118,7 @@ export class Filters {
 	private setFilterStatus(filter: AvailableFilters, status: boolean): this {
 		this.filtersStatus[filter] = status;
 		return this;
-	}
+	};
 
 	/**
 	 * Retrieves the status of a specific filter.
@@ -130,7 +130,7 @@ export class Filters {
 	 */
 	public getFilterStatus(filter: AvailableFilters): boolean {
 		return this.filtersStatus[filter];
-	}
+	};
 
 	/**
 	 * Clears all filters applied to the audio.
@@ -160,7 +160,7 @@ export class Filters {
 		this.emitPlayersTasteUpdate(oldPlayer);
 
 		return this;
-	}
+	};
 
 	/**
 	 * Sets the own equalizer bands on the audio.
@@ -176,7 +176,7 @@ export class Filters {
 		await this.applyFilter({ property: "equalizer", value: bands });
 		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
-	}
+	};
 
 	/**
 	 * Sets the own karaoke options to the audio.
@@ -194,7 +194,7 @@ export class Filters {
 		this.setFilterStatus(AvailableFilters.SetKaraoke, !!karaoke);
 		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
-	}
+	};
 
 	/**
 	 * Sets the own timescale options to the audio.
@@ -210,7 +210,7 @@ export class Filters {
 		this.setFilterStatus(AvailableFilters.SetTimescale, !!timescale);
 		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
-	}
+	};
 
 	/**
 	 * Sets the own vibrato options to the audio.
@@ -228,7 +228,7 @@ export class Filters {
 		this.setFilterStatus(AvailableFilters.Vibrato, !!vibrato);
 		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
-	}
+	};
 
 	/**
 	 * Sets the own rotation options effect to the audio.
@@ -246,7 +246,7 @@ export class Filters {
 		this.setFilterStatus(AvailableFilters.SetRotation, !!rotation);
 		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
-	}
+	};
 
 	/**
 	 * Sets the own distortion options effect to the audio.
@@ -264,7 +264,7 @@ export class Filters {
 		this.setFilterStatus(AvailableFilters.SetDistortion, !!distortion);
 		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
-	}
+	};
 
 	/**
 	 * Sets the bass boost level on the audio.
@@ -309,7 +309,7 @@ export class Filters {
 
 		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
-	}
+	};
 
 	/**
 	 * Toggles the chipmunk effect on the audio.
@@ -327,7 +327,7 @@ export class Filters {
 		this.setFilterStatus(AvailableFilters.Chipmunk, status);
 		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
-	}
+	};
 
 	/**
 	 * Toggles the "China" effect on the audio.
@@ -344,7 +344,7 @@ export class Filters {
 		this.setFilterStatus(AvailableFilters.China, status);
 		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
-	}
+	};
 
 	/**
 	 * Toggles the 8D audio effect on the audio.
@@ -362,7 +362,7 @@ export class Filters {
 		this.setFilterStatus(AvailableFilters.EightD, status);
 		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
-	}
+	};
 
 	/**
 	 * Toggles the nightcore effect on the audio.
@@ -380,7 +380,7 @@ export class Filters {
 		this.setFilterStatus(AvailableFilters.Nightcore, status);
 		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
-	}
+	};
 
 	/**
 	 * Toggles the slowmo effect on the audio.
@@ -398,7 +398,7 @@ export class Filters {
 		this.setFilterStatus(AvailableFilters.Slowmo, status);
 		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
-	}
+	};
 
 	/**
 	 * Toggles a soft equalizer effect to the audio.
@@ -416,7 +416,7 @@ export class Filters {
 		this.setFilterStatus(AvailableFilters.Soft, status);
 		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
-	}
+	};
 
 	/**
 	 * Toggles the TV equalizer effect on the audio.
@@ -434,7 +434,7 @@ export class Filters {
 		this.setFilterStatus(AvailableFilters.TV, status);
 		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
-	}
+	};
 
 	/**
 	 * Toggles the treble/bass equalizer effect on the audio.
@@ -451,7 +451,7 @@ export class Filters {
 		this.setFilterStatus(AvailableFilters.TrebleBass, status);
 		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
-	}
+	};
 
 	/**
 	 * Toggles the vaporwave effect on the audio.
@@ -468,7 +468,7 @@ export class Filters {
 		this.setFilterStatus(AvailableFilters.Vaporwave, status);
 		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
-	}
+	};
 
 	/**
 	 * Toggles the distortion effect on the audio.
@@ -497,10 +497,10 @@ export class Filters {
 		} else {
 			await this.setDistortion();
 			this.setFilterStatus(AvailableFilters.Distort, false);
-		}
+		};
 		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
-	}
+	};
 
 	/**
 	 * Toggles the party effect on the audio.
@@ -517,7 +517,7 @@ export class Filters {
 		this.setFilterStatus(AvailableFilters.Pop, status);
 		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
-	}
+	};
 
 	/**
 	 * Toggles a party effect on the audio.
@@ -532,7 +532,7 @@ export class Filters {
 		this.setFilterStatus(AvailableFilters.Party, status);
 		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
-	}
+	};
 
 	/**
 	 * Toggles earrape effect on the audio.
@@ -549,10 +549,10 @@ export class Filters {
 		} else {
 			await this.player.setVolume(100);
 			this.setFilterStatus(AvailableFilters.Earrape, false);
-		}
+		};
 		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
-	}
+	};
 
 	/**
 	 * Toggles electronic effect on the audio.
@@ -567,7 +567,7 @@ export class Filters {
 		this.setFilterStatus(AvailableFilters.Electronic, status);
 		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
-	}
+	};
 
 	/**
 	 * Toggles radio effect on the audio.
@@ -582,7 +582,7 @@ export class Filters {
 		this.setFilterStatus(AvailableFilters.Radio, status);
 		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
-	}
+	};
 
 	/**
 	 * Toggles a tremolo effect on the audio.
@@ -597,7 +597,7 @@ export class Filters {
 		this.setFilterStatus(AvailableFilters.Tremolo, status);
 		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
-	}
+	};
 
 	/**
 	 * Toggless a darthvader effect on the audio.
@@ -612,7 +612,7 @@ export class Filters {
 		this.setFilterStatus(AvailableFilters.Darthvader, status);
 		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
-	}
+	};
 
 	/**
 	 * Toggles a daycore effect on the audio.
@@ -627,7 +627,7 @@ export class Filters {
 		this.setFilterStatus(AvailableFilters.Daycore, status);
 		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
-	}
+	};
 
 	/**
 	 * Toggles a doubletime effect on the audio.
@@ -642,7 +642,7 @@ export class Filters {
 		this.setFilterStatus(AvailableFilters.Doubletime, status);
 		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
-	}
+	};
 
 	/**
 	 * Toggles the demon effect on the audio.
@@ -674,5 +674,5 @@ export class Filters {
 
 		this.emitPlayersTasteUpdate(oldPlayer);
 		return this;
-	}
-}
+	};
+};

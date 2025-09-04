@@ -171,7 +171,7 @@ export class Player {
 	 * @throws {RangeError} If no voice channel has been set.
 	 * @returns {void}
 	 */
-	public connect(): void {
+	public async connect(): Promise<void> {
 		// Check if the voice channel has been set.
 		if (!this.voiceChannelId) {
 			throw new RangeError("No voice channel has been set. You must use the `setVoiceChannelId()` method to set the voice channel before connecting.");
@@ -183,7 +183,7 @@ export class Player {
 		// Clone the current player state for comparison.
 		const oldPlayer = this ? { ...this } : null;
 
-		this.manager.sendPacket({
+		await this.manager.sendPacket({
 			op: 4,
 			d: {
 				guild_id: this.guildId,
@@ -223,7 +223,7 @@ export class Player {
 		await this.pause(true);
 
 		// Send the voice state update to the gateway.
-		this.manager.sendPacket({
+		await this.manager.sendPacket({
 			op: 4,
 			d: {
 				guild_id: this.guildId,
@@ -251,7 +251,7 @@ export class Player {
 		} as PlayerStateUpdateEvent);
 
 		return this;
-	}
+	};
 
 	/**
 	 * Destroys the player and clears the queue.
@@ -283,7 +283,7 @@ export class Player {
 
 		if (this.manager.options.stateStorage.deleteInactivePlayers) await this.manager.cleanupInactivePlayer(this.guildId);
 		return deleted;
-	}
+	};
 
 	/**
 	 * Sets the player voice channel.
@@ -291,7 +291,7 @@ export class Player {
 	 * @returns {this} - The player instance.
 	 * @throws {TypeError} If the channel parameter is not a string.
 	 */
-	public setVoiceChannelId(channel: string): this {
+	public async setVoiceChannelId(channel: string): Promise<this> {
 		// Validate the channel parameter
 		if (typeof channel !== "string") throw new TypeError("Channel must be a non-empty string.");
 
@@ -301,7 +301,7 @@ export class Player {
 		// Update the player voice channel
 		this.voiceChannelId = channel;
 		this.options.voiceChannelId = channel;
-		this.connect();
+		await this.connect();
 
 		// Emit a player state update event
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
@@ -315,7 +315,7 @@ export class Player {
 		} as PlayerStateUpdateEvent);
 
 		return this;
-	}
+	};
 
 	/**
 	 * Sets the player text channel.
@@ -984,9 +984,7 @@ export class Player {
 		};
 
 		// If force is true, destroy the existing player for the new guild
-		if (force && newPlayer) {
-			await newPlayer.destroy();
-		}
+		if (force && newPlayer) await newPlayer.destroy();
 
 		newOptions.nodeIdentifier = newOptions.nodeIdentifier ?? this.options.nodeIdentifier;
 		newOptions.selfDeafen = newOptions.selfDeafen ?? oldPlayerProperties.selfDeafen;
@@ -997,7 +995,7 @@ export class Player {
 		const clonedPlayer = this.manager.create(newOptions);
 
 		// Connect the cloned player to the new voice channel
-		clonedPlayer.connect();
+		await clonedPlayer.connect();
 
 		// Update the player's state on the Lavalink node
 		await clonedPlayer.node.rest.updatePlayer({
@@ -1044,7 +1042,7 @@ export class Player {
 
 		// Return the cloned player
 		return clonedPlayer;
-	}
+	};
 
 	/**
 	 * Retrieves the current lyrics for the playing track.
@@ -1057,7 +1055,7 @@ export class Player {
 		const hasLyricsPlugin = this.node.info.plugins.some((plugin: { name: string }) => plugin.name === "lavalyrics-plugin");
 		if (!hasLyricsPlugin) {
 			throw new RangeError(`There is no lavalyrics-plugin available in the Lavalink node: ${this.node.options.identifier}`);
-		}
+		};
 
 		// Fetch the lyrics for the current track from the Lavalink node
 		let result = (await this.node.getLyrics(await this.queue.getCurrent(), skipTrackSource)) as Lyrics;
@@ -1071,10 +1069,10 @@ export class Player {
 				lines: [],
 				plugin: [],
 			};
-		}
+		};
 
 		return result;
-	}
+	};
 
 	/**
 	 * Sets up the voice receiver for the player.
@@ -1100,7 +1098,7 @@ export class Player {
 		this.voiceReceiverWsClient.on("error", (err) => this.onVoiceReceiverError(err));
 		this.voiceReceiverWsClient.on("message", (data) => this.onVoiceReceiverMessage(data.toString()));
 		this.voiceReceiverWsClient.on("close", (code, reason) => this.closeVoiceReceiver(code, reason.toString()));
-	}
+	};
 
 	/**
 	 * Removes the voice receiver for the player.
@@ -1114,10 +1112,10 @@ export class Player {
 			this.voiceReceiverWsClient.close(1000, "destroy");
 			this.voiceReceiverWsClient.removeAllListeners();
 			this.voiceReceiverWsClient = null;
-		}
+		};
 
 		this.isConnectToVoiceReceiver = false;
-	}
+	};
 
 	/**
 	 * Closes the voice receiver for the player.
@@ -1131,7 +1129,7 @@ export class Player {
 		this.manager.emit(ManagerEventTypes.Debug, `[PLAYER] Closed voice receiver for player ${this.guildId} with code ${code} and reason ${reason}`);
 
 		if (code !== 1000) await this.reconnectVoiceReceiver();
-	}
+	};
 
 	/**
 	 * Reconnects the voice receiver for the player.
@@ -1149,7 +1147,7 @@ export class Player {
 			await this.setupVoiceReceiver();
 			this.voiceReceiverAttempt++;
 		}, this.node.options.retryDelayMs);
-	}
+	};
 
 	/**
 	 * Disconnects the voice receiver for the player.
@@ -1164,7 +1162,7 @@ export class Player {
 
 		this.manager.emit(ManagerEventTypes.Debug, `[PLAYER] Disconnected from voice receiver for player ${this.guildId}`);
 		this.manager.emit(ManagerEventTypes.VoiceReceiverDisconnect, this);
-	}
+	};
 
 	/**
 	 * Opens the voice receiver for the player.
@@ -1176,7 +1174,7 @@ export class Player {
 		this.isConnectToVoiceReceiver = true;
 		this.manager.emit(ManagerEventTypes.Debug, `[PLAYER] Opened voice receiver for player ${this.guildId}`);
 		this.manager.emit(ManagerEventTypes.VoiceReceiverConnect, this);
-	}
+	};
 
 	/**
 	 * Handles a voice receiver message.
@@ -1193,7 +1191,7 @@ export class Player {
 			case "startSpeakingEvent": {
 				this.manager.emit(ManagerEventTypes.VoiceReceiverStartSpeaking, this, packet.data);
 				break;
-			}
+			};
 			case "endSpeakingEvent": {
 				const data = {
 					...packet.data,
@@ -1202,13 +1200,13 @@ export class Player {
 
 				this.manager.emit(ManagerEventTypes.VoiceReceiverEndSpeaking, this, data);
 				break;
-			}
+			};
 			default: {
 				this.manager.emit(ManagerEventTypes.Debug, `VoiceReceiver recieved an unknown payload: ${JSON.stringify(payload)}`);
 				break;
-			}
-		}
-	}
+			};
+		};
+	};
 
 	/**
 	 * Handles a voice receiver error.
@@ -1218,5 +1216,5 @@ export class Player {
 	private async onVoiceReceiverError(error: Error): Promise<void> {
 		this.manager.emit(ManagerEventTypes.Debug, `VoiceReceiver error for player ${this.guildId}: ${error.message}`);
 		this.manager.emit(ManagerEventTypes.VoiceReceiverError, this, error);
-	}
-}
+	};
+};

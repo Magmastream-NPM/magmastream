@@ -5,7 +5,7 @@ export enum StateStorageType {
 	Memory = "memory",
 	Redis = "redis",
 	JSON = "json",
-}
+};
 
 /**
  * AutoPlay Platform Enum
@@ -18,7 +18,7 @@ export enum AutoPlayPlatform {
 	VKMusic = "vkmusic",
 	Qobuz = "qobuz",
 	YouTube = "youtube",
-}
+};
 
 /**
  * State Types Enum
@@ -29,7 +29,7 @@ export enum StateTypes {
 	Disconnected = "DISCONNECTED",
 	Disconnecting = "DISCONNECTING",
 	Destroying = "DESTROYING",
-}
+};
 
 /**
  * Load Types Enum
@@ -52,7 +52,7 @@ export enum LoadTypes {
 	Show = "show",
 	/** Nodelink */
 	Short = "short",
-}
+};
 
 /**
  * Search Platform Enum
@@ -69,7 +69,7 @@ export enum SearchPlatform {
 	VKMusic = "vksearch",
 	YouTube = "ytsearch",
 	YouTubeMusic = "ytmsearch",
-}
+};
 
 /**
  * Player State Event Types Enum
@@ -86,7 +86,7 @@ export enum PlayerStateEventTypes {
 	PlayerCreate = "playerCreate",
 	PlayerDestroy = "playerDestroy",
 	FilterChange = "filterChange",
-}
+};
 
 /**
  * Track Source Types Enum
@@ -102,7 +102,7 @@ export enum TrackSourceTypes {
 	Tidal = "tidal",
 	VKMusic = "vkmusic",
 	YouTube = "youtube",
-}
+};
 
 /**
  * Use Node Options Enum
@@ -110,7 +110,7 @@ export enum TrackSourceTypes {
 export enum UseNodeOptions {
 	LeastLoad = "leastLoad",
 	LeastPlayers = "leastPlayers",
-}
+};
 
 /**
  * Track Partial Enum
@@ -146,7 +146,7 @@ export enum TrackPartial {
 	PluginInfo = "pluginInfo",
 	/** The custom data of the track */
 	CustomData = "customData",
-}
+};
 
 /**
  * Manager Event Types Enum
@@ -190,7 +190,7 @@ export enum ManagerEventTypes {
 	VoiceReceiverStartSpeaking = "voiceReceiverStartSpeaking",
 	/** Nodelink */
 	VoiceReceiverEndSpeaking = "voiceReceiverEndSpeaking",
-}
+};
 
 /**
  * Track End Reason Enum
@@ -201,7 +201,7 @@ export enum TrackEndReasonTypes {
 	Stopped = "stopped",
 	Replaced = "replaced",
 	Cleanup = "cleanup",
-}
+};
 
 /**
  * Severity Types Enum
@@ -210,7 +210,7 @@ export enum SeverityTypes {
 	Common = "common",
 	Suspicious = "suspicious",
 	Fault = "fault",
-}
+};
 
 /**
  * SponsorBlock Segment Enum
@@ -224,7 +224,7 @@ export enum SponsorBlockSegment {
 	Preview = "preview",
 	SelfPromo = "selfpromo",
 	Sponsor = "sponsor",
-}
+};
 
 /**
  * Available Filters Enum
@@ -256,4 +256,4 @@ export enum AvailableFilters {
 	TV = "tv",
 	Vaporwave = "vaporwave",
 	Vibrato = "vibrato",
-}
+};

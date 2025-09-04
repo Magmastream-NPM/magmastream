@@ -1,7 +1,6 @@
 import { GatewayReceivePayload, GatewayVoiceStateUpdate } from "discord-api-types/v10";
 import { Manager as BaseManager } from "../structures/Manager";
 import { ManagerOptions, VoicePacket } from "../structures/Types";
-
 import { ClusterClient, ShardClient } from "detritus-client";
 
 export * from "../index";
@@ -20,7 +19,7 @@ export class DetritusManager extends BaseManager {
 		client.on("raw", async (packet: GatewayReceivePayload) => {
 			await this.updateVoiceState(packet as unknown as VoicePacket);
 		});
-	}
+	};
 
 	protected override send(packet: GatewayVoiceStateUpdate) {
 		const asCluster = this.client as ClusterClient;
@@ -30,6 +29,6 @@ export class DetritusManager extends BaseManager {
 		if (asCluster.shards) {
 			const shard = asCluster.shards.find((c) => c.guilds.has(packet.d.guild_id));
 			if (shard) shard.gateway.send(packet.op, packet.d);
-		}
-	}
-}
+		};
+	};
+};

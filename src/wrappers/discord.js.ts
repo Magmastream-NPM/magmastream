@@ -18,10 +18,10 @@ export class DiscordJSManager extends BaseManager {
 		client.on("raw", async (data) => {
 			await this.updateVoiceState(data as unknown as VoicePacket);
 		});
-	}
+	};
 
 	protected override send(packet: GatewayVoiceStateUpdate) {
 		const guild = this.client.guilds.cache.get(packet.d.guild_id);
 		if (guild) guild.shard.send(packet);
-	}
-}
+	};
+};

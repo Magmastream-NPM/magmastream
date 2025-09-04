@@ -27,7 +27,7 @@ export class RedisQueue implements IQueue {
 		this.redisPrefix = manager.options.stateStorage.redisConfig.prefix?.endsWith(":")
 			? manager.options.stateStorage.redisConfig.prefix
 			: `${manager.options.stateStorage.redisConfig.prefix ?? "magmastream"}:`;
-	}
+	};
 
 	// #region Public
 	/**
@@ -47,8 +47,8 @@ export class RedisQueue implements IQueue {
 			const current = serialized.shift();
 			if (current) {
 				await this.setCurrent(this.deserialize(current));
-			}
-		}
+			};
+		};
 
 		if (typeof offset === "number" && !isNaN(offset)) {
 			const queue = await this.redis.lrange(this.queueKey, 0, -1);
@@ -56,10 +56,10 @@ export class RedisQueue implements IQueue {
 			await this.redis.del(this.queueKey);
 			if (queue.length > 0) {
 				await this.redis.rpush(this.queueKey, ...queue);
-			}
+			};
 		} else if (serialized.length > 0) {
 			await this.redis.rpush(this.queueKey, ...serialized);
-		}
+		};
 
 		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Added ${tracks.length} track(s) to queue`);
 
@@ -77,9 +77,9 @@ export class RedisQueue implements IQueue {
 					} as PlayerStateUpdateEvent);
 
 					return;
-				}
-			}
-		}
+				};
+			};
+		};
 
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
@@ -89,7 +89,7 @@ export class RedisQueue implements IQueue {
 				tracks,
 			},
 		} as PlayerStateUpdateEvent);
-	}
+	};
 
 	/**
 	 * Adds a track or tracks to the previous tracks.
@@ -105,7 +105,7 @@ export class RedisQueue implements IQueue {
 		if (!serialized.length) return;
 
 		await this.redis.lpush(this.previousKey, ...serialized.reverse());
-	}
+	};
 
 	/**
 	 * Clears the queue.
@@ -124,14 +124,14 @@ export class RedisQueue implements IQueue {
 		} as PlayerStateUpdateEvent);
 
 		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Cleared the queue for: ${this.guildId}`);
-	}
+	};
 
 	/**
 	 * Clears the previous tracks.
 	 */
 	public async clearPrevious(): Promise<void> {
 		await this.redis.del(this.previousKey);
-	}
+	};
 
 	/**
 	 * Removes the first track from the queue.
@@ -139,7 +139,7 @@ export class RedisQueue implements IQueue {
 	public async dequeue(): Promise<Track | undefined> {
 		const raw = await this.redis.lpop(this.queueKey);
 		return raw ? this.deserialize(raw) : undefined;
-	}
+	};
 
 	/**
 	 * @returns The total duration of the queue in milliseconds.
@@ -155,11 +155,11 @@ export class RedisQueue implements IQueue {
 				return acc + (parsed.duration || 0);
 			} catch {
 				return acc;
-			}
+			};
 		}, currentDuration);
 
 		return total;
-	}
+	};
 
 	/**
 	 * Adds a track to the front of the queue.
@@ -170,7 +170,7 @@ export class RedisQueue implements IQueue {
 
 		// Redis: LPUSH adds to front, reverse to maintain order if multiple tracks
 		await this.redis.lpush(this.queueKey, ...serialized.reverse());
-	}
+	};
 
 	/**
 	 * Whether all tracks in the queue match the specified condition.
@@ -180,7 +180,7 @@ export class RedisQueue implements IQueue {
 	public async everyAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<boolean> {
 		const tracks = await this.getTracks();
 		return tracks.every(callback);
-	}
+	};
 
 	/**
 	 * Filters the tracks in the queue.
@@ -190,7 +190,7 @@ export class RedisQueue implements IQueue {
 	public async filterAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<Track[]> {
 		const tracks = await this.getTracks();
 		return tracks.filter(callback);
-	}
+	};
 
 	/**
 	 * Finds the first track in the queue that matches the specified condition.
@@ -200,7 +200,7 @@ export class RedisQueue implements IQueue {
 	public async findAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<Track | undefined> {
 		const tracks = await this.getTracks();
 		return tracks.find(callback);
-	}
+	};
 
 	/**
 	 * @returns The current track.
@@ -208,7 +208,7 @@ export class RedisQueue implements IQueue {
 	public async getCurrent(): Promise<Track | null> {
 		const raw = await this.redis.get(this.currentKey);
 		return raw ? this.deserialize(raw) : null;
-	}
+	};
 
 	/**
 	 * @returns The previous tracks.
@@ -217,7 +217,7 @@ export class RedisQueue implements IQueue {
 		const raw = await this.redis.lrange(this.previousKey, 0, -1);
 
 		return raw.map(this.deserialize);
-	}
+	};
 
 	/**
 	 * @returns The tracks in the queue from the start to the end.
@@ -225,7 +225,7 @@ export class RedisQueue implements IQueue {
 	public async getSlice(start = 0, end = -1): Promise<Track[]> {
 		const raw = await this.redis.lrange(this.queueKey, start, end === -1 ? -1 : end - 1);
 		return raw.map(this.deserialize);
-	}
+	};
 
 	/**
 	 * @returns The tracks in the queue.
@@ -233,7 +233,7 @@ export class RedisQueue implements IQueue {
 	public async getTracks(): Promise<Track[]> {
 		const raw = await this.redis.lrange(this.queueKey, 0, -1);
 		return raw.map(this.deserialize);
-	}
+	};
 
 	/**
 	 * Maps the tracks in the queue.
@@ -242,7 +242,7 @@ export class RedisQueue implements IQueue {
 	public async mapAsync<T>(callback: (track: Track, index: number, array: Track[]) => T): Promise<T[]> {
 		const tracks = await this.getTracks(); // same as lrange + deserialize
 		return tracks.map(callback);
-	}
+	};
 
 	/**
 	 * Modifies the queue at the specified index.
@@ -259,10 +259,10 @@ export class RedisQueue implements IQueue {
 		await this.redis.del(this.queueKey);
 		if (queue.length > 0) {
 			await this.redis.rpush(this.queueKey, ...queue);
-		}
+		};
 
 		return removed.map(this.deserialize);
-	}
+	};
 
 	/**
 	 * Removes the newest track.
@@ -271,7 +271,7 @@ export class RedisQueue implements IQueue {
 	public async popPrevious(): Promise<Track | null> {
 		const raw = await this.redis.lpop(this.previousKey); // get newest track (index 0)
 		return raw ? this.deserialize(raw) : null;
-	}
+	};
 
 	/**
 	 * Removes the track at the specified index.
@@ -290,17 +290,17 @@ export class RedisQueue implements IQueue {
 		if (typeof end === "number") {
 			if (startOrPos >= end || startOrPos >= queue.length) {
 				throw new RangeError("Invalid range.");
-			}
+			};
 			removed = queue.slice(startOrPos, end);
 			queue.splice(startOrPos, end - startOrPos);
 		} else {
 			removed = queue.splice(startOrPos, 1);
-		}
+		};
 
 		await this.redis.del(this.queueKey);
 		if (queue.length > 0) {
 			await this.redis.rpush(this.queueKey, ...queue);
-		}
+		};
 
 		const deserialized = removed.map(this.deserialize);
 
@@ -316,7 +316,7 @@ export class RedisQueue implements IQueue {
 		} as PlayerStateUpdateEvent);
 
 		return deserialized;
-	}
+	};
 
 	/**
 	 * Shuffles the queue round-robin style.
@@ -332,15 +332,15 @@ export class RedisQueue implements IQueue {
 			const userId = track.requester.id;
 			if (!userMap.has(userId)) userMap.set(userId, []);
 			userMap.get(userId)!.push(track);
-		}
+		};
 
 		// Shuffle each user's tracks
 		for (const tracks of userMap.values()) {
 			for (let i = tracks.length - 1; i > 0; i--) {
 				const j = Math.floor(Math.random() * (i + 1));
 				[tracks[i], tracks[j]] = [tracks[j], tracks[i]];
-			}
-		}
+			};
+		};
 
 		const users = [...userMap.keys()];
 		const queues = users.map((id) => userMap.get(id)!);
@@ -350,8 +350,8 @@ export class RedisQueue implements IQueue {
 			for (const q of queues) {
 				const track = q.shift();
 				if (track) shuffledQueue.push(track);
-			}
-		}
+			};
+		};
 
 		await this.redis.del(this.queueKey);
 		await this.redis.rpush(this.queueKey, ...shuffledQueue.map(this.serialize));
@@ -365,7 +365,7 @@ export class RedisQueue implements IQueue {
 		} as PlayerStateUpdateEvent);
 
 		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] roundRobinShuffled the queue for: ${this.guildId}`);
-	}
+	};
 
 	/**
 	 * Sets the current track.
@@ -376,8 +376,8 @@ export class RedisQueue implements IQueue {
 			await this.redis.set(this.currentKey, this.serialize(track));
 		} else {
 			await this.redis.del(this.currentKey);
-		}
-	}
+		};
+	};
 
 	/**
 	 * Sets the previous track(s).
@@ -390,7 +390,7 @@ export class RedisQueue implements IQueue {
 
 		await this.redis.del(this.previousKey);
 		await this.redis.rpush(this.previousKey, ...tracks.map(this.serialize));
-	}
+	};
 
 	/**
 	 * Shuffles the queue.
@@ -407,7 +407,7 @@ export class RedisQueue implements IQueue {
 		await this.redis.del(this.queueKey);
 		if (queue.length > 0) {
 			await this.redis.rpush(this.queueKey, ...queue);
-		}
+		};
 
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
@@ -418,14 +418,14 @@ export class RedisQueue implements IQueue {
 		} as PlayerStateUpdateEvent);
 
 		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Shuffled the queue for: ${this.guildId}`);
-	}
+	};
 
 	/**
 	 * @returns The size of the queue.
 	 */
 	public async size(): Promise<number> {
 		return await this.redis.llen(this.queueKey);
-	}
+	};
 
 	/**
 	 * @returns Whether any tracks in the queue match the specified condition.
@@ -433,7 +433,7 @@ export class RedisQueue implements IQueue {
 	public async someAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<boolean> {
 		const tracks = await this.getTracks();
 		return tracks.some(callback);
-	}
+	};
 
 	/**
 	 * @returns The total size of tracks in the queue including the current track.
@@ -441,7 +441,7 @@ export class RedisQueue implements IQueue {
 	public async totalSize(): Promise<number> {
 		const size = await this.size();
 		return (await this.getCurrent()) ? size + 1 : size;
-	}
+	};
 
 	/**
 	 * Shuffles the queue, but keeps the tracks of the same user together.
@@ -457,15 +457,15 @@ export class RedisQueue implements IQueue {
 			const userId = track.requester.id;
 			if (!userMap.has(userId)) userMap.set(userId, []);
 			userMap.get(userId)!.push(track);
-		}
+		};
 
 		const shuffledQueue: Track[] = [];
 		while (shuffledQueue.length < deserialized.length) {
 			for (const [, tracks] of userMap) {
 				const track = tracks.shift();
 				if (track) shuffledQueue.push(track);
-			}
-		}
+			};
+		};
 
 		await this.redis.del(this.queueKey);
 		await this.redis.rpush(this.queueKey, ...shuffledQueue.map(this.serialize));
@@ -479,7 +479,8 @@ export class RedisQueue implements IQueue {
 		} as PlayerStateUpdateEvent);
 
 		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] userBlockShuffled the queue for: ${this.guildId}`);
-	}
+	};
+
 	// #endregion Public
 	// #region Private
 	/**
@@ -487,36 +488,36 @@ export class RedisQueue implements IQueue {
 	 */
 	private get currentKey(): string {
 		return `${this.redisPrefix}queue:${this.guildId}:current`;
-	}
+	};
 
 	/**
 	 * Deserializes a track from a string.
 	 */
 	private deserialize(data: string): Track {
 		return JSON.parse(data) as Track;
-	}
+	};
 
 	/**
 	 * @returns The previous key.
 	 */
 	private get previousKey(): string {
 		return `${this.redisPrefix}queue:${this.guildId}:previous`;
-	}
+	};
 
 	/**
 	 * @returns The queue key.
 	 */
 	private get queueKey(): string {
 		return `${this.redisPrefix}queue:${this.guildId}:tracks`;
-	}
+	};
 
 	/**
 	 * Helper to serialize/deserialize Track
 	 */
 	private serialize(track: Track): string {
 		return JSON.stringify(track);
-	}
+	};
 	// #endregion Private
 	// #region Protected
 	// #endregion Protected
-}
+};

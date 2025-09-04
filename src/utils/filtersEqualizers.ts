@@ -4,7 +4,7 @@ export interface Band {
 	band: number;
 	/** The gain value of the equalizer band (in decibels). */
 	gain: number;
-}
+};
 
 export const bassBoostEqualizer: Band[] = [
 	{ band: 0, gain: 0.2 },
@@ -117,4 +117,4 @@ export const demonEqualizer: Band[] = [
 	{band: 1, gain: -0.6},
 	{band: 3, gain: -0.6},
 	{band: 5, gain: -0.6},
-]
+];

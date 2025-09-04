@@ -44,7 +44,7 @@ export interface ManagerOptions {
 	/** The client ID to use. */
 	clientId?: string;
 	/** Value to use for the `Client-Name` header.
-	 *  @default "Magmastream"
+	 * @default "Magmastream"
 	 *
 	 * For NodeLink, leave it empty.
 	 */
@@ -87,7 +87,7 @@ export interface ManagerOptions {
 	 * @param payload The payload to send.
 	 */
 	send?: (packet: DiscordPacket) => unknown;
-}
+};
 
 /**
  * State Storage Options
@@ -97,7 +97,7 @@ export interface StateStorageOptions {
 	redisConfig?: RedisConfig;
 	jsonConfig?: JsonConfig;
 	deleteInactivePlayers?: boolean;
-}
+};
 
 /**
  * Node Options
@@ -153,7 +153,7 @@ export interface NodeOptions {
 	 * @default false
 	 */
 	isBackup?: boolean;
-}
+};
 
 /**
  * Discord Packet
@@ -176,7 +176,7 @@ export interface DiscordPacket {
 	 * The event name for this payload
 	 */
 	t?: string;
-}
+};
 
 /**
  * Player Update Voice State
@@ -190,7 +190,7 @@ export interface PlayerUpdateVoiceState {
 	 * Event data
 	 */
 	event: VoiceServerUpdate;
-}
+};
 
 /**
  * Voice Server Update
@@ -208,7 +208,7 @@ export interface VoiceServerUpdate {
 	 * The endpoint lavalink will connect to
 	 */
 	endpoint: string;
-}
+};
 
 /**
  * Redis Configuration
@@ -219,14 +219,14 @@ export interface RedisConfig {
 	password?: string;
 	db?: number;
 	prefix?: string;
-}
+};
 
 /**
  * JSON Configuration
  */
 export interface JsonConfig {
 	path: string;
-}
+};
 
 /**
  * Player State Update Event
@@ -250,7 +250,7 @@ interface AutoplayChangeEvent {
 	action: "toggle";
 	previousAutoplay: boolean | null;
 	currentAutoplay: boolean | null;
-}
+};
 
 /**
  * Connection Change Event
@@ -260,12 +260,12 @@ interface ConnectionChangeEvent {
 	action: "connect" | "disconnect";
 	previousConnection: boolean | null;
 	currentConnection: boolean | null;
-}
+};
 
 interface FilterChangeEvent {
 	type: "filter";
 	action: "change";
-}
+};
 
 /**
  * Repeat Change Event
@@ -275,7 +275,7 @@ interface RepeatChangeEvent {
 	action: "dynamic" | "track" | "queue" | "none";
 	previousRepeat: "dynamic" | "track" | "queue" | null;
 	currentRepeat: "dynamic" | "track" | "queue" | null;
-}
+};
 
 /**
  * Pause Change Event
@@ -285,7 +285,7 @@ interface PauseChangeEvent {
 	action: "pause" | "resume" | "toggle";
 	previousPause: boolean | null;
 	currentPause: boolean | null;
-}
+};
 
 /**
  * Queue Change Event
@@ -296,7 +296,7 @@ interface QueueChangeEvent {
 	previousQueueLength: number | null;
 	currentQueueLength: number | null;
 	tracks?: Track[];
-}
+};
 
 /**
  * Track Change Event
@@ -307,7 +307,7 @@ interface TrackChangeEvent {
 	track: Track;
 	previousTime?: number | null;
 	currentTime?: number | null;
-}
+};
 
 /**
  * Volume Change Event
@@ -317,7 +317,7 @@ interface VolumeChangeEvent {
 	action: "adjust";
 	previousVolume: number | null;
 	currentVolume: number | null;
-}
+};
 
 /**
  * Channel Change Event
@@ -327,7 +327,7 @@ interface ChannelChangeEvent {
 	action: "text" | "voice";
 	previousChannel: string | null;
 	currentChannel: string | null;
-}
+};
 
 /**
  * Track
@@ -365,7 +365,7 @@ export interface Track {
 	pluginInfo: TrackPluginInfo;
 	/** Add your own data to the track. */
 	customData: Record<string, unknown>;
-}
+};
 
 /**
  * Track Plugin Info
@@ -377,7 +377,7 @@ export interface TrackPluginInfo {
 	artistUrl?: string;
 	isPreview?: string;
 	previewUrl?: string;
-}
+};
 
 /**
  * Search Query
@@ -387,7 +387,7 @@ export interface SearchQuery {
 	source?: SearchPlatform;
 	/** The query to search for. */
 	query: string;
-}
+};
 
 /**
  * Lavalink Response
@@ -395,7 +395,7 @@ export interface SearchQuery {
 export interface LavalinkResponse {
 	loadType: LoadTypes;
 	data: TrackData[] | PlaylistRawData;
-}
+};
 
 /**
  * Track Data
@@ -407,7 +407,7 @@ export interface TrackData {
 	info: TrackDataInfo;
 	/** Additional track info provided by plugins. */
 	pluginInfo: Record<string, string>;
-}
+};
 
 /**
  * Playlist Raw Data
@@ -421,7 +421,7 @@ export interface PlaylistRawData {
 	pluginInfo: object;
 	/** The tracks of the playlist */
 	tracks: TrackData[];
-}
+};
 
 /**
  * Track Data Info
@@ -437,7 +437,7 @@ export interface TrackDataInfo {
 	uri?: string;
 	artworkUrl?: string;
 	sourceName?: TrackSourceName;
-}
+};
 
 /**
  * LavaPlayer
@@ -459,7 +459,7 @@ export interface LavaPlayer {
 		sessionId: string;
 	};
 	filters: Record<string, unknown>;
-}
+};
 
 /**
  * Error or Empty Search Result
@@ -467,7 +467,7 @@ export interface LavaPlayer {
 export interface ErrorOrEmptySearchResult {
 	/** The load type of the result. */
 	loadType: LoadTypes.Empty | LoadTypes.Error;
-}
+};
 
 /**
  * Track Search Result
@@ -477,7 +477,7 @@ export interface TrackSearchResult {
 	loadType: LoadTypes.Track;
 	/** The track obtained */
 	tracks: [Track];
-}
+};
 
 /**
  * Search Result
@@ -487,7 +487,7 @@ export interface SearchSearchResult {
 	loadType: LoadTypes.Search;
 	/** The tracks of the search result */
 	tracks: Track[];
-}
+};
 
 /**
  * Playlist Search Result
@@ -499,7 +499,7 @@ export interface PlaylistSearchResult {
 	tracks: Track[];
 	/** The playlist info */
 	playlist: PlaylistData;
-}
+};
 
 /**
  * Album Search Result
@@ -508,7 +508,7 @@ export interface AlbumSearchResult {
 	loadType: LoadTypes.Album;
 	tracks: Track[];
 	playlist: PlaylistData;
-}
+};
 
 /**
  * Artist Search Result
@@ -517,7 +517,7 @@ export interface ArtistSearchResult {
 	loadType: LoadTypes.Artist;
 	tracks: Track[];
 	playlist: PlaylistData;
-}
+};
 
 /**
  * Station Search Result
@@ -526,7 +526,7 @@ export interface StationSearchResult {
 	loadType: LoadTypes.Station;
 	tracks: Track[];
 	playlist: PlaylistData;
-}
+};
 
 /**
  * Podcast Search Result
@@ -535,7 +535,7 @@ export interface PodcastSearchResult {
 	loadType: LoadTypes.Podcast;
 	tracks: Track[];
 	playlist: PlaylistData;
-}
+};
 
 /**
  * Show Search Result
@@ -544,7 +544,7 @@ export interface ShowSearchResult {
 	loadType: LoadTypes.Show;
 	tracks: Track[];
 	playlist: PlaylistData;
-}
+};
 
 /**
  * Short Search Result
@@ -552,7 +552,7 @@ export interface ShowSearchResult {
 export interface ShortSearchResult {
 	loadType: LoadTypes.Short;
 	tracks: [Track];
-}
+};
 
 /**
  * Playlist Data
@@ -568,7 +568,7 @@ export interface PlaylistData {
 	duration: number;
 	/** The songs of the playlist. */
 	tracks: Track[];
-}
+};
 
 /**
  * Playlist Info Data
@@ -584,7 +584,7 @@ export interface PlaylistInfoData {
 	totalTracks: number;
 	/** Author of playlist */
 	author: string;
-}
+};
 
 /**
  * Manager Events
@@ -623,7 +623,7 @@ export interface ManagerEvents {
 	[ManagerEventTypes.VoiceReceiverError]: [player: Player, error: Error];
 	[ManagerEventTypes.VoiceReceiverStartSpeaking]: [player: Player, data: unknown];
 	[ManagerEventTypes.VoiceReceiverEndSpeaking]: [player: Player, data: unknown];
-}
+};
 
 /**
  * Voice Packet
@@ -631,7 +631,7 @@ export interface ManagerEvents {
 export interface VoicePacket {
 	t?: "VOICE_SERVER_UPDATE" | "VOICE_STATE_UPDATE";
 	d: VoiceState | VoiceServer;
-}
+};
 
 /**
  * Voice Server
@@ -640,13 +640,13 @@ export interface VoiceServer {
 	token: string;
 	guild_id: string;
 	endpoint: string;
-}
+};
 
 export interface Extendable {
 	Player: typeof Player;
 	Queue: typeof MemoryQueue | typeof RedisQueue | typeof JsonQueue;
 	Node: typeof Node;
-}
+};
 
 /**
  * Voice State
@@ -656,7 +656,7 @@ export interface VoiceState {
 	guildId: string;
 	event: VoiceServer;
 	sessionId?: string;
-}
+};
 
 /**
  * Voice State
@@ -666,7 +666,7 @@ export interface VoiceState {
 	user_id: string;
 	session_id: string;
 	channel_id: string;
-}
+};
 
 /**
  * NodeStats interface
@@ -684,7 +684,7 @@ export interface NodeStats {
 	cpu: CPUStats;
 	/** The frame stats for the node. */
 	frameStats: FrameStats;
-}
+};
 
 /**
  * Node Message
@@ -693,7 +693,7 @@ export interface NodeMessage extends NodeStats {
 	type: PlayerEventType;
 	op: "stats" | "playerUpdate" | "event";
 	guildId: string;
-}
+};
 
 /**
  * PlayerEvent interface
@@ -702,7 +702,7 @@ export interface PlayerEvent {
 	op: "event";
 	type: PlayerEventType;
 	guildId: string;
-}
+};
 
 /**
  * Exception interface
@@ -711,7 +711,7 @@ export interface Exception {
 	message: string;
 	severity: SeverityTypes;
 	cause: string;
-}
+};
 
 /**
  * TrackStartEvent interface
@@ -719,7 +719,7 @@ export interface Exception {
 export interface TrackStartEvent extends PlayerEvent {
 	type: "TrackStartEvent";
 	track: TrackData;
-}
+};
 
 /**
  * TrackEndEvent interface
@@ -728,7 +728,7 @@ export interface TrackEndEvent extends PlayerEvent {
 	type: "TrackEndEvent";
 	track: TrackData;
 	reason: TrackEndReasonTypes;
-}
+};
 
 /**
  * TrackExceptionEvent interface
@@ -737,7 +737,7 @@ export interface TrackExceptionEvent extends PlayerEvent {
 	exception?: Exception;
 	guildId: string;
 	type: "TrackExceptionEvent";
-}
+};
 
 /**
  * TrackStuckEvent interface
@@ -745,7 +745,7 @@ export interface TrackExceptionEvent extends PlayerEvent {
 export interface TrackStuckEvent extends PlayerEvent {
 	type: "TrackStuckEvent";
 	thresholdMs: number;
-}
+};
 
 /**
  * WebSocketClosedEvent interface
@@ -755,7 +755,7 @@ export interface WebSocketClosedEvent extends PlayerEvent {
 	code: number;
 	reason: string;
 	byRemote: boolean;
-}
+};
 
 /**
  * SponsorBlockSegmentsLoaded interface
@@ -771,7 +771,7 @@ export interface SponsorBlockSegmentsLoaded extends PlayerEvent {
 		/* In milliseconds */
 		end: number;
 	}[];
-}
+};
 
 /**
  * SponsorBlockSegmentSkipped interface
@@ -787,7 +787,7 @@ export interface SponsorBlockSegmentSkipped extends PlayerEvent {
 		/* In milliseconds */
 		end: number;
 	};
-}
+};
 
 /**
  * SponsorBlockChapterStarted interface
@@ -805,7 +805,7 @@ export interface SponsorBlockChapterStarted extends PlayerEvent {
 		/* In milliseconds */
 		duration: number;
 	};
-}
+};
 
 /**
  * SponsorBlockChaptersLoaded interface
@@ -823,7 +823,7 @@ export interface SponsorBlockChaptersLoaded extends PlayerEvent {
 		/* In milliseconds */
 		duration: number;
 	}[];
-}
+};
 
 /**
  * NodeStats interface
@@ -841,7 +841,7 @@ export interface NodeStats {
 	cpu: CPUStats;
 	/** The frame stats for the node. */
 	frameStats: FrameStats;
-}
+};
 
 /**
  * MemoryStats interface
@@ -855,7 +855,7 @@ export interface MemoryStats {
 	allocated: number;
 	/** The reservable memory. */
 	reservable: number;
-}
+};
 
 /**
  * CPUStats interface
@@ -867,7 +867,7 @@ export interface CPUStats {
 	systemLoad: number;
 	/** The lavalink load. */
 	lavalinkLoad: number;
-}
+};
 
 /**
  * FrameStats interface
@@ -879,7 +879,7 @@ export interface FrameStats {
 	nulled?: number;
 	/** The amount of deficit frames. */
 	deficit?: number;
-}
+};
 
 /**
  * LavalinkInfo interface
@@ -893,7 +893,7 @@ export interface LavalinkInfo {
 	sourceManagers: string[];
 	filters: string[];
 	plugins: { name: string; version: string }[];
-}
+};
 
 /**
  * LyricsLine interface
@@ -903,7 +903,7 @@ export interface LyricsLine {
 	duration: number;
 	line: string;
 	plugin: object;
-}
+};
 
 /**
  * Lyrics interface
@@ -914,7 +914,7 @@ export interface Lyrics {
 	text?: string;
 	lines: LyricsLine[];
 	plugin: object[];
-}
+};
 
 /**
  * LyricsFoundEvent interface
@@ -923,7 +923,7 @@ export interface LyricsFoundEvent extends PlayerEvent {
 	type: "LyricsFoundEvent";
 	guildId: string;
 	lyrics: Lyrics;
-}
+};
 
 /**
  * LyricsNotFoundEvent interface
@@ -931,7 +931,7 @@ export interface LyricsFoundEvent extends PlayerEvent {
 export interface LyricsNotFoundEvent extends PlayerEvent {
 	type: "LyricsNotFoundEvent";
 	guildId: string;
-}
+};
 
 /**
  * LyricsLineEvent interface
@@ -942,7 +942,7 @@ export interface LyricsLineEvent extends PlayerEvent {
 	lineIndex: number;
 	line: LyricsLine;
 	skipped: boolean;
-}
+};
 
 /**
  * NodeLink Get Lyrics Multiple interface
@@ -950,7 +950,7 @@ export interface LyricsLineEvent extends PlayerEvent {
 export interface NodeLinkGetLyricsMultiple {
 	loadType: "lyricsMultiple";
 	data: NodeLinkGetLyricsData[];
-}
+};
 
 /**
  * NodeLink Get Lyrics Empty interface
@@ -958,7 +958,7 @@ export interface NodeLinkGetLyricsMultiple {
 export interface NodeLinkGetLyricsEmpty {
 	loadType: "empty";
 	data: Record<never, never>;
-}
+};
 
 /**
  * NodeLink Get Lyrics Data interface
@@ -972,7 +972,7 @@ interface NodeLinkGetLyricsData {
 		text: string;
 	}[];
 	rtl: boolean;
-}
+};
 
 /**
  * NodeLink Get Lyrics Single interface
@@ -980,7 +980,7 @@ interface NodeLinkGetLyricsData {
 export interface NodeLinkGetLyricsSingle {
 	loadType: "lyricsSingle";
 	data: NodeLinkGetLyricsData;
-}
+};
 
 /**
  * NodeLink Get Lyrics Error interface
@@ -993,7 +993,7 @@ export interface NodeLinkGetLyricsError {
 		cause: string;
 		trace?: string;
 	};
-}
+};
 
 /**
  * Start Speaking Event Voice Receiver Data interface
@@ -1008,7 +1008,7 @@ export interface StartSpeakingEventVoiceReceiverData {
 	 * The guild ID of the guild where the user started speaking.
 	 */
 	guildId: string;
-}
+};
 
 /**
  * End Speaking Event Voice Receiver Data interface
@@ -1030,14 +1030,14 @@ export interface EndSpeakingEventVoiceReceiverData {
 	 * The type of the audio data. Can be either opus or pcm. Older versions may include ogg/opus.
 	 */
 	type: "opus" | "pcm";
-}
+};
 
 /**
  * Base Voice Receiver Event interface
  */
 interface BaseVoiceReceiverEvent {
 	op: "speak";
-}
+};
 
 /**
  * Start Speaking Event Voice Receiver interface
@@ -1045,7 +1045,7 @@ interface BaseVoiceReceiverEvent {
 export interface StartSpeakingEventVoiceReceiver extends BaseVoiceReceiverEvent {
 	type: "startSpeakingEvent";
 	data: StartSpeakingEventVoiceReceiverData;
-}
+};
 
 /**
  * End Speaking Event Voice Receiver interface
@@ -1053,7 +1053,7 @@ export interface StartSpeakingEventVoiceReceiver extends BaseVoiceReceiverEvent 
 export interface EndSpeakingEventVoiceReceiver extends BaseVoiceReceiverEvent {
 	type: "endSpeakingEvent";
 	data: EndSpeakingEventVoiceReceiverData;
-}
+};
 
 /**
  * PlayerOptions interface
@@ -1073,7 +1073,7 @@ export interface PlayerOptions {
 	selfMute?: boolean;
 	/** If the player should deaf itself. */
 	selfDeafen?: boolean;
-}
+};
 
 /**
  * PlayOptions interface
@@ -1085,7 +1085,7 @@ export interface PlayOptions {
 	readonly endTime?: number;
 	/** Whether to not replace the track if a play payload is sent. */
 	readonly noReplace?: boolean;
-}
+};
 
 /**
  * RestPlayOptions interface
@@ -1118,7 +1118,7 @@ export interface RestPlayOptions {
 		/** Whether to not replace the track if a play payload is sent. */
 		noReplace?: boolean;
 	};
-}
+};
 
 /**
  * ManagerInitOptions interface
@@ -1126,7 +1126,7 @@ export interface RestPlayOptions {
 export interface ManagerInitOptions {
 	clientId?: string;
 	clusterId?: number;
-}
+};
 
 /**
  * EqualizerBand interface
@@ -1136,25 +1136,25 @@ export interface EqualizerBand {
 	band: number;
 	/** The gain amount being -0.25 to 1.00, 0.25 being double. */
 	gain: number;
-}
+};
 
 /** Options for adjusting the timescale of audio. */
 export interface TimescaleOptions {
 	speed?: number;
 	pitch?: number;
 	rate?: number;
-}
+};
 
 /** Options for applying vibrato effect to audio. */
 export interface VibratoOptions {
 	frequency: number;
 	depth: number;
-}
+};
 
 /** Options for applying rotation effect to audio. */
 export interface RotationOptions {
 	rotationHz: number;
-}
+};
 
 /** Options for applying karaoke effect to audio. */
 export interface KaraokeOptions {
@@ -1162,7 +1162,7 @@ export interface KaraokeOptions {
 	monoLevel?: number;
 	filterBand?: number;
 	filterWidth?: number;
-}
+};
 
 /** Options for applying distortion effect to audio. */
 export interface DistortionOptions {
@@ -1174,7 +1174,7 @@ export interface DistortionOptions {
 	tanScale?: number;
 	offset?: number;
 	scale?: number;
-}
+};
 
 /** Options for applying reverb effect to audio. */
 export interface ReverbOptions {
@@ -1182,7 +1182,8 @@ export interface ReverbOptions {
 	dry?: number;
 	roomSize?: number;
 	damping?: number;
-}
+};
+
 /**
  * Queue interface
  */
@@ -1219,7 +1220,7 @@ export interface IQueue {
 	findAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<Track | undefined>;
 	someAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<boolean>;
 	everyAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<boolean>;
-}
+};
 
 /**
  * Sizes Enum type

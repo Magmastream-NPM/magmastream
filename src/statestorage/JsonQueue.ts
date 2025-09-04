@@ -22,7 +22,7 @@ export class JsonQueue implements IQueue {
 		const base = manager.options.stateStorage?.jsonConfig?.path ?? path.join(process.cwd(), "magmastream", "sessionData", "players");
 
 		this.basePath = path.join(base, this.guildId);
-	}
+	};
 
 	// #region Public
 	/**
@@ -43,14 +43,14 @@ export class JsonQueue implements IQueue {
 			const current = tracks.shift();
 			if (current) {
 				await this.setCurrent(current);
-			}
-		}
+			};
+		};
 
 		if (typeof offset === "number" && !isNaN(offset)) {
 			queue.splice(offset, 0, ...tracks);
 		} else {
 			queue.push(...tracks);
-		}
+		};
 
 		await this.setQueue(queue);
 
@@ -69,9 +69,9 @@ export class JsonQueue implements IQueue {
 						},
 					} as PlayerStateUpdateEvent);
 					return;
-				}
-			}
-		}
+				};
+			};
+		};
 
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
@@ -81,7 +81,7 @@ export class JsonQueue implements IQueue {
 				tracks,
 			},
 		} as PlayerStateUpdateEvent);
-	}
+	};
 
 	/**
 	 * @param track The track to add.
@@ -92,7 +92,7 @@ export class JsonQueue implements IQueue {
 
 		const current = await this.getPrevious();
 		await this.writeJSON(this.previousPath, [...tracks.reverse(), ...current]);
-	}
+	};
 
 	/**
 	 * Clears the queue.
@@ -111,14 +111,14 @@ export class JsonQueue implements IQueue {
 		} as PlayerStateUpdateEvent);
 
 		this.manager.emit(ManagerEventTypes.Debug, `[JSONQUEUE] Cleared the queue for: ${this.guildId}`);
-	}
+	};
 
 	/**
 	 * Clears the previous tracks.
 	 */
 	public async clearPrevious(): Promise<void> {
 		await this.deleteFile(this.previousPath);
-	}
+	};
 
 	/**
 	 * Removes the first track from the queue.
@@ -128,7 +128,7 @@ export class JsonQueue implements IQueue {
 		const track = queue.shift();
 		await this.setQueue(queue);
 		return track;
-	}
+	};
 
 	/**
 	 * @returns The total duration of the queue.
@@ -140,7 +140,7 @@ export class JsonQueue implements IQueue {
 
 		const total = queue.reduce((acc, track) => acc + (track.duration || 0), currentDuration);
 		return total;
-	}
+	};
 
 	/**
 	 * Adds a track to the front of the queue.
@@ -149,7 +149,7 @@ export class JsonQueue implements IQueue {
 		const tracks = Array.isArray(track) ? track : [track];
 		const queue = await this.getQueue();
 		await this.setQueue([...tracks.reverse(), ...queue]);
-	}
+	};
 
 	/**
 	 * Tests whether all elements in the queue pass the test implemented by the provided function.
@@ -157,7 +157,7 @@ export class JsonQueue implements IQueue {
 	public async everyAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<boolean> {
 		const queue = await this.getQueue();
 		return queue.every(callback);
-	}
+	};
 
 	/**
 	 * Filters the queue.
@@ -165,7 +165,7 @@ export class JsonQueue implements IQueue {
 	public async filterAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<Track[]> {
 		const queue = await this.getQueue();
 		return queue.filter(callback);
-	}
+	};
 
 	/**
 	 * Finds the first track in the queue that satisfies the provided testing function.
@@ -173,14 +173,14 @@ export class JsonQueue implements IQueue {
 	public async findAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<Track | undefined> {
 		const queue = await this.getQueue();
 		return queue.find(callback);
-	}
+	};
 
 	/**
 	 * @returns The current track.
 	 */
 	public async getCurrent(): Promise<Track | null> {
 		return await this.readJSON<Track>(this.currentPath);
-	}
+	};
 
 	/**
 	 * @returns The previous tracks.
@@ -188,7 +188,7 @@ export class JsonQueue implements IQueue {
 	public async getPrevious(): Promise<Track[]> {
 		const data = await this.readJSON<Track[]>(this.previousPath);
 		return Array.isArray(data) ? data : [];
-	}
+	};
 
 	/**
 	 * @returns The tracks in the queue from start to end.
@@ -197,14 +197,14 @@ export class JsonQueue implements IQueue {
 		const queue = await this.getQueue();
 		if (end === -1) return queue.slice(start);
 		return queue.slice(start, end);
-	}
+	};
 
 	/**
 	 * @returns The tracks in the queue.
 	 */
 	public async getTracks(): Promise<Track[]> {
 		return await this.getQueue();
-	}
+	};
 
 	/**
 	 * Maps the queue to a new array.
@@ -212,7 +212,7 @@ export class JsonQueue implements IQueue {
 	public async mapAsync<T>(callback: (track: Track, index: number, array: Track[]) => T): Promise<T[]> {
 		const queue = await this.getQueue();
 		return queue.map(callback);
-	}
+	};
 
 	/**
 	 * Modifies the queue at the specified index.
@@ -224,7 +224,7 @@ export class JsonQueue implements IQueue {
 
 		await this.setQueue(queue);
 		return removed;
-	}
+	};
 
 	/**
 	 * @returns The newest track.
@@ -236,7 +236,7 @@ export class JsonQueue implements IQueue {
 		const popped = current.shift()!;
 		await this.writeJSON(this.previousPath, current);
 		return popped;
-	}
+	};
 
 	/**
 	 * Removes a track from the queue.
@@ -256,7 +256,7 @@ export class JsonQueue implements IQueue {
 			removed = queue.splice(startOrPos, end - startOrPos);
 		} else {
 			removed = queue.splice(startOrPos, 1);
-		}
+		};
 
 		await this.setQueue(queue);
 
@@ -271,7 +271,7 @@ export class JsonQueue implements IQueue {
 		} as PlayerStateUpdateEvent);
 
 		return removed;
-	}
+	};
 
 	/**
 	 * Shuffles the queue by round-robin.
@@ -286,15 +286,15 @@ export class JsonQueue implements IQueue {
 			const userId = track.requester.id;
 			if (!userMap.has(userId)) userMap.set(userId, []);
 			userMap.get(userId)!.push(track);
-		}
+		};
 
 		// Shuffle each user's tracks
 		for (const tracks of userMap.values()) {
 			for (let i = tracks.length - 1; i > 0; i--) {
 				const j = Math.floor(Math.random() * (i + 1));
 				[tracks[i], tracks[j]] = [tracks[j], tracks[i]];
-			}
-		}
+			};
+		};
 
 		const users = [...userMap.keys()];
 		const queues = users.map((id) => userMap.get(id)!);
@@ -304,8 +304,8 @@ export class JsonQueue implements IQueue {
 			for (const q of queues) {
 				const track = q.shift();
 				if (track) shuffledQueue.push(track);
-			}
-		}
+			};
+		};
 
 		await this.setQueue(shuffledQueue);
 
@@ -318,7 +318,7 @@ export class JsonQueue implements IQueue {
 		} as PlayerStateUpdateEvent);
 
 		this.manager.emit(ManagerEventTypes.Debug, `[JSONQUEUE] roundRobinShuffled the queue for: ${this.guildId}`);
-	}
+	};
 
 	/**
 	 * @param track The track to set.
@@ -328,8 +328,8 @@ export class JsonQueue implements IQueue {
 			await this.writeJSON(this.currentPath, track);
 		} else {
 			await this.deleteFile(this.currentPath);
-		}
-	}
+		};
+	};
 
 	/**
 	 * @param track The track to set.
@@ -339,7 +339,7 @@ export class JsonQueue implements IQueue {
 		if (!tracks.length) return;
 
 		await this.writeJSON(this.previousPath, tracks);
-	}
+	};
 
 	/**
 	 * Shuffles the queue.
@@ -351,7 +351,7 @@ export class JsonQueue implements IQueue {
 		for (let i = queue.length - 1; i > 0; i--) {
 			const j = Math.floor(Math.random() * (i + 1));
 			[queue[i], queue[j]] = [queue[j], queue[i]];
-		}
+		};
 
 		await this.setQueue(queue);
 
@@ -364,7 +364,7 @@ export class JsonQueue implements IQueue {
 		} as PlayerStateUpdateEvent);
 
 		this.manager.emit(ManagerEventTypes.Debug, `[JSONQUEUE] Shuffled the queue for: ${this.guildId}`);
-	}
+	};
 
 	/**
 	 * @returns The size of the queue.
@@ -372,7 +372,7 @@ export class JsonQueue implements IQueue {
 	public async size(): Promise<number> {
 		const queue = await this.getQueue();
 		return queue.length;
-	}
+	};
 
 	/**
 	 * Tests whether at least one element in the queue passes the test implemented by the provided function.
@@ -380,7 +380,7 @@ export class JsonQueue implements IQueue {
 	public async someAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<boolean> {
 		const queue = await this.getQueue();
 		return queue.some(callback);
-	}
+	};
 
 	/**
 	 * @returns The total size of the queue.
@@ -388,7 +388,7 @@ export class JsonQueue implements IQueue {
 	public async totalSize(): Promise<number> {
 		const size = await this.size();
 		return (await this.getCurrent()) ? size + 1 : size;
-	}
+	};
 
 	/**
 	 * Shuffles the queue by user.
@@ -403,15 +403,15 @@ export class JsonQueue implements IQueue {
 			const userId = track.requester.id;
 			if (!userMap.has(userId)) userMap.set(userId, []);
 			userMap.get(userId)!.push(track);
-		}
+		};
 
 		const shuffledQueue: Track[] = [];
 		while (shuffledQueue.length < queue.length) {
 			for (const [, tracks] of userMap) {
 				const track = tracks.shift();
 				if (track) shuffledQueue.push(track);
-			}
-		}
+			};
+		};
 
 		await this.setQueue(shuffledQueue);
 
@@ -424,7 +424,8 @@ export class JsonQueue implements IQueue {
 		} as PlayerStateUpdateEvent);
 
 		this.manager.emit(ManagerEventTypes.Debug, `[JSONQUEUE] userBlockShuffled the queue for: ${this.guildId}`);
-	}
+	};
+
 	// #endregion Public
 	// #region Private
 	/**
@@ -432,7 +433,7 @@ export class JsonQueue implements IQueue {
 	 */
 	private get currentPath(): string {
 		return path.join(this.basePath, "current.json");
-	}
+	};
 
 	/**
 	 * @param filePath The file path.
@@ -442,15 +443,15 @@ export class JsonQueue implements IQueue {
 			await fs.unlink(filePath);
 		} catch {
 			this.manager.emit(ManagerEventTypes.Debug, `[JSONQUEUE] Failed to delete file: ${filePath}`);
-		}
-	}
+		};
+	};
 
 	/**
 	 * Ensures the directory exists.
 	 */
 	private async ensureDir(): Promise<void> {
 		await fs.mkdir(this.basePath, { recursive: true });
-	}
+	};
 
 	/**
 	 * @returns The queue.
@@ -458,21 +459,21 @@ export class JsonQueue implements IQueue {
 	private async getQueue(): Promise<Track[]> {
 		const data = await this.readJSON<Track[]>(this.queuePath);
 		return Array.isArray(data) ? data : [];
-	}
+	};
 	
 	/**
 	 * @returns The previous path.
 	 */
 	private get previousPath(): string {
 		return path.join(this.basePath, "previous.json");
-	}
+	};
 
 	/**
 	 * @returns The queue path.
 	 */
 	private get queuePath(): string {
 		return path.join(this.basePath, "queue.json");
-	}
+	};
 
 	/**
 	 * @param filePath The file path.
@@ -484,8 +485,8 @@ export class JsonQueue implements IQueue {
 			return JSON.parse(raw);
 		} catch {
 			return null;
-		}
-	}
+		};
+	};
 
 	/**
 	 * @param queue The queue.
@@ -493,7 +494,7 @@ export class JsonQueue implements IQueue {
 	private async setQueue(queue: Track[]): Promise<void> {
 		await this.deleteFile(this.queuePath);
 		await this.writeJSON(this.queuePath, queue);
-	}
+	};
 
 	/**
 	 * @param filePath The file path.
@@ -502,8 +503,8 @@ export class JsonQueue implements IQueue {
 	private async writeJSON<T>(filePath: string, data: T): Promise<void> {
 		await this.ensureDir();
 		await fs.writeFile(filePath, JSON.stringify(data, null, 2), "utf-8");
-	}
+	};
 	// #endregion Private
 	// #region Protected
 	// #endregion Protected
-}
+};

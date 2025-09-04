@@ -413,12 +413,12 @@ export class Manager extends EventEmitter {
 
 		if ("token" in update) {
 			return await this.handleVoiceServerUpdate(player, update);
-		}
+		};
 
 		if (update.user_id !== this.options.clientId) return;
 
 		return await this.handleVoiceStateUpdate(player, update);
-	}
+	};
 
 	/**
 	 * Decodes an array of base64 encoded tracks and returns an array of TrackData.
@@ -437,11 +437,11 @@ export class Manager extends EventEmitter {
 
 			if (!res) {
 				return reject(new Error("No data returned from query."));
-			}
+			};
 
 			return resolve(res);
 		});
-	}
+	};
 
 	/**
 	 * Decodes a base64 encoded track and returns a TrackData.
@@ -453,7 +453,7 @@ export class Manager extends EventEmitter {
 		const res = await this.decodeTracks([track]);
 		// Since we're only decoding one track, we can just return the first element of the array
 		return res[0];
-	}
+	};
 
 	/**
 	 * Saves player states.
@@ -481,8 +481,8 @@ export class Manager extends EventEmitter {
 						this.emit(ManagerEventTypes.Debug, `[MANAGER] Player state saved: ${guildId}`);
 					} catch (error) {
 						this.emit(ManagerEventTypes.Debug, `[MANAGER] Error saving player state for guild ${guildId}: ${error}`);
-					}
-				}
+					};
+				};
 				break;
 
 			case StateStorageType.Redis:
@@ -493,7 +493,7 @@ export class Manager extends EventEmitter {
 						if (!player || player.state === StateTypes.Disconnected || !player.voiceChannelId) {
 							console.warn(`[MANAGER] Skipping save for inactive player: ${guildId}`);
 							return;
-						}
+						};
 
 						const serializedPlayer = await PlayerUtils.serializePlayer(player);
 						const redisKey = `${
@@ -507,13 +507,13 @@ export class Manager extends EventEmitter {
 						this.emit(ManagerEventTypes.Debug, `[MANAGER] Player state saved to Redis: ${guildId}`);
 					} catch (error) {
 						this.emit(ManagerEventTypes.Debug, `[MANAGER] Error saving player state to Redis for guild ${guildId}: ${error}`);
-					}
-				}
+					};
+				};
 				break;
 			default:
 				return;
-		}
-	}
+		};
+	};
 
 	/**
 	 * Sleeps for a specified amount of time.
@@ -522,7 +522,7 @@ export class Manager extends EventEmitter {
 	 */
 	private async sleep(ms: number) {
 		return new Promise((resolve) => setTimeout(resolve, ms));
-	}
+	};
 
 	/**
 	 * Loads player states from the JSON file.
@@ -571,7 +571,7 @@ export class Manager extends EventEmitter {
 								if (!lavaPlayer) {
 									await this.destroy(state.guildId);
 									continue;
-								}
+								};
 
 								const playerOptions: PlayerOptions = {
 									guildId: state.options.guildId,
@@ -596,7 +596,7 @@ export class Manager extends EventEmitter {
 									},
 								});
 
-								player.connect();
+								await player.connect();
 
 								const tracks: Track[] = [];
 								const currentTrack = state.queue.current;
@@ -605,19 +605,19 @@ export class Manager extends EventEmitter {
 								if (state.isAutoplay) {
 									Object.setPrototypeOf(state.data.clientUser, { constructor: { name: "User" } });
 									player.setAutoplay(true, state.data.clientUser, state.autoplayTries);
-								}
+								};
 
 								if (lavaPlayer?.track) {
 									tracks.push(...queueTracks);
 
 									if (currentTrack && currentTrack.uri === lavaPlayer.track.info.uri) {
 										await player.queue.setCurrent(TrackUtils.build(lavaPlayer.track as TrackData, currentTrack.requester));
-									}
+									};
 
 									if (tracks.length > 0) {
 										await player.queue.clear();
 										await player.queue.add(tracks);
-									}
+									};
 								} else {
 									if (currentTrack) {
 										if (queueTracks.length > 0) {
@@ -645,8 +645,8 @@ export class Manager extends EventEmitter {
 												if (tracks.length > 0) {
 													await player.queue.clear();
 													await player.queue.add(tracks);
-												}
-											}
+												};
+											};
 										} else if (queueTracks.length > 0) {
 											tracks.push(...queueTracks);
 											if (tracks.length > 0) {
@@ -658,34 +658,31 @@ export class Manager extends EventEmitter {
 												reason: TrackEndReasonTypes.Finished,
 												type: "TrackEndEvent",
 											} as TrackEndEvent);
-										}
-									}
-								}
+										};
+									};
+								};
 
 								if (state.queue.previous.length > 0) {
 									await player.queue.addPrevious(state.queue.previous);
 								} else {
 									await player.queue.clearPrevious();
-								}
+								};
 
-								if (state.paused) {
-									await player.pause(true);
-								} else {
-									player.paused = false;
-								}
+								if (state.paused) await player.pause(true);
+								else player.paused = false;
 
 								if (state.trackRepeat) player.setTrackRepeat(true);
 								if (state.queueRepeat) player.setQueueRepeat(true);
 
 								if (state.dynamicRepeat) {
 									player.setDynamicRepeat(state.dynamicRepeat, state.dynamicLoopInterval._idleTimeout);
-								}
+								};
 
 								if (state.data) {
 									for (const [name, value] of Object.entries(state.data)) {
 										player.set(name, value);
-									}
-								}
+									};
+								};
 
 								const filterActions: Record<string, (enabled: boolean) => void> = {
 									bassboost: () => player.filters.bassBoost(state.filters.bassBoostlevel),
@@ -719,16 +716,16 @@ export class Manager extends EventEmitter {
 								for (const [filter, isEnabled] of Object.entries(state.filters.filterStatus)) {
 									if (isEnabled && filterActions[filter]) {
 										filterActions[filter](true);
-									}
-								}
+									};
+								};
 
 								this.emit(ManagerEventTypes.PlayerRestored, player, node);
 								await this.sleep(1000);
 							} catch (error) {
 								this.emit(ManagerEventTypes.Debug, `[MANAGER] Error processing player state for guild ${guildId}: ${error}`);
 								continue;
-							}
-						}
+							};
+						};
 
 						// Cleanup old player state files from guild directories whose nodeId matches
 						for (const dirent of guildDirs) {
@@ -745,16 +742,16 @@ export class Manager extends EventEmitter {
 								if (state && typeof state === "object" && state.node?.options?.identifier === nodeId) {
 									await fs.rm(PlayerUtils.getPlayerStatePath(guildId), { force: true });
 									this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleted player state folder for guild ${guildId}`);
-								}
+								};
 							} catch (error) {
 								this.emit(ManagerEventTypes.Debug, `[MANAGER] Error deleting player state for guild ${guildId}: ${error}`);
 								continue;
-							}
-						}
+							};
+						};
 					} catch (error) {
 						this.emit(ManagerEventTypes.Debug, `[MANAGER] Error loading player states: ${error}`);
-					}
-				}
+					};
+				};
 				break;
 			case StateStorageType.Redis:
 				{
@@ -782,7 +779,7 @@ export class Manager extends EventEmitter {
 									const lavaPlayer = info.find((player) => player.guildId === guildId);
 									if (!lavaPlayer) {
 										await this.destroy(guildId);
-									}
+									};
 
 									const playerOptions: PlayerOptions = {
 										guildId: state.options.guildId,
@@ -801,7 +798,7 @@ export class Manager extends EventEmitter {
 										data: { voice: { token: state.voiceState.event.token, endpoint: state.voiceState.event.endpoint, sessionId: state.voiceState.sessionId } },
 									});
 
-									player.connect();
+									await player.connect();
 
 									// Rest of the player state restoration code (tracks, filters, etc.)
 									const tracks: Track[] = [];
@@ -812,7 +809,7 @@ export class Manager extends EventEmitter {
 									if (state.isAutoplay) {
 										Object.setPrototypeOf(state.data.clientUser, { constructor: { name: "User" } });
 										player.setAutoplay(true, state.data.clientUser, state.autoplayTries);
-									}
+									};
 
 									if (lavaPlayer?.track) {
 										// If lavaPlayer has a track, push all queue tracks
@@ -821,13 +818,13 @@ export class Manager extends EventEmitter {
 										// Set current track if matches lavaPlayer's track URI
 										if (currentTrack && currentTrack.uri === lavaPlayer.track.info.uri) {
 											await player.queue.setCurrent(TrackUtils.build(lavaPlayer.track as TrackData, currentTrack.requester));
-										}
+										};
 
 										// Add tracks to queue
 										if (tracks.length > 0) {
 											await player.queue.clear();
 											await player.queue.add(tracks);
-										}
+										};
 									} else {
 										// LavaPlayer missing track or lavaPlayer is falsy
 										if (currentTrack) {
@@ -835,7 +832,7 @@ export class Manager extends EventEmitter {
 												tracks.push(...queueTracks);
 												await player.queue.clear();
 												await player.queue.add(tracks);
-											}
+											};
 
 											await node.trackEnd(player, currentTrack, {
 												reason: TrackEndReasonTypes.Finished,
@@ -860,36 +857,36 @@ export class Manager extends EventEmitter {
 													if (tracks.length > 0) {
 														await player.queue.clear();
 														await player.queue.add(tracks);
-													}
-												}
+													};
+												};
 											} else {
 												if (queueTracks.length > 0) {
 													tracks.push(...queueTracks);
 													if (tracks.length > 0) {
 														await player.queue.clear();
 														await player.queue.add(tracks);
-													}
+													};
 
 													await node.trackEnd(player, lastTrack, {
 														reason: TrackEndReasonTypes.Finished,
 														type: "TrackEndEvent",
 													} as TrackEndEvent);
-												}
-											}
-										}
-									}
+												};
+											};
+										};
+									};
 
 									if (state.queue.previous.length > 0) {
 										await player.queue.addPrevious(state.queue.previous);
 									} else {
 										await player.queue.clearPrevious();
-									}
+									};
 
 									if (state.paused) {
 										await player.pause(true);
 									} else {
 										player.paused = false;
-									}
+									};
 
 									if (state.trackRepeat) player.setTrackRepeat(true);
 									if (state.queueRepeat) player.setQueueRepeat(true);
@@ -900,8 +897,8 @@ export class Manager extends EventEmitter {
 									if (state.data) {
 										for (const [name, value] of Object.entries(state.data)) {
 											player.set(name, value);
-										}
-									}
+										};
+									};
 
 									const filterActions: Record<string, (enabled: boolean) => void> = {
 										bassboost: () => player.filters.bassBoost(state.filters.bassBoostlevel),
@@ -936,8 +933,8 @@ export class Manager extends EventEmitter {
 									for (const [filter, isEnabled] of Object.entries(state.filters.filterStatus)) {
 										if (isEnabled && filterActions[filter]) {
 											filterActions[filter](true);
-										}
-									}
+										};
+									};
 
 									// After processing, delete the Redis key
 									await this.redis.del(key);
@@ -946,24 +943,24 @@ export class Manager extends EventEmitter {
 
 									this.emit(ManagerEventTypes.PlayerRestored, player, node);
 									await this.sleep(1000);
-								}
+								};
 							} catch (error) {
 								this.emit(ManagerEventTypes.Debug, `[MANAGER] Error processing Redis key ${key}: ${error}`);
 								continue;
-							}
-						}
+							};
+						};
 					} catch (error) {
 						this.emit(ManagerEventTypes.Debug, `[MANAGER] Error loading player states from Redis: ${error}`);
-					}
-				}
+					};
+				};
 				break;
 			default:
 				break;
-		}
+		};
 
 		this.emit(ManagerEventTypes.Debug, "[MANAGER] Finished loading saved players.");
 		this.emit(ManagerEventTypes.RestoreComplete, node);
-	}
+	};
 
 	/**
 	 * Returns the node to use based on the configured `useNode` and `enablePriorityMode` options.
@@ -978,7 +975,7 @@ export class Manager extends EventEmitter {
 			: this.options.useNode === UseNodeOptions.LeastLoad
 			? this.leastLoadNode.first()
 			: this.leastPlayersNode.first();
-	}
+	};
 
 	/**
 	 * Handles the shutdown of the process by saving all active players' states and optionally cleaning up inactive players.
@@ -998,7 +995,7 @@ export class Manager extends EventEmitter {
 					await this.savePlayerState(guildId);
 				} catch (error) {
 					console.error(`[MANAGER] Error saving player state for guild ${guildId}:`, error);
-				}
+				};
 			});
 
 			if (this.options.stateStorage.deleteInactivePlayers) await this.cleanupInactivePlayers();
@@ -1011,8 +1008,8 @@ export class Manager extends EventEmitter {
 		} catch (error) {
 			console.error(`[MANAGER] Unexpected error during shutdown:`, error);
 			process.exit(1);
-		}
-	}
+		};
+	};
 
 	/**
 	 * Parses a YouTube title into a clean title and author.
@@ -1050,15 +1047,15 @@ export class Manager extends EventEmitter {
 			// If the artist part matches or is included in the clean author, use the clean author
 			if (artist.toLowerCase() === cleanAuthor.toLowerCase() || cleanAuthor.toLowerCase().includes(artist.toLowerCase())) {
 				return { cleanAuthor, cleanTitle: songTitle };
-			}
+			};
 
 			// If the artist is different, keep both parts
 			return { cleanAuthor: artist, cleanTitle: songTitle };
-		}
+		};
 
 		// If no clear artist-title separation, return clean author and cleaned title
 		return { cleanAuthor, cleanTitle: title };
-	}
+	};
 
 	/**
 	 * Balances brackets in a given string by ensuring all opened brackets are closed correctly.
@@ -1083,22 +1080,22 @@ export class Manager extends EventEmitter {
 				if (stack.length > 0 && openBrackets.indexOf(stack[stack.length - 1]) === closeBrackets.indexOf(char)) {
 					stack.pop();
 					result += char;
-				}
+				};
 			}
 			// If it's neither, just add the character to the result
 			else {
 				result += char;
-			}
-		}
+			};
+		};
 
 		// Close any remaining open brackets by adding the corresponding close brackets
 		while (stack.length > 0) {
 			const lastOpen = stack.pop()!;
 			result += closeBrackets[openBrackets.indexOf(lastOpen)];
-		}
+		};
 
 		return result;
-	}
+	};
 
 	/**
 	 * Escapes a string by replacing special regex characters with their escaped counterparts.
@@ -1108,7 +1105,7 @@ export class Manager extends EventEmitter {
 	private escapeRegExp(string: string): string {
 		// Replace special regex characters with their escaped counterparts
 		return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-	}
+	};
 
 	/**
 	 * Checks if the given data is a voice update.
@@ -1117,7 +1114,7 @@ export class Manager extends EventEmitter {
 	 */
 	private isVoiceUpdate(data: VoicePacket | VoiceServer | VoiceState): boolean {
 		return "t" in data && ["VOICE_STATE_UPDATE", "VOICE_SERVER_UPDATE"].includes(data.t);
-	}
+	};
 
 	/**
 	 * Determines if the provided update is a valid voice update.
@@ -1128,7 +1125,7 @@ export class Manager extends EventEmitter {
 	 */
 	private isValidUpdate(update: VoicePacket | VoiceServer | VoiceState): boolean {
 		return update && ("token" in update || "session_id" in update);
-	}
+	};
 
 	/**
 	 * Handles a voice server update by updating the player's voice state and sending the voice state to the Lavalink node.
@@ -1155,7 +1152,7 @@ export class Manager extends EventEmitter {
 			`Updated voice server for player ${player.guildId} with token ${token} and endpoint ${endpoint} and sessionId ${sessionId}`
 		);
 		return;
-	}
+	};
 
 	/**
 	 * Handles a voice state update by updating the player's voice channel and session ID if provided, or by disconnecting and destroying the player if the channel ID is null.
@@ -1186,7 +1183,7 @@ export class Manager extends EventEmitter {
 		player.voiceState = Object.assign({});
 		await player.pause(true);
 		return;
-	}
+	};
 
 	/**
 	 * Cleans up inactive players by removing their state files from the file system.
@@ -1217,9 +1214,9 @@ export class Manager extends EventEmitter {
 						}
 					} catch (error) {
 						this.emit(ManagerEventTypes.Debug, `[MANAGER] Error cleaning up inactive JSON players: ${error}`);
-					}
+					};
 					return;
-				}
+				};
 				break;
 
 			case StateStorageType.Redis:
@@ -1253,16 +1250,16 @@ export class Manager extends EventEmitter {
 								);
 
 								this.emit(ManagerEventTypes.Debug, `[MANAGER] Cleaned inactive Redis player data: ${guildId}`);
-							}
-						}
-					}
+							};
+						};
+					};
 					return;
-				}
+				};
 				break;
 			default:
 				break;
-		}
-	}
+		};
+	};
 
 	/**
 	 * Cleans up an inactive player by removing its state data.
@@ -1279,13 +1276,13 @@ export class Manager extends EventEmitter {
 							await fs.rm(guildDir, { recursive: true, force: true });
 
 							this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleted inactive player data folder: ${guildId}`);
-						}
+						};
 					} catch (error) {
 						if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
 							this.emit(ManagerEventTypes.Debug, `[MANAGER] Error deleting player files for ${guildId}: ${error}`);
-						}
-					}
-				}
+						};
+					};
+				};
 				break;
 			case StateStorageType.Redis:
 				{
@@ -1305,13 +1302,13 @@ export class Manager extends EventEmitter {
 
 						await this.redis.del(...keysToDelete);
 						this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleted Redis player and queue data for: ${guildId}`);
-					}
-				}
+					};
+				};
 				break;
 			default:
 				break;
-		}
-	}
+		};
+	};
 
 	/**
 	 * Loads the enabled plugins.
@@ -1322,7 +1319,7 @@ export class Manager extends EventEmitter {
 		for (const [index, plugin] of this.options.enabledPlugins.entries()) {
 			if (!(plugin instanceof Plugin)) {
 				throw new RangeError(`Plugin at index ${index} does not extend Plugin.`);
-			}
+			};
 
 			try {
 				plugin.load(this);
@@ -1330,9 +1327,9 @@ export class Manager extends EventEmitter {
 				this.emit(ManagerEventTypes.Debug, `[PLUGIN] Loaded plugin: ${plugin.name}`);
 			} catch (err) {
 				this.emit(ManagerEventTypes.Debug, `[PLUGIN] Failed to load plugin "${plugin.name}": ${err}`);
-			}
-		}
-	}
+			};
+		};
+	};
 
 	/**
 	 * Unloads the enabled plugins.
@@ -1344,10 +1341,10 @@ export class Manager extends EventEmitter {
 				this.emit(ManagerEventTypes.Debug, `[PLUGIN] Unloaded plugin: ${plugin.name}`);
 			} catch (err) {
 				this.emit(ManagerEventTypes.Debug, `[PLUGIN] Failed to unload plugin "${plugin.name}": ${err}`);
-			}
-		}
+			};
+		};
 		this.loadedPlugins.clear();
-	}
+	};
 
 	/**
 	 * Clears all player states from the file system.
@@ -1369,15 +1366,15 @@ export class Manager extends EventEmitter {
 					await Promise.all(
 						files.map((file) =>
 							fs.unlink(path.join(playersBaseDir, file)).catch((err) => this.emit(ManagerEventTypes.Debug, `[MANAGER] Failed to delete file ${file}: ${err}`))
-						)
+						),
 					);
 
 					this.emit(ManagerEventTypes.Debug, `[MANAGER] Cleared all player state files in ${playersBaseDir}`);
 				} catch (err) {
 					this.emit(ManagerEventTypes.Debug, `[MANAGER] Error clearing player state files: ${err}`);
-				}
+				};
 				break;
-			}
+			};
 			case StateStorageType.Redis: {
 				const prefix = this.options.stateStorage.redisConfig.prefix?.endsWith(":")
 					? this.options.stateStorage.redisConfig.prefix
@@ -1400,7 +1397,7 @@ export class Manager extends EventEmitter {
 								keys.forEach((key) => pipeline.unlink(key));
 								await pipeline.exec();
 								totalDeleted += keys.length;
-							}
+							};
 						});
 
 						stream.on("end", () => {
@@ -1410,17 +1407,17 @@ export class Manager extends EventEmitter {
 						stream.on("error", (err) => {
 							console.error(`[MANAGER] Error during Redis SCAN stream (${pattern}):`, err);
 						});
-					}
+					};
 				} catch (err) {
 					console.error("[MANAGER] Failed to clear Redis keys:", err);
-				}
+				};
 				break;
-			}
+			};
 
 			default:
 				console.warn("[MANAGER] No valid stateStorage.type set, skipping state clearing.");
-		}
-	}
+		};
+	};
 
 	/**
 	 * Returns the nodes that has the least load.
@@ -1437,7 +1434,7 @@ export class Manager extends EventEmitter {
 				// Sort the nodes by their load in ascending order
 				return aload - bload;
 			});
-	}
+	};
 
 	/**
 	 * Returns the nodes that have the least amount of players.
@@ -1447,7 +1444,7 @@ export class Manager extends EventEmitter {
 	 */
 	private get leastPlayersNode(): Collection<string, Node> {
 		return this.nodes.filter((node) => node.connected && !node.options.isBackup).sort((a, b) => a.stats.players - b.stats.players);
-	}
+	};
 
 	/**
 	 * Returns a node based on priority.
@@ -1479,22 +1476,23 @@ export class Manager extends EventEmitter {
 			cumulativeWeight += weight;
 			if (randomNumber <= cumulativeWeight) {
 				return node;
-			}
-		}
+			};
+		};
 
 		// If no node has a cumulative weight greater than or equal to the random number, return the node with the lowest load
 		return this.options.useNode === UseNodeOptions.LeastLoad ? this.leastLoadNode.first() : this.leastPlayersNode.first();
-	}
+	};
 
 	protected send(packet: GatewayVoiceStateUpdate): unknown {
 		if (!this._send) {
 			console.warn("[Manager.send] _send is not defined! Packet will not be sent.");
 			return;
-		}
+		};
 		return this._send(packet);
-	}
+	};
 
-	public sendPacket(packet: GatewayVoiceStateUpdate): unknown {
-		return this.send(packet);
-	}
-}
+	public async sendPacket(packet: GatewayVoiceStateUpdate): Promise<unknown> {
+		await this.send(packet);
+		return;
+	};
+};

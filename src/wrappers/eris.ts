@@ -19,10 +19,10 @@ export class ErisManager extends BaseManager {
 		client.on("rawWS", async (packet: GatewayReceivePayload) => {
 			await this.updateVoiceState(packet as unknown as VoicePacket);
 		});
-	}
+	};
 
 	protected override send(packet: GatewayVoiceStateUpdate) {
 		const guild = this.client.guilds.get(packet.d.guild_id);
 		if (guild) guild.shard.sendWS(packet.op, packet.d as unknown as Record<string, unknown>);
-	}
-}
+	};
+};
