@@ -35,6 +35,7 @@ export class DiscordJSManager extends BaseManager {
         client.on("raw", async (data) => {
             await this.updateVoiceState(data as unknown as VoicePacket);
         });
+
     };
 
     protected override async send(packet: GatewayVoiceStateUpdate) {
