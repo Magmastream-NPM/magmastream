@@ -453,7 +453,7 @@ export class Node {
 			this.socket = null;
 
 			this.manager.emit(ManagerEventTypes.NodeReconnect, this);
-			this.connect();
+			await this.connect();
 
 			this.reconnectAttempts++;
 		}, this.options.retryDelayMs);

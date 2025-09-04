@@ -128,7 +128,7 @@ export class Rest {
 				return [];
 			} else if (error.response.status === 404) {
 				await this.node.destroy();
-				this.node.manager.createNode(this.node.options).connect();
+				await this.node.manager.createNode(this.node.options).connect();
 			}
 
 			return null;
