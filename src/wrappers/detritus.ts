@@ -20,11 +20,11 @@ export class DetritusManager extends BaseManager {
 		});
 	};
 
-	protected override send(packet: GatewayVoiceStateUpdate) {
+	protected override async send(packet: GatewayVoiceStateUpdate) {
 		const asCluster = this.client as ClusterClient;
 		const asShard = this.client as ShardClient;
 
-		if (asShard.guilds) return asShard.gateway.send(packet.op, packet.d);
+		if (asShard.guilds) asShard.gateway.send(packet.op, packet.d);
 		if (asCluster.shards) {
 			const shard = asCluster.shards.find((c) => c.guilds.has(packet.d.guild_id));
 			if (shard) shard.gateway.send(packet.op, packet.d);

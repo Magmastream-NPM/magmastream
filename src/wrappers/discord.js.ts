@@ -20,8 +20,8 @@ export class DiscordJSManager extends BaseManager {
 		});
 	};
 
-	protected override send(packet: GatewayVoiceStateUpdate) {
+	protected override async send(packet: GatewayVoiceStateUpdate) {
 		const guild = this.client.guilds.cache.get(packet.d.guild_id);
-		if (guild) guild.shard.send(packet);
+		if (guild) await guild.shard.send(packet);
 	};
 };

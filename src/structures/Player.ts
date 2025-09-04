@@ -171,7 +171,7 @@ export class Player {
 	 * @throws {RangeError} If no voice channel has been set.
 	 * @returns {void}
 	 */
-	public connect(): void {
+	public async connect(): Promise<void> {
 		// Check if the voice channel has been set.
 		if (!this.voiceChannelId) {
 			throw new RangeError("No voice channel has been set. You must use the `setVoiceChannelId()` method to set the voice channel before connecting.");
@@ -183,7 +183,7 @@ export class Player {
 		// Clone the current player state for comparison.
 		const oldPlayer = this ? { ...this } : null;
 
-		this.manager.sendPacket({
+		await this.manager.sendPacket({
 			op: 4,
 			d: {
 				guild_id: this.guildId,
@@ -288,10 +288,10 @@ export class Player {
 	/**
 	 * Sets the player voice channel.
 	 * @param {string} channel - The new voice channel ID.
-	 * @returns {this} - The player instance.
+	 * @returns {Promise<this>} - The player instance.
 	 * @throws {TypeError} If the channel parameter is not a string.
 	 */
-	public setVoiceChannelId(channel: string): this {
+	public async setVoiceChannelId(channel: string): Promise<this> {
 		// Validate the channel parameter
 		if (typeof channel !== "string") throw new TypeError("Channel must be a non-empty string.");
 
@@ -301,7 +301,7 @@ export class Player {
 		// Update the player voice channel
 		this.voiceChannelId = channel;
 		this.options.voiceChannelId = channel;
-		this.connect();
+		await this.connect();
 
 		// Emit a player state update event
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
@@ -993,7 +993,7 @@ export class Player {
 		const clonedPlayer = this.manager.create(newOptions);
 
 		// Connect the cloned player to the new voice channel
-		clonedPlayer.connect();
+		await clonedPlayer.connect();
 
 		// Update the player's state on the Lavalink node
 		await clonedPlayer.node.rest.updatePlayer({

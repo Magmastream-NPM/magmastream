@@ -596,7 +596,7 @@ export class Manager extends EventEmitter {
 									},
 								});
 
-								player.connect();
+								await player.connect();
 
 								const tracks: Track[] = [];
 								const currentTrack = state.queue.current;
@@ -798,7 +798,7 @@ export class Manager extends EventEmitter {
 										data: { voice: { token: state.voiceState.event.token, endpoint: state.voiceState.event.endpoint, sessionId: state.voiceState.sessionId } },
 									});
 
-									player.connect();
+									await player.connect();
 
 									// Rest of the player state restoration code (tracks, filters, etc.)
 									const tracks: Track[] = [];
@@ -1483,15 +1483,15 @@ export class Manager extends EventEmitter {
 		return this.options.useNode === UseNodeOptions.LeastLoad ? this.leastLoadNode.first() : this.leastPlayersNode.first();
 	};
 
-	protected send(packet: GatewayVoiceStateUpdate): unknown {
+	protected async send(packet: GatewayVoiceStateUpdate): Promise<unknown> {
 		if (!this._send) {
 			console.warn("[Manager.send] _send is not defined! Packet will not be sent.");
 			return;
 		};
-		return this._send(packet);
+		return await this._send(packet);
 	};
 
-	public sendPacket(packet: GatewayVoiceStateUpdate): unknown {
-		return this.send(packet);
+	public async sendPacket(packet: GatewayVoiceStateUpdate): Promise<unknown> {
+		return await this.send(packet);
 	};
 };
