@@ -34,9 +34,9 @@ export * from "../index";
 export class SeyfertManager extends BaseManager {
 	public constructor(public readonly client: Client, options?: ManagerOptions) {
 		super(options);
-	}
+	};
 
 	protected override send(packet: GatewayVoiceStateUpdate) {
 		this.client.gateway.send(calculateShardId(packet.d.guild_id), packet);
-	}
-}
+	};
+};

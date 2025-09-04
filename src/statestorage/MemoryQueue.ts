@@ -30,7 +30,7 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 		this.manager = manager;
 		/** The guild property. */
 		this.guildId = guildId;
-	}
+	};
 
 	// #region Public
 	/**
@@ -57,35 +57,35 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 				this.push(...tracks);
 			} else {
 				this.current = track;
-			}
+			};
 		} else {
 			// If an offset is provided, add the track(s) at that position
 			if (typeof offset !== "undefined" && typeof offset === "number") {
 				// Validate the offset
 				if (isNaN(offset)) {
 					throw new RangeError("Offset must be a number.");
-				}
+				};
 
 				// Make sure the offset is between 0 and the length of the queue
 				if (offset < 0 || offset > this.length) {
 					throw new RangeError(`Offset must be between 0 and ${this.length}.`);
-				}
+				};
 
 				// Add the track(s) at the offset position
 				if (isArray) {
 					this.splice(offset, 0, ...tracks);
 				} else {
 					this.splice(offset, 0, track);
-				}
+				};
 			} else {
 				// If no offset is provided, add the track(s) at the end of the queue
 				if (isArray) {
 					this.push(...tracks);
 				} else {
 					this.push(track);
-				}
-			}
-		}
+				};
+			};
+		};
 
 		if (this.manager.players.has(this.guildId) && this.manager.players.get(this.guildId).isAutoplay) {
 			if (!isArray) {
@@ -101,9 +101,9 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 					} as PlayerStateUpdateEvent);
 
 					return;
-				}
-			}
-		}
+				};
+			};
+		};
 		// Emit a player state update event with the added track(s)
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
@@ -113,7 +113,7 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 				tracks: isArray ? tracks : [track],
 			},
 		} as PlayerStateUpdateEvent);
-	}
+	};
 
 	/**
 	 * Adds a track to the previous tracks.
@@ -127,9 +127,9 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 			const exists = this.previous.some((p) => p.identifier === track.identifier);
 			if (!exists) {
 				this.previous.unshift(track);
-			}
-		}
-	}
+			};
+		};
+	};
 
 	/**
 	 * Clears the queue.
@@ -154,21 +154,21 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 
 		// Emit a debug message indicating the queue has been cleared for a specific guild ID.
 		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Cleared the queue for: ${this.guildId}`);
-	}
+	};
 
 	/**
 	 * Clears the previous tracks.
 	 */
 	public async clearPrevious(): Promise<void> {
 		this.previous = [];
-	}
+	};
 
 	/**
 	 * Removes the first element from the queue.
 	 */
 	public async dequeue(): Promise<Track | undefined> {
 		return super.shift();
-	}
+	};
 
 	/**
 	 * The total duration of the queue in milliseconds.
@@ -177,7 +177,7 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 	public async duration(): Promise<number> {
 		const current = this.current?.duration ?? 0;
 		return this.reduce((acc, cur) => acc + (cur.duration || 0), current);
-	}
+	};
 
 	/**
 	 * Adds the specified track or tracks to the front of the queue.
@@ -188,64 +188,64 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 			this.unshift(...track);
 		} else {
 			this.unshift(track);
-		}
-	}
+		};
+	};
 
 	/**
 	 * @returns Whether all elements in the queue satisfy the provided testing function.
 	 */
 	public async everyAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<boolean> {
 		return this.every(callback);
-	}
+	};
 
 	/**
 	 * @returns A new array with all elements that pass the test implemented by the provided function.
 	 */
 	public async filterAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<Track[]> {
 		return this.filter(callback);
-	}
+	};
 
 	/**
 	 * @returns The first element in the queue that satisfies the provided testing function.
 	 */
 	public async findAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<Track | undefined> {
 		return this.find(callback);
-	}
+	};
 
 	/**
 	 * @returns The current track.
 	 */
 	public async getCurrent(): Promise<Track | null> {
 		return this.current;
-	}
+	};
 
 	/**
 	 * @returns The previous tracks.
 	 */
 	public async getPrevious(): Promise<Track[]> {
 		return [...this.previous];
-	}
+	};
 
 	/**
 	 * @returns The tracks in the queue from start to end.
 	 */
 	public async getSlice(start?: number, end?: number): Promise<Track[]> {
 		return this.slice(start, end); // Native sync method, still wrapped in a Promise
-	}
+	};
 
 	/**
 	 * @returns The tracks in the queue.
 	 */
 	public async getTracks(): Promise<Track[]> {
 		return [...this]; // clone to avoid direct mutation
-	}
+	};
 
 	/**
 	 * @returns A new array with the results of calling a provided function on every element in the queue.
 	 */
 	public async mapAsync<T>(callback: (track: Track, index: number, array: Track[]) => T): Promise<T[]> {
 		return this.map(callback);
-	}
+	};
 
 	/**
 	 * Modifies the queue at the specified index.
@@ -256,14 +256,14 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 	 */
 	public async modifyAt(start: number, deleteCount = 0, ...items: Track[]): Promise<Track[]> {
 		return super.splice(start, deleteCount, ...items);
-	}
+	};
 
 	/**
 	 * @returns The newest track.
 	 */
 	public async popPrevious(): Promise<Track | null> {
 		return this.previous.shift() || null; // get newest track
-	}
+	};
 
 	/**
 	 * Removes track(s) from the queue.
@@ -281,11 +281,11 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 			// Validate input for `start` and `end`
 			if (isNaN(Number(startOrPosition)) || isNaN(Number(end))) {
 				throw new RangeError(`Invalid "start" or "end" parameter: start = ${startOrPosition}, end = ${end}`);
-			}
+			};
 
 			if (startOrPosition >= end || startOrPosition >= this.length) {
 				throw new RangeError("Invalid range: start should be less than end and within queue length.");
-			}
+			};
 
 			const removedTracks = this.splice(startOrPosition, end - startOrPosition);
 			this.manager.emit(
@@ -303,7 +303,7 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 			} as PlayerStateUpdateEvent);
 
 			return removedTracks;
-		}
+		};
 
 		// Single item removal when no end specified
 		const removedTrack = this.splice(startOrPosition, 1);
@@ -325,7 +325,7 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 		} as PlayerStateUpdateEvent);
 
 		return removedTrack;
-	}
+	};
 
 	/**
 	 * Shuffles the queue to play tracks requested by each user one by one.
@@ -343,7 +343,7 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 
 			if (!userTracks.has(user)) {
 				userTracks.set(user, []);
-			}
+			};
 
 			userTracks.get(user).push(track);
 		});
@@ -353,7 +353,7 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 			for (let i = tracks.length - 1; i > 0; i--) {
 				const j = Math.floor(Math.random() * (i + 1));
 				[tracks[i], tracks[j]] = [tracks[j], tracks[i]];
-			}
+			};
 		});
 
 		// Create a new array for the shuffled queue.
@@ -369,9 +369,9 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 				const queue = userQueues[i];
 				if (queue.length > 0) {
 					shuffledQueue.push(queue.shift()!);
-				}
-			}
-		}
+				};
+			};
+		};
 
 		// Clear the queue and add the shuffled tracks.
 		this.splice(0);
@@ -388,21 +388,21 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 
 		// Emit a debug message indicating the queue has been shuffled for a specific guild ID.
 		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] roundRobinShuffled the queue for: ${this.guildId}`);
-	}
+	};
 
 	/**
 	 * @param track The track to set.
 	 */
 	public async setCurrent(track: Track | null): Promise<void> {
 		this.current = track;
-	}
+	};
 
 	/**
 	 * @param tracks The tracks to set.
 	 */
 	public async setPrevious(tracks: Track[]): Promise<void> {
 		this.previous = [...tracks];
-	}
+	};
 
 	/**
 	 * Shuffles the queue.
@@ -416,7 +416,7 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 		for (let i = this.length - 1; i > 0; i--) {
 			const j = Math.floor(Math.random() * (i + 1));
 			[this[i], this[j]] = [this[j], this[i]];
-		}
+		};
 
 		// Emit an event to update the player state indicating the queue has been shuffled.
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
@@ -429,7 +429,7 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 
 		// Emit a debug message indicating the queue has been shuffled for a specific guild ID.
 		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Shuffled the queue for: ${this.guildId}`);
-	}
+	};
 
 	/**
 	 * The size of tracks in the queue.
@@ -438,14 +438,14 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 	 */
 	public async size(): Promise<number> {
 		return this.length;
-	}
+	};
 
 	/**
 	 * @returns Whether at least one element in the queue satisfies the provided testing function.
 	 */
 	public async someAsync(callback: (track: Track, index: number, array: Track[]) => boolean): Promise<boolean> {
 		return this.some(callback);
-	}
+	};
 
 	/**
 	 * The total size of tracks in the queue including the current track.
@@ -454,7 +454,7 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 	 */
 	public async totalSize(): Promise<number> {
 		return this.length + (this.current ? 1 : 0);
-	}
+	};
 
 	/**
 	 * Shuffles the queue to play tracks requested by each user one block at a time.
@@ -470,7 +470,7 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 
 			if (!userTracks.has(user)) {
 				userTracks.set(user, []);
-			}
+			};
 
 			userTracks.get(user).push(track);
 		});
@@ -485,9 +485,9 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 				const track = tracks.shift();
 				if (track) {
 					shuffledQueue.push(track);
-				}
+				};
 			});
-		}
+		};
 
 		// Clear the queue and add the shuffled tracks.
 		this.splice(0);
@@ -504,10 +504,10 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 
 		// Emit a debug message indicating the queue has been shuffled for a specific guild ID.
 		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] userBlockShuffled the queue for: ${this.guildId}`);
-	}
+	};
 	// #endregion Public
 	// #region Private
 	// #endregion Private
 	// #region Protected
 	// #endregion Protected
-}
+};

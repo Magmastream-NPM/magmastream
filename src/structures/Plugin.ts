@@ -12,7 +12,7 @@ export abstract class Plugin {
 	 */
 	constructor(name: string) {
 		this.name = name;
-	}
+	};
 
 	/**
 	 * Load the plugin.
@@ -26,4 +26,4 @@ export abstract class Plugin {
 	 * @param manager The MagmaStream Manager instance
 	 */
 	abstract unload(manager: Manager): void;
-}
+};

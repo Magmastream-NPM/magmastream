@@ -67,7 +67,7 @@ export class Node {
 
 		if (this.manager.nodes.has(options.identifier || options.host)) {
 			return this.manager.nodes.get(options.identifier || options.host);
-		}
+		};
 
 		nodeCheck(options);
 
@@ -88,9 +88,7 @@ export class Node {
 			isBackup: options.isBackup ?? false,
 		};
 
-		if (this.options.useSSL) {
-			this.options.port = 443;
-		}
+		if (this.options.useSSL) this.options.port = 443;
 
 		this.stats = {
 			players: 0,
@@ -126,7 +124,7 @@ export class Node {
 				const configDir = path.dirname(this.sessionIdsFilePath);
 				if (!fs.existsSync(configDir)) {
 					fs.mkdirSync(configDir, { recursive: true });
-				}
+				};
 
 				this.createSessionIdsFile();
 				this.createReadmeFile();
@@ -137,8 +135,8 @@ export class Node {
 					? this.manager.options.stateStorage.redisConfig.prefix
 					: this.manager.options.stateStorage.redisConfig.prefix ?? "magmastream:";
 				break;
-		}
-	}
+		};
+	};
 
 	/**
 	 * Checks if the Node is currently connected.
@@ -147,12 +145,12 @@ export class Node {
 	public get connected(): boolean {
 		if (!this.socket) return false;
 		return this.socket.readyState === WebSocket.OPEN;
-	}
+	};
 
 	/** Returns the full address for this node, including the host and port. */
 	public get address(): string {
 		return `${this.options.host}:${this.options.port}`;
-	}
+	};
 
 	/**
 	 * Creates the sessionIds.json file if it doesn't exist. This file is used to
@@ -164,8 +162,8 @@ export class Node {
 			this.manager.emit(ManagerEventTypes.Debug, `[NODE] Creating sessionId file at: ${this.sessionIdsFilePath}`);
 
 			fs.writeFileSync(this.sessionIdsFilePath, JSON.stringify({}), "utf-8");
-		}
-	}
+		};
+	};
 
 	/**
 	 * Loads session IDs from the sessionIds.json file if it exists.
@@ -189,10 +187,10 @@ export class Node {
 					const compositeKey = `${this.options.identifier}::${this.manager.options.clusterId}`;
 					if (this.sessionIdsMap.has(compositeKey)) {
 						this.sessionId = this.sessionIdsMap.get(compositeKey);
-					}
-				}
+					};
+				};
 				break;
-			}
+			};
 
 			case StateStorageType.Redis:
 				const key = `${this.redisPrefix}node:sessionIds`;
@@ -207,7 +205,7 @@ export class Node {
 
 						if (typeof sessionIds !== "object" || Array.isArray(sessionIds)) {
 							throw new Error("[NODE] loadSessionIds invalid data type from Redis.");
-						}
+						};
 
 						this.sessionIdsMap = new Map(Object.entries(sessionIds));
 
@@ -216,20 +214,20 @@ export class Node {
 						if (this.sessionIdsMap.has(compositeKey)) {
 							this.sessionId = this.sessionIdsMap.get(compositeKey) || null;
 							this.manager.emit(ManagerEventTypes.Debug, `[NODE] Restored sessionId for ${compositeKey}: ${this.sessionId}`);
-						}
+						};
 					} catch (err) {
 						this.manager.emit(ManagerEventTypes.Debug, `[NODE] Failed to parse Redis sessionIds: ${(err as Error).message}`);
 						this.sessionIdsMap = new Map();
-					}
+					};
 				} else {
 					this.manager.emit(ManagerEventTypes.Debug, `[NODE] No sessionIds found in Redis — creating new key.`);
 
 					await this.manager.redis.set(key, JSON.stringify({}));
 					this.sessionIdsMap = new Map();
-				}
+				};
 				break;
-		}
-	}
+		};
+	};
 
 	/**
 	 * Updates the session ID in the sessionIds.json file.
@@ -264,8 +262,8 @@ export class Node {
 							} catch (err) {
 								this.manager.emit(ManagerEventTypes.Debug, `[NODE] Failed to read/parse sessionIds.json: ${(err as Error).message}`);
 								fileData = {};
-							}
-						}
+							};
+						};
 
 						fileData[compositeKey] = this.sessionId;
 
@@ -280,14 +278,13 @@ export class Node {
 						if (retries === 0) {
 							this.manager.emit(ManagerEventTypes.Debug, `[NODE] Failed to update sessionIds after retries: ${(err as Error).message}`);
 							throw err;
-						}
+						};
 
 						await new Promise((r) => setTimeout(r, 50));
-					}
-				}
-
+					};
+				};
 				break;
-			}
+			};
 
 			case StateStorageType.Redis: {
 				const key = `${this.redisPrefix}node:sessionIds`;
@@ -303,24 +300,24 @@ export class Node {
 						sessionIds = JSON.parse(currentRaw);
 						if (typeof sessionIds !== "object" || Array.isArray(sessionIds)) {
 							throw new Error("Invalid data type in Redis");
-						}
+						};
 					} catch (err) {
 						this.manager.emit(ManagerEventTypes.Debug, `[NODE] Corrupted Redis sessionIds, reinitializing: ${(err as Error).message}`);
 						sessionIds = {};
-					}
+					};
 				} else {
 					this.manager.emit(ManagerEventTypes.Debug, `[NODE] Redis key not found — creating new sessionIds key.`);
 					sessionIds = {};
-				}
+				};
 
 				sessionIds[compositeKey] = this.sessionId;
 
 				this.sessionIdsMap = new Map(Object.entries(sessionIds));
 				await this.manager.redis.set(key, JSON.stringify(sessionIds));
 				break;
-			}
-		}
-	}
+			};
+		};
+	};
 
 	/**
 	 * Connects to the Node.
@@ -349,7 +346,7 @@ export class Node {
 		} else if (this.options.enableSessionResumeOption && this.sessionIdsMap.has(compositeKey)) {
 			this.sessionId = this.sessionIdsMap.get(compositeKey) || null;
 			headers["Session-Id"] = this.sessionId;
-		}
+		};
 
 		this.socket = new WebSocket(`ws${this.options.useSSL ? "s" : ""}://${this.address}/v4/websocket`, { headers });
 		this.socket.on("open", this.open.bind(this));
@@ -371,7 +368,7 @@ export class Node {
 		};
 
 		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Connecting ${JSON.stringify(debugInfo)}`);
-	}
+	};
 
 	/**
 	 * Destroys the node and cleans up associated resources.
@@ -402,8 +399,8 @@ export class Node {
 		if (players.size) {
 			for (const player of players.values()) {
 				await player.autoMoveNode();
-			}
-		}
+			};
+		};
 
 		this.socket.close(1000, "destroy");
 		this.socket.removeAllListeners();
@@ -413,7 +410,7 @@ export class Node {
 
 		this.manager.emit(ManagerEventTypes.NodeDestroy, this);
 		this.manager.nodes.delete(this.options.identifier);
-	}
+	};
 
 	/**
 	 * Attempts to reconnect to the node if the connection is lost.
@@ -447,7 +444,7 @@ export class Node {
 				const error = new Error(`Unable to connect after ${this.options.maxRetryAttempts} attempts.`);
 				this.manager.emit(ManagerEventTypes.NodeError, this, error);
 				return await this.destroy();
-			}
+			};
 
 			this.socket?.removeAllListeners();
 			this.socket = null;
@@ -457,7 +454,7 @@ export class Node {
 
 			this.reconnectAttempts++;
 		}, this.options.retryDelayMs);
-	}
+	};
 
 	/**
 	 * Upgrades the node to a NodeLink.
@@ -466,7 +463,7 @@ export class Node {
 	 */
 	private upgrade(request: IncomingMessage) {
 		this.isNodeLink = this.options.isNodeLink ?? Boolean(request.headers.isnodelink) ?? false;
-	}
+	};
 
 	/**
 	 * Handles the "open" event emitted by the WebSocket connection.
@@ -490,8 +487,8 @@ export class Node {
 		const playersOnBackupNode = this.manager.players.filter((p) => p.node.options.isBackup);
 		if (playersOnBackupNode.size) {
 			Promise.all(Array.from(playersOnBackupNode.values(), (player) => player.moveNode(this.options.identifier)));
-		}
-	}
+		};
+	};
 
 	/**
 	 * Handles the "close" event emitted by the WebSocket connection.
@@ -520,18 +517,18 @@ export class Node {
 			const players = this.manager.players.filter((p) => p.node.options.identifier == this.options.identifier);
 			if (players.size) {
 				await Promise.all(Array.from(players.values(), (player) => player.autoMoveNode()));
-			}
+			};
 		} else {
 			const backUpNodes = this.manager.nodes.filter((node) => node.options.isBackup && node.connected);
 
 			const backupNode = backUpNodes.first();
 			if (backupNode) {
 				await Promise.all(Array.from(this.manager.players.values(), (player) => player.moveNode(backupNode.options.identifier)));
-			}
-		}
+			};
+		};
 
 		if (code !== 1000 || reason !== "destroy") await this.reconnect();
-	}
+	};
 
 	/**
 	 * Handles the "error" event emitted by the WebSocket connection.
@@ -551,7 +548,7 @@ export class Node {
 
 		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Error on node: ${JSON.stringify(debugInfo)}`);
 		this.manager.emit(ManagerEventTypes.NodeError, this, error);
-	}
+	};
 
 	/**
 	 * Handles incoming messages from the Lavalink WebSocket connection.
@@ -582,7 +579,7 @@ export class Node {
 
 				if (player && player.node.options.identifier !== this.options.identifier) {
 					return;
-				}
+				};
 
 				if (player) player.position = payload.state.position || 0;
 
@@ -592,7 +589,7 @@ export class Node {
 
 				if (player && player.node.options.identifier !== this.options.identifier) {
 					return;
-				}
+				};
 
 				this.manager.emit(ManagerEventTypes.Debug, `[NODE] Node message: ${JSON.stringify(payload)}`);
 
@@ -610,21 +607,21 @@ export class Node {
 
 				if (payload.resumed) {
 					await this.manager.loadPlayerStates(this.options.identifier);
-				}
+				};
 
 				if (this.options.enableSessionResumeOption) {
 					await this.rest.patch(`/v4/sessions/${this.sessionId}`, {
 						resuming: this.options.enableSessionResumeOption,
 						timeout: this.options.sessionTimeoutSeconds,
 					});
-				}
+				};
 
 				break;
 			default:
 				this.manager.emit(ManagerEventTypes.NodeError, this, new Error(`Unexpected op "${payload.op}" with data: ${payload.message}`));
 				return;
-		}
-	}
+		};
+	};
 
 	/**
 	 * Handles an event emitted from the Lavalink node.
@@ -650,7 +647,7 @@ export class Node {
 			case "TrackEndEvent":
 				if (player?.nowPlayingMessage && player?.nowPlayingMessage.deletable) {
 					await player?.nowPlayingMessage?.delete().catch(() => {});
-				}
+				};
 
 				await this.trackEnd(player, track as Track, payload);
 				break;
@@ -699,8 +696,8 @@ export class Node {
 				error = new Error(`Node#event unknown event '${type}'.`);
 				this.manager.emit(ManagerEventTypes.NodeError, this, error);
 				break;
-		}
-	}
+		};
+	};
 
 	/**
 	 * Emitted when a new track starts playing.
@@ -729,7 +726,7 @@ export class Node {
 				},
 			} as PlayerStateUpdateEvent);
 			return;
-		}
+		};
 
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, player, {
 			changeType: PlayerStateEventTypes.TrackChange,
@@ -739,7 +736,7 @@ export class Node {
 				track: track,
 			},
 		} as PlayerStateUpdateEvent);
-	}
+	};
 
 	/**
 	 * Emitted when a track ends playing.
@@ -762,8 +759,8 @@ export class Node {
 			if (updated.length > this.manager.options.maxPreviousTracks) {
 				const trimmed = updated.slice(0, this.manager.options.maxPreviousTracks);
 				await player.queue.setPrevious(trimmed);
-			}
-		}
+			};
+		};
 
 		player.set("skipFlag", false);
 
@@ -783,7 +780,7 @@ export class Node {
 					await this.playNextTrack(player, track, payload);
 				} else {
 					await this.queueEnd(player, track, payload);
-				}
+				};
 				break;
 
 			case TrackEndReasonTypes.Finished:
@@ -797,13 +794,13 @@ export class Node {
 					await this.playNextTrack(player, track, payload);
 				} else {
 					await this.queueEnd(player, track, payload);
-				}
+				};
 				break;
 
 			default:
 				this.manager.emit(ManagerEventTypes.NodeError, this, new Error(`Unexpected track end reason "${reason}"`));
 				break;
-		}
+		};
 
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, player, {
 			changeType: PlayerStateEventTypes.TrackChange,
@@ -813,7 +810,7 @@ export class Node {
 				track: track,
 			},
 		} as PlayerStateUpdateEvent);
-	}
+	};
 
 	/**
 	 * Handles autoplay logic for a player.
@@ -854,8 +851,8 @@ export class Node {
 			return true;
 		} else {
 			return false;
-		}
-	}
+		};
+	};
 
 	/**
 	 * Handles the scenario when a track fails to play or load.
@@ -875,11 +872,11 @@ export class Node {
 		if (!(await player.queue.getCurrent())) {
 			await this.queueEnd(player, track, payload);
 			return;
-		}
+		};
 
 		this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
 		if (this.manager.options.playNextOnEnd) await player.play();
-	}
+	};
 
 	/**
 	 * Handles the scenario when a track is repeated.
@@ -901,13 +898,13 @@ export class Node {
 			// Prevent duplicate repeat insertion
 			if (queue[0] !== (await queue.getCurrent())) {
 				await queue.enqueueFront(await queue.getCurrent());
-			}
+			};
 		} else if (queueRepeat) {
 			// Prevent duplicate queue insertion
 			if (queue[(await queue.size()) - 1] !== (await queue.getCurrent())) {
 				await queue.add(await queue.getCurrent());
-			}
-		}
+			};
+		};
 
 		// Move to the next track
 		await queue.setCurrent(await queue.dequeue());
@@ -921,11 +918,11 @@ export class Node {
 			if (!next) {
 				await this.queueEnd(player, track, payload);
 				return;
-			}
-		}
+			};
+		};
 
 		if (playNextOnEnd) await player.play();
-	}
+	};
 
 	/**
 	 * Plays the next track in the queue.
@@ -945,7 +942,7 @@ export class Node {
 		this.manager.emit(ManagerEventTypes.TrackEnd, player, track, payload);
 
 		if (this.manager.options.playNextOnEnd) await player.play();
-	}
+	};
 
 	/**
 	 * Handles the event when a queue ends.
@@ -963,7 +960,7 @@ export class Node {
 			player.playing = false;
 			this.manager.emit(ManagerEventTypes.QueueEnd, player, track, payload);
 			return;
-		}
+		};
 
 		let attempt = 1;
 		let success = false;
@@ -972,11 +969,11 @@ export class Node {
 			success = await this.handleAutoplay(player, attempt);
 			if (success) return;
 			attempt++;
-		}
+		};
 
 		player.playing = false;
 		this.manager.emit(ManagerEventTypes.QueueEnd, player, track, payload);
-	}
+	};
 
 	/**
 	 * Fetches the lyrics of a track from the Lavalink node.
@@ -998,17 +995,17 @@ export class Node {
 			return (await this.rest.get(
 				`/v4/loadlyrics?encodedTrack=${encodeURIComponent(track.track)}${language ? `&language=${language}` : ""}`
 			)) as NodeLinkGetLyrics;
-		}
+		};
 
 		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "lavalyrics-plugin")) {
 			throw new RangeError(`The plugin "lavalyrics-plugin" must be present in the lavalink node: ${this.options.identifier}`);
-		}
+		};
 
 		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "lavasrc-plugin" || plugin.name === "java-lyrics-plugin")) {
 			throw new RangeError(
 				`One of the following plugins must also be present in the lavalink node: "lavasrc-plugin" or "java-lyrics-plugin" (Node: ${this.options.identifier})`
 			);
-		}
+		};
 
 		return (
 			((await this.rest.get(`/v4/lyrics?track=${encodeURIComponent(track.track)}&skipTrackSource=${skipTrackSource}`)) as Lyrics) || {
@@ -1019,7 +1016,7 @@ export class Node {
 				plugin: [],
 			}
 		);
-	}
+	};
 
 	/**
 	 * Subscribes to lyrics for a player.
@@ -1035,16 +1032,16 @@ export class Node {
 
 		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "lavalyrics-plugin")) {
 			throw new RangeError(`The plugin "lavalyrics-plugin" must be present in the lavalink node: ${this.options.identifier}`);
-		}
+		};
 
 		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "lavasrc-plugin" || plugin.name === "java-lyrics-plugin")) {
 			throw new RangeError(
 				`One of the following plugins must also be present in the lavalink node: "lavasrc-plugin" or "java-lyrics-plugin" (Node: ${this.options.identifier})`
 			);
-		}
+		};
 
 		return await this.rest.post(`/v4/sessions/${this.sessionId}/players/${guildId}/lyrics/subscribe?skipTrackSource=${skipTrackSource}`, {});
-	}
+	};
 
 	/**
 	 * Unsubscribes from lyrics for a player.
@@ -1059,10 +1056,10 @@ export class Node {
 
 		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "java-lyrics-plugin")) {
 			throw new RangeError(`there is no java-lyrics-plugin available in the lavalink node: ${this.options.identifier}`);
-		}
+		};
 
 		return await this.rest.delete(`/v4/sessions/${this.sessionId}/players/${guildId}/lyrics/subscribe`);
-	}
+	};
 	/**
 	 * Handles the event when a track becomes stuck during playback.
 	 * Stops the current track and emits a `trackStuck` event.
@@ -1076,7 +1073,7 @@ export class Node {
 	protected async trackStuck(player: Player, track: Track, payload: TrackStuckEvent): Promise<void> {
 		await player.stop();
 		this.manager.emit(ManagerEventTypes.TrackStuck, player, track, payload);
-	}
+	};
 
 	/**
 	 * Handles the event when a track has an error during playback.
@@ -1091,7 +1088,7 @@ export class Node {
 	protected async trackError(player: Player, track: Track, payload: TrackExceptionEvent): Promise<void> {
 		await player.stop();
 		this.manager.emit(ManagerEventTypes.TrackError, player, track, payload);
-	}
+	};
 
 	/**
 	 * Emitted when the WebSocket connection for a player closes.
@@ -1102,7 +1099,7 @@ export class Node {
 	protected socketClosed(player: Player, payload: WebSocketClosedEvent): void {
 		this.manager.emit(ManagerEventTypes.SocketClosed, player, payload);
 		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Websocket closed for player: ${player.guildId} with payload: ${JSON.stringify(payload)}`);
-	}
+	};
 
 	/**
 	 * Emitted when the segments for a track are loaded.
@@ -1113,7 +1110,7 @@ export class Node {
 	 */
 	private sponsorBlockSegmentLoaded(player: Player, track: Track, payload: SponsorBlockSegmentsLoaded) {
 		return this.manager.emit(ManagerEventTypes.SegmentsLoaded, player, track, payload);
-	}
+	};
 
 	/**
 	 * Emitted when a segment of a track is skipped using the sponsorblock plugin.
@@ -1124,7 +1121,7 @@ export class Node {
 	 */
 	private sponsorBlockSegmentSkipped(player: Player, track: Track, payload: SponsorBlockSegmentSkipped) {
 		return this.manager.emit(ManagerEventTypes.SegmentSkipped, player, track, payload);
-	}
+	};
 
 	/**
 	 * Emitted when chapters for a track are loaded using the sponsorblock plugin.
@@ -1135,7 +1132,7 @@ export class Node {
 	 */
 	private sponsorBlockChaptersLoaded(player: Player, track: Track, payload: SponsorBlockChaptersLoaded) {
 		return this.manager.emit(ManagerEventTypes.ChaptersLoaded, player, track, payload);
-	}
+	};
 
 	/**
 	 * Emitted when a chapter of a track is started using the sponsorblock plugin.
@@ -1146,7 +1143,7 @@ export class Node {
 	 */
 	private sponsorBlockChapterStarted(player: Player, track: Track, payload: SponsorBlockChapterStarted) {
 		return this.manager.emit(ManagerEventTypes.ChapterStarted, player, track, payload);
-	}
+	};
 
 	/**
 	 * Emitted when lyrics for a track are found.
@@ -1157,7 +1154,7 @@ export class Node {
 	 */
 	private lyricsFound(player: Player, track: Track, payload: LyricsFoundEvent) {
 		return this.manager.emit(ManagerEventTypes.LyricsFound, player, track, payload);
-	}
+	};
 
 	/**
 	 * Emitted when lyrics for a track are not found.
@@ -1168,7 +1165,7 @@ export class Node {
 	 */
 	private lyricsNotFound(player: Player, track: Track, payload: LyricsNotFoundEvent) {
 		return this.manager.emit(ManagerEventTypes.LyricsNotFound, player, track, payload);
-	}
+	};
 
 	/**
 	 * Emitted when a line of lyrics for a track is received.
@@ -1179,7 +1176,7 @@ export class Node {
 	 */
 	private lyricsLine(player: Player, track: Track, payload: LyricsLineEvent) {
 		return this.manager.emit(ManagerEventTypes.LyricsLine, player, track, payload);
-	}
+	};
 
 	/**
 	 * Fetches Lavalink node information.
@@ -1187,7 +1184,7 @@ export class Node {
 	 */
 	public async fetchInfo(): Promise<LavalinkInfo> {
 		return (await this.rest.get(`/v4/info`)) as LavalinkInfo;
-	}
+	};
 
 	/**
 	 * Gets the current sponsorblock segments for a player.
@@ -1200,7 +1197,7 @@ export class Node {
 			throw new RangeError(`there is no sponsorblock-plugin available in the lavalink node: ${this.options.identifier}`);
 
 		return (await this.rest.get(`/v4/sessions/${this.sessionId}/players/${player.guildId}/sponsorblock/categories`)) as SponsorBlockSegment[];
-	}
+	};
 
 	/**
 	 * Sets the sponsorblock segments for a player.
@@ -1227,7 +1224,7 @@ export class Node {
 
 		await this.rest.put(`/v4/sessions/${this.sessionId}/players/${player.guildId}/sponsorblock/categories`, JSON.stringify(segments.map((v) => v.toLowerCase())));
 		return;
-	}
+	};
 
 	/**
 	 * Deletes the sponsorblock segments for a player.
@@ -1241,7 +1238,7 @@ export class Node {
 
 		await this.rest.delete(`/v4/sessions/${this.sessionId}/players/${player.guildId}/sponsorblock/categories`);
 		return;
-	}
+	};
 
 	/**
 	 * Creates a README.md or README.txt file in the magmastream directory
@@ -1256,6 +1253,6 @@ export class Node {
 		if (!fs.existsSync(readmeFilePath)) {
 			fs.writeFileSync(readmeFilePath, message, "utf-8");
 			this.manager.emit(ManagerEventTypes.Debug, `[NODE] Created README file at: ${readmeFilePath}`);
-		}
-	}
-}
+		};
+	};
+};

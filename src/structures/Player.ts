@@ -111,7 +111,7 @@ export class Player {
 			case StateStorageType.JSON:
 				this.queue = new JsonQueue(this.guildId, this.manager);
 				break;
-		}
+		};
 
 		// Add the player to the manager's player collection.
 		this.manager.players.set(options.guildId, this);
@@ -124,7 +124,7 @@ export class Player {
 
 		// Emit the playerCreate event.
 		this.manager.emit(ManagerEventTypes.PlayerCreate, this);
-	}
+	};
 
 	/**
 	 * Initializes the static properties of the Player class.
@@ -134,7 +134,7 @@ export class Player {
 	public static init(manager: Manager): void {
 		// Set the Manager to use.
 		this._manager = manager;
-	}
+	};
 
 	/**
 	 * Set custom data.
@@ -144,7 +144,7 @@ export class Player {
 	public set(key: string, value: unknown): void {
 		// Store the data in the data object using the key.
 		this.data[key] = value;
-	}
+	};
 
 	/**
 	 * Retrieves custom data associated with a given key.
@@ -155,7 +155,7 @@ export class Player {
 	public get<T>(key: string): T {
 		// Access the data object using the key and cast it to the specified type T.
 		return this.data[key] as T;
-	}
+	};
 
 	/**
 	 * Same as Manager#search() but a shortcut on the player itself.
@@ -164,7 +164,7 @@ export class Player {
 	 */
 	public async search<T = unknown>(query: string | SearchQuery, requester?: T): Promise<SearchResult> {
 		return await this.manager.search(query, requester);
-	}
+	};
 
 	/**
 	 * Connects the player to the voice channel.
@@ -175,7 +175,7 @@ export class Player {
 		// Check if the voice channel has been set.
 		if (!this.voiceChannelId) {
 			throw new RangeError("No voice channel has been set. You must use the `setVoiceChannelId()` method to set the voice channel before connecting.");
-		}
+		};
 
 		// Set the player state to connecting.
 		this.state = StateTypes.Connecting;
@@ -206,7 +206,7 @@ export class Player {
 				currentConnection: true,
 			},
 		} as PlayerStateUpdateEvent);
-	}
+	};
 
 	/**
 	 * Disconnects the player from the voice channel.
@@ -251,7 +251,7 @@ export class Player {
 		} as PlayerStateUpdateEvent);
 
 		return this;
-	}
+	};
 
 	/**
 	 * Destroys the player and clears the queue.
@@ -267,7 +267,7 @@ export class Player {
 			await this.disconnect().catch((err) => {
 				console.warn(`[Player#destroy] Failed to disconnect player ${this.guildId}:`, err);
 			});
-		}
+		};
 
 		await this.node.rest.destroyPlayer(this.guildId).catch((err) => {
 			console.warn(`[Player#destroy] REST failed to destroy player ${this.guildId}:`, err);
@@ -283,7 +283,7 @@ export class Player {
 
 		if (this.manager.options.stateStorage.deleteInactivePlayers) await this.manager.cleanupInactivePlayer(this.guildId);
 		return deleted;
-	}
+	};
 
 	/**
 	 * Sets the player voice channel.
@@ -315,7 +315,7 @@ export class Player {
 		} as PlayerStateUpdateEvent);
 
 		return this;
-	}
+	};
 
 	/**
 	 * Sets the player text channel.
@@ -351,7 +351,7 @@ export class Player {
 
 		// Return the player instance for chaining
 		return this;
-	}
+	};
 
 	/**
 	 * Sets the now playing message.
@@ -360,14 +360,12 @@ export class Player {
 	 * @returns The now playing message.
 	 */
 	public setNowPlayingMessage<T = Message>(message: T): Message {
-		if (!message) {
-			throw new TypeError("You must provide the message of the now playing message.");
-		}
+		if (!message) throw new TypeError("You must provide the message of the now playing message.");
 
 		this.nowPlayingMessage = message as Message;
 
 		return this.nowPlayingMessage;
-	}
+	};
 
 	/**
 	 * Plays the next track.
@@ -387,7 +385,7 @@ export class Player {
 	public async play(optionsOrTrack?: PlayOptions | Track, playOptions?: PlayOptions): Promise<Player> {
 		if (typeof optionsOrTrack !== "undefined" && TrackUtils.validate(optionsOrTrack)) {
 			await this.queue.setCurrent(optionsOrTrack as Track);
-		}
+		};
 
 		if (!(await this.queue.getCurrent())) throw new RangeError("No current track.");
 
@@ -409,7 +407,7 @@ export class Player {
 		this.position = 0;
 
 		return this;
-	}
+	};
 
 	/**
 	 * Sets the autoplay-state of the player.
@@ -426,16 +424,16 @@ export class Player {
 	public setAutoplay<T = unknown>(autoplayState: boolean, botUser?: T, tries?: number): this {
 		if (typeof autoplayState !== "boolean") {
 			throw new Error("autoplayState must be a boolean.");
-		}
+		};
 
 		if (autoplayState) {
 			if (!botUser) {
 				throw new Error("botUser must be provided when enabling autoplay.");
-			}
+			};
 
 			if (!["ClientUser", "User"].includes(botUser.constructor.name)) {
 				throw new Error("botUser must be a user-object.");
-			}
+			};
 
 			this.autoplayTries = tries && typeof tries === "number" && tries > 0 ? tries : 3; // Default to 3 if invalid
 			this.isAutoplay = true;
@@ -444,7 +442,7 @@ export class Player {
 			this.isAutoplay = false;
 			this.autoplayTries = null;
 			this.set("Internal_BotUser", null);
-		}
+		};
 
 		const oldPlayer = { ...this };
 
@@ -459,7 +457,7 @@ export class Player {
 		} as PlayerStateUpdateEvent);
 
 		return this;
-	}
+	};
 
 	/**
 	 * Gets recommended tracks and returns an array of tracks.
@@ -469,7 +467,7 @@ export class Player {
 	public async getRecommendedTracks(track: Track): Promise<Track[]> {
 		const tracks = await AutoPlayUtils.getRecommendedTracks(track);
 		return tracks;
-	}
+	};
 
 	/**
 	 * Sets the volume of the player.
@@ -507,7 +505,7 @@ export class Player {
 		} as PlayerStateUpdateEvent);
 
 		return this;
-	}
+	};
 
 	/**
 	 * Sets the sponsorblock for the player. This will set the sponsorblock segments for the player to the given segments.
@@ -516,7 +514,7 @@ export class Player {
 	 */
 	public async setSponsorBlock(segments: SponsorBlockSegment[] = [SponsorBlockSegment.Sponsor, SponsorBlockSegment.SelfPromo]): Promise<void> {
 		return this.node.setSponsorBlock(this, segments);
-	}
+	};
 
 	/**
 	 * Gets the sponsorblock for the player.
@@ -524,7 +522,7 @@ export class Player {
 	 */
 	public async getSponsorBlock(): Promise<SponsorBlockSegment[]> {
 		return this.node.getSponsorBlock(this);
-	}
+	};
 
 	/**
 	 * Deletes the sponsorblock for the player. This will remove all sponsorblock segments that have been set for the player.
@@ -532,7 +530,7 @@ export class Player {
 	 */
 	public async deleteSponsorBlock(): Promise<void> {
 		return this.node.deleteSponsorBlock(this);
-	}
+	};
 
 	/**
 	 * Sets the track repeat mode.
@@ -560,7 +558,7 @@ export class Player {
 			this.trackRepeat = false;
 			this.queueRepeat = false;
 			this.dynamicRepeat = false;
-		}
+		};
 
 		// Emit an event indicating the repeat mode has changed
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
@@ -574,7 +572,7 @@ export class Player {
 		} as PlayerStateUpdateEvent);
 
 		return this;
-	}
+	};
 
 	/**
 	 * Sets the queue repeat.
@@ -598,7 +596,7 @@ export class Player {
 			this.trackRepeat = false;
 			this.queueRepeat = false;
 			this.dynamicRepeat = false;
-		}
+		};
 
 		// Emit the player state update event
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
@@ -612,7 +610,7 @@ export class Player {
 		} as PlayerStateUpdateEvent);
 
 		return this;
-	}
+	};
 
 	/**
 	 * Sets the queue to repeat and shuffles the queue after each song.
@@ -626,12 +624,12 @@ export class Player {
 		// Validate the repeat parameter
 		if (typeof repeat !== "boolean") {
 			throw new TypeError('Repeat can only be "true" or "false".');
-		}
+		};
 
 		// Ensure the queue has more than one track for dynamic repeat
 		if ((await this.queue.size()) <= 1) {
 			throw new RangeError("The queue size must be greater than 1.");
-		}
+		};
 
 		// Clone the current player state for comparison
 		const oldPlayer = this ? { ...this } : null;
@@ -661,7 +659,7 @@ export class Player {
 			this.trackRepeat = false;
 			this.queueRepeat = false;
 			this.dynamicRepeat = false;
-		}
+		};
 
 		// Emit a player state update event
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
@@ -675,7 +673,7 @@ export class Player {
 		} as PlayerStateUpdateEvent);
 
 		return this;
-	}
+	};
 
 	/**
 	 * Restarts the currently playing track from the beginning.
@@ -688,7 +686,7 @@ export class Player {
 			// If the queue has tracks, play the next one
 			if (await this.queue.size()) await this.play();
 			return this;
-		}
+		};
 
 		// Reset the track's position to the start
 		await this.node.rest.updatePlayer({
@@ -700,7 +698,7 @@ export class Player {
 		});
 
 		return this;
-	}
+	};
 
 	/**
 	 * Stops the player and optionally removes tracks from the queue.
@@ -716,7 +714,7 @@ export class Player {
 			if (amount > (await this.queue.size())) throw new RangeError("Cannot skip more than the queue length.");
 			removedTracks = await this.queue.getSlice(0, amount - 1);
 			await this.queue.modifyAt(0, amount - 1);
-		}
+		};
 
 		this.node.rest.updatePlayer({
 			guildId: this.guildId,
@@ -735,7 +733,7 @@ export class Player {
 		} as PlayerStateUpdateEvent);
 
 		return this;
-	}
+	};
 
 	/**
 	 * Skips the current track.
@@ -777,7 +775,7 @@ export class Player {
 		} as PlayerStateUpdateEvent);
 
 		return this;
-	}
+	};
 
 	/**
 	 * Skips to the previous track in the queue.
@@ -792,7 +790,7 @@ export class Player {
 		if (!lastTrack) {
 			await this.queue.clearPrevious();
 			throw new Error("No previous track available.");
-		}
+		};
 
 		// Capture the current state of the player before making changes.
 		const oldPlayer = { ...this };
@@ -812,7 +810,7 @@ export class Player {
 		} as PlayerStateUpdateEvent);
 
 		return this;
-	}
+	};
 
 	/**
 	 * Seeks to a given position in the currently playing track.
@@ -828,7 +826,7 @@ export class Player {
 		// Check if the position is valid.
 		if (isNaN(position)) {
 			throw new RangeError("Position must be a number.");
-		}
+		};
 
 		// Get the old player state.
 		const oldPlayer = this ? { ...this } : null;
@@ -836,7 +834,7 @@ export class Player {
 		// Clamp the position to ensure it is within the valid range.
 		if (position < 0 || position > (await this.queue.getCurrent()).duration) {
 			position = Math.max(Math.min(position, (await this.queue.getCurrent()).duration), 0);
-		}
+		};
 
 		// Update the player's position.
 		this.position = position;
@@ -861,7 +859,7 @@ export class Player {
 		} as PlayerStateUpdateEvent);
 
 		return this;
-	}
+	};
 
 	/**
 	 * Returns the current repeat state of the player.
@@ -880,7 +878,7 @@ export class Player {
 
 		// If none of the above conditions are met, return null.
 		return null;
-	}
+	};
 
 	/**
 	 * Automatically moves the player to a usable node.
@@ -892,7 +890,7 @@ export class Player {
 
 		// Move the player to the usable node and return the result
 		return await this.moveNode(node.options.identifier);
-	}
+	};
 
 	/**
 	 * Moves the player to another node.
@@ -906,11 +904,11 @@ export class Player {
 
 		if (this.state !== StateTypes.Connected) {
 			return this;
-		}
+		};
 
 		if (node.options.identifier === this.node.options.identifier) {
 			return this;
-		}
+		};
 
 		try {
 			const playerPosition = this.position;
@@ -923,7 +921,7 @@ export class Player {
 
 			if (!sessionId || !token || !endpoint) {
 				throw new Error(`Voice state is not properly initialized for player ${this.guildId}. The bot might not be connected to a voice channel.`);
-			}
+			};
 
 			await this.node.rest.destroyPlayer(this.guildId).catch(() => {});
 
@@ -940,8 +938,8 @@ export class Player {
 			await this.filters.updateFilters();
 		} catch (error) {
 			throw new Error(`Failed to move player to node ${identifier}: ${error}`);
-		}
-	}
+		};
+	};
 
 	/**
 	 * Transfers the player to a new server. If the player already exists on the new server
@@ -984,9 +982,7 @@ export class Player {
 		};
 
 		// If force is true, destroy the existing player for the new guild
-		if (force && newPlayer) {
-			await newPlayer.destroy();
-		}
+		if (force && newPlayer) await newPlayer.destroy();
 
 		newOptions.nodeIdentifier = newOptions.nodeIdentifier ?? this.options.nodeIdentifier;
 		newOptions.selfDeafen = newOptions.selfDeafen ?? oldPlayerProperties.selfDeafen;
@@ -1044,7 +1040,7 @@ export class Player {
 
 		// Return the cloned player
 		return clonedPlayer;
-	}
+	};
 
 	/**
 	 * Retrieves the current lyrics for the playing track.
@@ -1057,7 +1053,7 @@ export class Player {
 		const hasLyricsPlugin = this.node.info.plugins.some((plugin: { name: string }) => plugin.name === "lavalyrics-plugin");
 		if (!hasLyricsPlugin) {
 			throw new RangeError(`There is no lavalyrics-plugin available in the Lavalink node: ${this.node.options.identifier}`);
-		}
+		};
 
 		// Fetch the lyrics for the current track from the Lavalink node
 		let result = (await this.node.getLyrics(await this.queue.getCurrent(), skipTrackSource)) as Lyrics;
@@ -1071,10 +1067,10 @@ export class Player {
 				lines: [],
 				plugin: [],
 			};
-		}
+		};
 
 		return result;
-	}
+	};
 
 	/**
 	 * Sets up the voice receiver for the player.
@@ -1100,7 +1096,7 @@ export class Player {
 		this.voiceReceiverWsClient.on("error", (err) => this.onVoiceReceiverError(err));
 		this.voiceReceiverWsClient.on("message", (data) => this.onVoiceReceiverMessage(data.toString()));
 		this.voiceReceiverWsClient.on("close", (code, reason) => this.closeVoiceReceiver(code, reason.toString()));
-	}
+	};
 
 	/**
 	 * Removes the voice receiver for the player.
@@ -1114,10 +1110,10 @@ export class Player {
 			this.voiceReceiverWsClient.close(1000, "destroy");
 			this.voiceReceiverWsClient.removeAllListeners();
 			this.voiceReceiverWsClient = null;
-		}
+		};
 
 		this.isConnectToVoiceReceiver = false;
-	}
+	};
 
 	/**
 	 * Closes the voice receiver for the player.
@@ -1131,7 +1127,7 @@ export class Player {
 		this.manager.emit(ManagerEventTypes.Debug, `[PLAYER] Closed voice receiver for player ${this.guildId} with code ${code} and reason ${reason}`);
 
 		if (code !== 1000) await this.reconnectVoiceReceiver();
-	}
+	};
 
 	/**
 	 * Reconnects the voice receiver for the player.
@@ -1149,7 +1145,7 @@ export class Player {
 			await this.setupVoiceReceiver();
 			this.voiceReceiverAttempt++;
 		}, this.node.options.retryDelayMs);
-	}
+	};
 
 	/**
 	 * Disconnects the voice receiver for the player.
@@ -1164,7 +1160,7 @@ export class Player {
 
 		this.manager.emit(ManagerEventTypes.Debug, `[PLAYER] Disconnected from voice receiver for player ${this.guildId}`);
 		this.manager.emit(ManagerEventTypes.VoiceReceiverDisconnect, this);
-	}
+	};
 
 	/**
 	 * Opens the voice receiver for the player.
@@ -1176,7 +1172,7 @@ export class Player {
 		this.isConnectToVoiceReceiver = true;
 		this.manager.emit(ManagerEventTypes.Debug, `[PLAYER] Opened voice receiver for player ${this.guildId}`);
 		this.manager.emit(ManagerEventTypes.VoiceReceiverConnect, this);
-	}
+	};
 
 	/**
 	 * Handles a voice receiver message.
@@ -1206,9 +1202,9 @@ export class Player {
 			default: {
 				this.manager.emit(ManagerEventTypes.Debug, `VoiceReceiver recieved an unknown payload: ${JSON.stringify(payload)}`);
 				break;
-			}
-		}
-	}
+			};
+		};
+	};
 
 	/**
 	 * Handles a voice receiver error.
@@ -1218,5 +1214,5 @@ export class Player {
 	private async onVoiceReceiverError(error: Error): Promise<void> {
 		this.manager.emit(ManagerEventTypes.Debug, `VoiceReceiver error for player ${this.guildId}: ${error.message}`);
 		this.manager.emit(ManagerEventTypes.VoiceReceiverError, this, error);
-	}
-}
+	};
+};
