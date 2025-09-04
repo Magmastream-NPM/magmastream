@@ -99,7 +99,7 @@ export abstract class TrackUtils {
 		try {
 			const sourceNameMap: Record<string, TrackSourceName> = {
 				applemusic: "AppleMusic",
-				audius:  "Audius",
+				audius: "Audius",
 				bandcamp: "Bandcamp",
 				deezer: "Deezer",
 				jiosaavn: "Jiosaavn",

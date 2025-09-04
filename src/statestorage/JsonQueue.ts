@@ -459,7 +459,7 @@ export class JsonQueue implements IQueue {
 		const data = await this.readJSON<Track[]>(this.queuePath);
 		return Array.isArray(data) ? data : [];
 	}
-	
+
 	/**
 	 * @returns The previous path.
 	 */

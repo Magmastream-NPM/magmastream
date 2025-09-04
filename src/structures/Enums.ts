@@ -59,7 +59,7 @@ export enum LoadTypes {
  */
 export enum SearchPlatform {
 	AppleMusic = "amsearch",
-	Audius  = "audsearch",
+	Audius = "audsearch",
 	Bandcamp = "bcsearch",
 	Deezer = "dzsearch",
 	Jiosaavn = "jssearch",
@@ -94,7 +94,7 @@ export enum PlayerStateEventTypes {
  */
 export enum TrackSourceTypes {
 	AppleMusic = "applemusic",
-	Audius  = "audius",
+	Audius = "audius",
 	Bandcamp = "bandcamp",
 	Deezer = "deezer",
 	Jiosaavn = "jiosaavn",
