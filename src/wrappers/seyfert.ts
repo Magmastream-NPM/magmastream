@@ -1,6 +1,6 @@
 import { Manager as BaseManager } from "../structures/Manager";
 import type { GatewayVoiceStateUpdate } from "discord-api-types/v10";
-import { Client } from "seyfert";
+import { Client, WorkerClient } from "seyfert";
 import { ManagerOptions } from "../structures/Types";
 import { calculateShardId } from "seyfert/lib/common";
 
@@ -32,7 +32,7 @@ export * from "../index";
  * ```
  */
 export class SeyfertManager extends BaseManager {
-	public constructor(public readonly client: Client, options?: ManagerOptions) {
+	public constructor(public readonly client: Client | WorkerClient, options?: ManagerOptions) {
 		super(options);
 	}
 
