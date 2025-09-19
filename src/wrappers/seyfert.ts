@@ -37,10 +37,10 @@ export class SeyfertManager extends BaseManager {
 	}
 
 	protected override send(packet: GatewayVoiceStateUpdate) {
-		if (this.client instanceof WorkerClient) {
-			this.client.shards.get(calculateShardId(packet.d.guild_id))?.send(true, packet)
-		} else {
+		if (this.client instanceof Client) {
 			this.client.gateway.send(calculateShardId(packet.d.guild_id), packet);
+		} else {
+			this.client.shards.get(calculateShardId(packet.d.guild_id))?.send(true, packet)
 		}
 	}
 }
