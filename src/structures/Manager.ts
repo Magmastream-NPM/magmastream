@@ -21,7 +21,6 @@ import {
 	PlayerOptions,
 	PlaylistInfoData,
 	PlaylistRawData,
-	PlaylistSearchResult,
 	SearchQuery,
 	SearchResult,
 	Track,
@@ -215,26 +214,33 @@ export class Manager extends EventEmitter {
 
 		const _query: SearchQuery = typeof query === "string" ? { query } : query;
 		const _source = _query.source ?? this.options.defaultSearchPlatform;
-		let search = /^https?:\/\//.test(_query.query) ? _query.query : `${_source}:${_query.query}`;
+		const isUrl = /^https?:\/\//.test(_query.query);
+		const search = isUrl ? _query.query : `${_source}:${_query.query}`;
 
-		this.emit(ManagerEventTypes.Debug, `[MANAGER] Performing ${_source} search for: ${_query.query}`);
+		this.emit(
+			ManagerEventTypes.Debug,
+			isUrl ? `[MANAGER] Performing search for: ${_query.query}` : `[MANAGER] Performing ${_source} search for: ${_query.query}`
+		);
 
 		try {
 			const res = (await node.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(search)}`)) as LavalinkResponse;
 			if (!res) throw new Error("Query not found.");
 
-			let tracks: Track[] = [];
-			let playlist: PlaylistSearchResult["playlist"] = null;
+			let result: SearchResult;
 
 			switch (res.loadType) {
-				case LoadTypes.Search:
-					tracks = (res.data as TrackData[]).map((track) => TrackUtils.build(track, requester));
+				case LoadTypes.Search: {
+					const tracks = (res.data as TrackData[]).map((t) => TrackUtils.build(t, requester));
+					result = { loadType: res.loadType, tracks };
 					break;
+				}
 
 				case LoadTypes.Short:
-				case LoadTypes.Track:
-					tracks = [TrackUtils.build(res.data as unknown as TrackData, requester)];
+				case LoadTypes.Track: {
+					const track = TrackUtils.build(res.data as unknown as TrackData, requester);
+					result = { loadType: res.loadType, tracks: [track] };
 					break;
+				}
 
 				case LoadTypes.Album:
 				case LoadTypes.Artist:
@@ -243,20 +249,27 @@ export class Manager extends EventEmitter {
 				case LoadTypes.Show:
 				case LoadTypes.Playlist: {
 					const playlistData = res.data as PlaylistRawData;
-					tracks = playlistData.tracks.map((track) => TrackUtils.build(track, requester));
+					const tracks = playlistData.tracks.map((t) => TrackUtils.build(t, requester));
 
-					playlist = {
-						name: playlistData.info.name,
-						playlistInfo: playlistData.pluginInfo as PlaylistInfoData[],
-						requester: requester as User,
+					result = {
+						loadType: res.loadType,
 						tracks,
-						duration: tracks.reduce((acc, cur) => acc + ((cur as unknown as Track).duration || 0), 0),
+						playlist: {
+							name: playlistData.info.name,
+							playlistInfo: playlistData.pluginInfo as PlaylistInfoData[],
+							requester: requester as User,
+							tracks,
+							duration: tracks.reduce((acc, cur) => acc + (cur.duration || 0), 0),
+						},
 					};
 					break;
 				}
+
+				default:
+					result = { loadType: res.loadType };
 			}
 
-			if (this.options.normalizeYouTubeTitles) {
+			if (this.options.normalizeYouTubeTitles && "tracks" in result) {
 				const processTrack = (track: Track): Track => {
 					if (!/(youtube\.com|youtu\.be)/.test(track.uri)) return track;
 					const { cleanTitle, cleanAuthor } = this.parseYouTubeTitle(track.title, track.author);
@@ -264,38 +277,19 @@ export class Manager extends EventEmitter {
 					track.author = cleanAuthor;
 					return track;
 				};
+				result.tracks = result.tracks.map(processTrack);
 
-				if (playlist) {
-					playlist.tracks = playlist.tracks.map(processTrack);
-				} else {
-					tracks = tracks.map(processTrack);
+				if ("playlist" in result && result.playlist) {
+					result.playlist.tracks = result.playlist.tracks.map(processTrack);
 				}
 			}
 
-			let result: SearchResult;
+			const summary =
+				"tracks" in result
+					? result.tracks.map((t) => Object.fromEntries(Object.entries(t).filter(([key]) => key !== "requester")) as Omit<Track, "requester">)
+					: [];
 
-			switch (res.loadType) {
-				case LoadTypes.Album:
-				case LoadTypes.Artist:
-				case LoadTypes.Station:
-				case LoadTypes.Podcast:
-				case LoadTypes.Show:
-				case LoadTypes.Playlist:
-					result = { loadType: res.loadType, tracks, playlist };
-					break;
-				case LoadTypes.Search:
-					result = { loadType: res.loadType, tracks };
-					break;
-
-				case LoadTypes.Short:
-				case LoadTypes.Track:
-					result = { loadType: res.loadType, tracks: [tracks[0]] };
-					break;
-				default:
-					return { loadType: res.loadType };
-			}
-
-			this.emit(ManagerEventTypes.Debug, `[MANAGER] Result ${_source} search for: ${_query.query}: ${JSON.stringify(result)}`);
+			this.emit(ManagerEventTypes.Debug, `[MANAGER] Result search for ${_query.query}: ${JSON.stringify(summary, null, 2)}`);
 
 			return result;
 		} catch (err) {
