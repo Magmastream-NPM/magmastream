@@ -3,6 +3,7 @@ import { ManagerEventTypes, PlayerStateEventTypes } from "../structures/Enums";
 import { IQueue, PlayerStateUpdateEvent, PortableUser, Track } from "../structures/Types";
 import path from "path";
 import { promises as fs } from "fs";
+import { JSONUtils } from "../structures/Utils";
 
 /**
  * The player's queue, the `current` property is the currently playing track, think of the rest as the up-coming tracks.
@@ -500,7 +501,7 @@ export class JsonQueue implements IQueue {
 	 */
 	private async writeJSON<T>(filePath: string, data: T): Promise<void> {
 		await this.ensureDir();
-		await fs.writeFile(filePath, JSON.stringify(data, null, 2), "utf-8");
+		await fs.writeFile(filePath, JSONUtils.safe(data, 2), "utf-8");
 	}
 	// #endregion Private
 	// #region Protected

@@ -17,6 +17,7 @@ import {
 } from "./Types";
 import { Player } from "./Player";
 import path from "path";
+import stringify from "safe-stable-stringify";
 // import playwright from "playwright";
 
 /** @hidden */
@@ -730,71 +731,76 @@ export abstract class PlayerUtils {
 	 * @returns The serialized Player instance
 	 */
 	public static async serializePlayer(player: Player): Promise<Record<string, unknown>> {
-		const seen = new WeakSet();
-
-		// Fetch async queue data once before serializing
 		const current = await player.queue.getCurrent();
 		const tracks = Array.isArray(await player.queue.getTracks()) ? await player.queue.getTracks() : [];
 		const previous = Array.isArray(await player.queue.getPrevious()) ? await player.queue.getPrevious() : [];
 
-		/**
-		 * Recursively serializes an object, avoiding circular references.
-		 * @param obj The object to serialize
-		 * @returns The serialized object
-		 */
-		const serialize = (obj: unknown): unknown => {
-			if (obj && typeof obj === "object") {
-				if (seen.has(obj)) return;
+		const seen = new WeakSet();
 
-				seen.add(obj);
+		// The replacer function
+		const replacer = (key: string, value: unknown) => {
+			if (value && typeof value === "object") {
+				if (seen.has(value)) return;
+				seen.add(value);
 			}
-			return obj;
+
+			if (key === "manager") return null;
+
+			if (key === "filters") {
+				if (!value || typeof value !== "object") return null;
+
+				const filters = value as {
+					distortion?: unknown;
+					equalizer?: unknown[];
+					karaoke?: unknown;
+					rotation?: unknown;
+					timescale?: unknown;
+					vibrato?: unknown;
+					reverb?: unknown;
+					volume?: number;
+					bassBoostlevel?: unknown;
+					filtersStatus?: object;
+				};
+
+				return {
+					distortion: filters.distortion ?? null,
+					equalizer: filters.equalizer ?? [],
+					karaoke: filters.karaoke ?? null,
+					rotation: filters.rotation ?? null,
+					timescale: filters.timescale ?? null,
+					vibrato: filters.vibrato ?? null,
+					reverb: filters.reverb ?? null,
+					volume: filters.volume ?? 1.0,
+					bassBoostlevel: filters.bassBoostlevel ?? null,
+					filterStatus: filters.filtersStatus ? { ...filters.filtersStatus } : {},
+				};
+			}
+
+			if (key === "queue") {
+				return { current, tracks, previous };
+			}
+
+			if (key === "data") {
+				const data = value as {
+					Internal_AutoplayUser?: { id: string; username: string };
+					autoplayTries?: number | null;
+				};
+
+				const AutoplayUser = data?.Internal_AutoplayUser;
+				const serializedUser: PortableUser | null = AutoplayUser ? { id: AutoplayUser.id, username: AutoplayUser.username } : null;
+
+				return {
+					clientUser: serializedUser,
+					autoplayTries: data?.autoplayTries ?? null,
+				};
+			}
+
+			return value;
 		};
 
-		return JSON.parse(
-			JSON.stringify(player, (key, value) => {
-				if (key === "manager") {
-					return null;
-				}
+		const jsonString = stringify(player, replacer, 2);
 
-				if (key === "filters") {
-					if (!value || typeof value !== "object") return null;
-
-					return {
-						distortion: value.distortion ?? null,
-						equalizer: value.equalizer ?? [],
-						karaoke: value.karaoke ?? null,
-						rotation: value.rotation ?? null,
-						timescale: value.timescale ?? null,
-						vibrato: value.vibrato ?? null,
-						reverb: value.reverb ?? null,
-						volume: value.volume ?? 1.0,
-						bassBoostlevel: value.bassBoostlevel ?? null,
-						filterStatus: value.filtersStatus ? { ...value.filtersStatus } : {},
-					};
-				}
-				if (key === "queue") {
-					return {
-						current,
-						tracks,
-						previous,
-					};
-				}
-
-				if (key === "data") {
-					const AutoplayUser = value?.Internal_AutoplayUser;
-
-					const serializedUser: PortableUser | null = AutoplayUser ? { id: AutoplayUser.id, username: AutoplayUser.username } : null;
-
-					return {
-						clientUser: serializedUser,
-						autoplayTries: value?.autoplayTries ?? null,
-					};
-				}
-
-				return serialize(value);
-			})
-		);
+		return JSON.parse(jsonString) as Record<string, unknown>;
 	}
 
 	/**
@@ -861,6 +867,12 @@ export abstract class Structure {
 		const structure = structures[name];
 		if (!structure) throw new TypeError('"structure" must be provided.');
 		return structure;
+	}
+}
+
+export abstract class JSONUtils {
+	static safe<T>(obj: T, space?: number): string {
+		return stringify(obj, null, space);
 	}
 }
 

@@ -2,6 +2,7 @@ import { Manager } from "../structures/Manager";
 import { Redis } from "ioredis";
 import { ManagerEventTypes, PlayerStateEventTypes } from "../structures/Enums";
 import { IQueue, PlayerStateUpdateEvent, PortableUser, Track } from "../structures/Types";
+import { JSONUtils } from "../structures/Utils";
 
 /**
  * The player's queue, the `current` property is the currently playing track, think of the rest as the up-coming tracks.
@@ -513,7 +514,7 @@ export class RedisQueue implements IQueue {
 	 * Helper to serialize/deserialize Track
 	 */
 	private serialize(track: Track): string {
-		return JSON.stringify(track);
+		return JSONUtils.safe(track, 2);
 	}
 	// #endregion Private
 	// #region Protected

@@ -1,6 +1,7 @@
 import { Manager } from "../structures/Manager";
 import { ManagerEventTypes, PlayerStateEventTypes } from "../structures/Enums";
 import { IQueue, PlayerStateUpdateEvent, PortableUser, Track } from "../structures/Types";
+import { JSONUtils } from "../structures/Utils";
 
 /**
  * The player's queue, the `current` property is the currently playing track, think of the rest as the up-coming tracks.
@@ -42,7 +43,7 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 		const tracks = isArray ? [...track] : [track];
 
 		// Get the track info as a string
-		const trackInfo = isArray ? tracks.map((t) => JSON.stringify(t, null, 2)).join(", ") : JSON.stringify(track, null, 2);
+		const trackInfo = isArray ? tracks.map((t) => JSONUtils.safe(t, 2)).join(", ") : JSONUtils.safe(track, 2);
 
 		// Emit a debug message
 		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Added ${tracks.length} track(s) to queue: ${trackInfo}`);
@@ -308,7 +309,7 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 		const removedTrack = this.splice(startOrPosition, 1);
 		this.manager.emit(
 			ManagerEventTypes.Debug,
-			`[QUEUE] Removed 1 track from player: ${this.guildId} from position ${startOrPosition}: ${JSON.stringify(removedTrack[0], null, 2)}`
+			`[QUEUE] Removed 1 track from player: ${this.guildId} from position ${startOrPosition}: ${JSONUtils.safe(removedTrack[0], 2)}`
 		);
 
 		// Ensure removedTrack is an array for consistency

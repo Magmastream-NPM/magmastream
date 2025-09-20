@@ -1,4 +1,4 @@
-import { AutoPlayUtils, PlayerUtils, Structure, TrackUtils } from "./Utils";
+import { AutoPlayUtils, JSONUtils, PlayerUtils, Structure, TrackUtils } from "./Utils";
 import { Collection } from "@discordjs/collection";
 import { GatewayVoiceStateUpdate } from "discord-api-types/v10";
 import { EventEmitter } from "events";
@@ -290,7 +290,7 @@ export class Manager extends EventEmitter {
 					? result.tracks.map((t) => Object.fromEntries(Object.entries(t).filter(([key]) => key !== "requester")) as Omit<Track, "requester">)
 					: [];
 
-			this.emit(ManagerEventTypes.Debug, `[MANAGER] Result search for ${_query.query}: ${JSON.stringify(summary, null, 2)}`);
+			this.emit(ManagerEventTypes.Debug, `[MANAGER] Result search for ${_query.query}: ${JSONUtils.safe(summary, 2)}`);
 
 			return result;
 		} catch (err) {
@@ -318,7 +318,7 @@ export class Manager extends EventEmitter {
 		}
 
 		// Create a new player with the given options
-		this.emit(ManagerEventTypes.Debug, `[MANAGER] Creating new player with options: ${JSON.stringify(options)}`);
+		this.emit(ManagerEventTypes.Debug, `[MANAGER] Creating new player with options: ${JSONUtils.safe(options, 2)}`);
 		return new (Structure.get("Player"))(options);
 	}
 
@@ -356,7 +356,7 @@ export class Manager extends EventEmitter {
 		this.nodes.set(key, node);
 
 		// Emit a debug event for node creation
-		this.emit(ManagerEventTypes.Debug, `[MANAGER] Creating new node with options: ${JSON.stringify(options)}`);
+		this.emit(ManagerEventTypes.Debug, `[MANAGER] Creating new node with options: ${JSONUtils.safe(options, 2)}`);
 
 		// Return the created node
 		return node;
@@ -404,7 +404,7 @@ export class Manager extends EventEmitter {
 		const player = this.getPlayer(update.guild_id);
 		if (!player) return;
 
-		this.emit(ManagerEventTypes.Debug, `[MANAGER] Updating voice state: ${JSON.stringify(update)}`);
+		this.emit(ManagerEventTypes.Debug, `[MANAGER] Updating voice state: ${JSONUtils.safe(update, 2)}`);
 
 		if ("token" in update) {
 			return await this.handleVoiceServerUpdate(player, update);
@@ -423,12 +423,12 @@ export class Manager extends EventEmitter {
 	 * @throws Will throw an error if no nodes are available or if the API request fails.
 	 */
 	public async decodeTracks(tracks: string[]): Promise<TrackData[]> {
-		this.emit(ManagerEventTypes.Debug, `[MANAGER] Decoding tracks: ${JSON.stringify(tracks)}`);
+		this.emit(ManagerEventTypes.Debug, `[MANAGER] Decoding tracks: ${JSONUtils.safe(tracks, 2)}`);
 		return new Promise(async (resolve, reject) => {
 			const node = this.nodes.first();
 			if (!node) throw new Error("No available nodes.");
 
-			const res = (await node.rest.post("/v4/decodetracks", JSON.stringify(tracks)).catch((err) => reject(err))) as TrackData[];
+			const res = (await node.rest.post("/v4/decodetracks", JSONUtils.safe(tracks, 2)).catch((err) => reject(err))) as TrackData[];
 
 			if (!res) {
 				return reject(new Error("No data returned from query."));
@@ -471,7 +471,7 @@ export class Manager extends EventEmitter {
 						const serializedPlayer = await PlayerUtils.serializePlayer(player);
 
 						await fs.mkdir(path.dirname(playerStateFilePath), { recursive: true });
-						await fs.writeFile(playerStateFilePath, JSON.stringify(serializedPlayer, null, 2), "utf-8");
+						await fs.writeFile(playerStateFilePath, JSONUtils.safe(serializedPlayer, 2), "utf-8");
 
 						this.emit(ManagerEventTypes.Debug, `[MANAGER] Player state saved: ${guildId}`);
 					} catch (error) {
@@ -497,7 +497,7 @@ export class Manager extends EventEmitter {
 								: this.options.stateStorage.redisConfig.prefix ?? "magmastream:"
 						}playerstore:${guildId}`;
 
-						await this.redis.set(redisKey, JSON.stringify(serializedPlayer));
+						await this.redis.set(redisKey, JSONUtils.safe(serializedPlayer, 2));
 
 						this.emit(ManagerEventTypes.Debug, `[MANAGER] Player state saved to Redis: ${guildId}`);
 					} catch (error) {
@@ -577,7 +577,7 @@ export class Manager extends EventEmitter {
 									nodeIdentifier: nodeId,
 								};
 
-								this.emit(ManagerEventTypes.Debug, `[MANAGER] Recreating player: ${state.guildId} from saved file: ${JSON.stringify(state.options)}`);
+								this.emit(ManagerEventTypes.Debug, `[MANAGER] Recreating player: ${state.guildId} from saved file: ${JSONUtils.safe(state.options, 2)}`);
 								const player = this.create(playerOptions);
 
 								await player.node.rest.updatePlayer({

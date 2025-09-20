@@ -2,7 +2,7 @@ import { Filters } from "./Filters";
 import { Manager } from "./Manager";
 import { Node } from "./Node";
 import { MemoryQueue } from "../statestorage/MemoryQueue";
-import { AutoPlayUtils, Structure, TrackUtils } from "./Utils";
+import { AutoPlayUtils, JSONUtils, Structure, TrackUtils } from "./Utils";
 import * as _ from "lodash";
 import playerCheck from "../utils/playerCheck";
 import { Message } from "discord.js";
@@ -1036,7 +1036,7 @@ export class Player {
 			},
 		};
 
-		this.manager.emit(ManagerEventTypes.Debug, `[PLAYER] Transferred player to a new server: ${JSON.stringify(debugInfo)}.`);
+		this.manager.emit(ManagerEventTypes.Debug, `[PLAYER] Transferred player to a new server: ${JSONUtils.safe(debugInfo, 2)}.`);
 
 		// Return the cloned player
 		return clonedPlayer;
@@ -1183,7 +1183,7 @@ export class Player {
 		const packet = JSON.parse(payload) as VoiceReceiverEvent;
 		if (!packet?.op) return;
 
-		this.manager.emit(ManagerEventTypes.Debug, `VoiceReceiver recieved a payload: ${JSON.stringify(payload)}`);
+		this.manager.emit(ManagerEventTypes.Debug, `VoiceReceiver recieved a payload: ${JSONUtils.safe(payload, 2)}`);
 
 		switch (packet.type) {
 			case "startSpeakingEvent": {
@@ -1200,7 +1200,7 @@ export class Player {
 				break;
 			}
 			default: {
-				this.manager.emit(ManagerEventTypes.Debug, `VoiceReceiver recieved an unknown payload: ${JSON.stringify(payload)}`);
+				this.manager.emit(ManagerEventTypes.Debug, `VoiceReceiver recieved an unknown payload: ${JSONUtils.safe(payload, 2)}`);
 				break;
 			}
 		}
