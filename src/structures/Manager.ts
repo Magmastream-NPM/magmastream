@@ -21,6 +21,7 @@ import {
 	PlayerOptions,
 	PlaylistInfoData,
 	PlaylistRawData,
+	PortableUser,
 	SearchQuery,
 	SearchResult,
 	Track,
@@ -597,8 +598,11 @@ export class Manager extends EventEmitter {
 								const queueTracks = state.queue.tracks;
 
 								if (state.isAutoplay) {
-									Object.setPrototypeOf(state.data.clientUser, { constructor: { name: "User" } });
-									player.setAutoplay(true, state.data.clientUser, state.autoplayTries);
+									const savedUser = state.data.clientUser as PortableUser | null;
+									if (savedUser) {
+										const autoPlayUser = await player.manager.resolveUser(savedUser);
+										player.setAutoplay(true, autoPlayUser, state.autoplayTries);
+									}
 								}
 
 								if (lavaPlayer?.track) {
@@ -804,8 +808,11 @@ export class Manager extends EventEmitter {
 									const queueTracks = state.queue.tracks;
 
 									if (state.isAutoplay) {
-										Object.setPrototypeOf(state.data.clientUser, { constructor: { name: "User" } });
-										player.setAutoplay(true, state.data.clientUser, state.autoplayTries);
+										const savedUser = state.data.clientUser as PortableUser | null;
+										if (savedUser) {
+											const autoPlayUser = await player.manager.resolveUser(savedUser);
+											player.setAutoplay(true, autoPlayUser, state.autoplayTries);
+										}
 									}
 
 									if (lavaPlayer?.track) {
@@ -1490,5 +1497,15 @@ export class Manager extends EventEmitter {
 
 	public sendPacket(packet: GatewayVoiceStateUpdate): unknown {
 		return this.send(packet);
+	}
+
+	/**
+	 * Resolves a PortableUser or ID to a real user object.
+	 * Can be overridden by wrapper managers to return wrapper-specific User classes.
+	 */
+	public async resolveUser(user: PortableUser | string): Promise<PortableUser> {
+		if (!user) return null;
+		if (typeof user === "string") return { id: user }; // fallback by ID only
+		return user; // default: just return the portable user
 	}
 }

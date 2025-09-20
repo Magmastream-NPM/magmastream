@@ -4,7 +4,17 @@ import { ClientUser, User } from "discord.js";
 import { JSDOM } from "jsdom";
 import { AutoPlayPlatform, LoadTypes, SearchPlatform, TrackPartial } from "./Enums";
 import { Manager } from "./Manager";
-import { ErrorOrEmptySearchResult, Extendable, LavalinkResponse, PlaylistRawData, SearchResult, Track, TrackData, TrackSourceName } from "./Types";
+import {
+	ErrorOrEmptySearchResult,
+	Extendable,
+	LavalinkResponse,
+	PlaylistRawData,
+	PortableUser,
+	SearchResult,
+	Track,
+	TrackData,
+	TrackSourceName,
+} from "./Types";
 import { Player } from "./Player";
 import path from "path";
 // import playwright from "playwright";
@@ -93,7 +103,7 @@ export abstract class TrackUtils {
 	 * @param requester The user who requested the track, if any.
 	 * @returns The built Track.
 	 */
-	static build<T = User | ClientUser>(data: TrackData, requester?: T): Track {
+	static build<T = PortableUser | User | ClientUser>(data: TrackData, requester?: T): Track {
 		if (typeof data === "undefined") throw new RangeError('Argument "data" must be present.');
 
 		try {
@@ -128,7 +138,7 @@ export abstract class TrackUtils {
 					const finalSize = SIZES.find((s) => s === size) ?? "default";
 					return this.uri.includes("youtube") ? `https://img.youtube.com/vi/${data.info.identifier}/${finalSize}.jpg` : null;
 				},
-				requester: requester as User | ClientUser,
+				requester: requester as PortableUser | User | ClientUser,
 				pluginInfo: data.pluginInfo,
 				customData: {},
 			};
@@ -772,8 +782,13 @@ export abstract class PlayerUtils {
 				}
 
 				if (key === "data") {
+					const AutoplayUser = value?.Internal_AutoplayUser;
+
+					const serializedUser: PortableUser | null = AutoplayUser ? { id: AutoplayUser.id, username: AutoplayUser.username } : null;
+
 					return {
-						clientUser: value?.Internal_BotUser ?? null,
+						clientUser: serializedUser,
+						autoplayTries: value?.autoplayTries ?? null,
 					};
 				}
 

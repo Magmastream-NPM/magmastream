@@ -1,7 +1,7 @@
 import { GatewayReceivePayload, GatewayVoiceStateUpdate } from "discord-api-types/v10";
 import { Manager as BaseManager } from "../structures/Manager";
-import type { Client } from "eris";
-import { ManagerOptions, VoicePacket } from "../structures/Types";
+import type { Client, User } from "eris";
+import { ManagerOptions, PortableUser, VoicePacket } from "../structures/Types";
 
 export * from "../index";
 
@@ -24,5 +24,16 @@ export class ErisManager extends BaseManager {
 	protected override send(packet: GatewayVoiceStateUpdate) {
 		const guild = this.client.guilds.get(packet.d.guild_id);
 		if (guild) guild.shard.sendWS(packet.op, packet.d as unknown as Record<string, unknown>);
+	}
+
+	public override async resolveUser(user: PortableUser | string): Promise<User | PortableUser> {
+		const id = typeof user === "string" ? user : user.id;
+		const cached = this.client.users.get(id);
+		if (cached) return cached;
+
+		return {
+			id,
+			username: typeof user === "string" ? undefined : user.username,
+		};
 	}
 }

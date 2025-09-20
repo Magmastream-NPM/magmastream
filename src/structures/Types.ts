@@ -1,4 +1,3 @@
-import { ClientUser, User } from "discord.js";
 import { JsonQueue } from "../statestorage/JsonQueue";
 import { MemoryQueue } from "../statestorage/MemoryQueue";
 import { RedisQueue } from "../statestorage/RedisQueue";
@@ -153,6 +152,14 @@ export interface NodeOptions {
 	 * @default false
 	 */
 	isBackup?: boolean;
+}
+
+/**
+ * Portable User
+ */
+export interface PortableUser {
+	id: string;
+	username?: string;
 }
 
 /**
@@ -358,7 +365,7 @@ export interface Track {
 	/** The thumbnail of the track or null if it's a unsupported source. */
 	readonly thumbnail: string | null;
 	/** The user that requested the track. */
-	requester?: User | ClientUser;
+	requester?: PortableUser;
 	/** Displays the track thumbnail with optional size or null if it's a unsupported source. */
 	displayThumbnail(size?: Sizes): string;
 	/** Additional track info provided by plugins. */
@@ -561,7 +568,7 @@ export interface PlaylistData {
 	/** The playlist name. */
 	name: string;
 	/** Requester of playlist. */
-	requester: User | ClientUser;
+	requester: PortableUser;
 	/** More playlist information. */
 	playlistInfo: PlaylistInfoData[];
 	/** The length of the playlist. */

@@ -5,7 +5,7 @@ import { MemoryQueue } from "../statestorage/MemoryQueue";
 import { AutoPlayUtils, Structure, TrackUtils } from "./Utils";
 import * as _ from "lodash";
 import playerCheck from "../utils/playerCheck";
-import { ClientUser, Message, User } from "discord.js";
+import { Message } from "discord.js";
 import { RedisQueue } from "../statestorage/RedisQueue";
 import { IQueue, Lyrics, PlayerOptions, PlayerStateUpdateEvent, PlayOptions, SearchQuery, SearchResult, Track, VoiceReceiverEvent, VoiceState } from "./Types";
 import { ManagerEventTypes, PlayerStateEventTypes, SponsorBlockSegment, StateStorageType, StateTypes } from "./Enums";
@@ -418,32 +418,28 @@ export class Player {
 	 * track when the current track ends.
 	 *
 	 * @param {boolean} autoplayState - Whether or not autoplay should be enabled.
-	 * @param {object} botUser - The user-object that should be used as the bot-user.
+	 * @param {object} AutoplayUser - The user-object that should be used as the bot-user.
 	 * @param {number} [tries=3] - The number of times the player should try to find a
 	 * recommended track if the first one doesn't work.
 	 * @returns {this} - The player instance.
 	 */
-	public setAutoplay<T = unknown>(autoplayState: boolean, botUser?: T, tries?: number): this {
+	public setAutoplay<T = unknown>(autoplayState: boolean, AutoplayUser?: T, tries?: number): this {
 		if (typeof autoplayState !== "boolean") {
 			throw new Error("autoplayState must be a boolean.");
 		}
 
 		if (autoplayState) {
-			if (!botUser) {
-				throw new Error("botUser must be provided when enabling autoplay.");
-			}
-
-			if (!["ClientUser", "User"].includes(botUser.constructor.name)) {
-				throw new Error("botUser must be a user-object.");
+			if (!AutoplayUser) {
+				throw new Error("AutoplayUser must be provided when enabling autoplay.");
 			}
 
 			this.autoplayTries = tries && typeof tries === "number" && tries > 0 ? tries : 3; // Default to 3 if invalid
 			this.isAutoplay = true;
-			this.set("Internal_BotUser", botUser as User | ClientUser);
+			this.set("Internal_AutoplayUser", AutoplayUser);
 		} else {
 			this.isAutoplay = false;
 			this.autoplayTries = null;
-			this.set("Internal_BotUser", null);
+			this.set("Internal_AutoplayUser", null);
 		}
 
 		const oldPlayer = { ...this };
@@ -977,7 +973,7 @@ export class Player {
 			queueRepeat: this.queueRepeat,
 			dynamicRepeat: this.dynamicRepeat,
 			dynamicRepeatIntervalMs: this.dynamicRepeatIntervalMs,
-			ClientUser: this.get("Internal_BotUser") as User | ClientUser,
+			ClientUser: this.get("Internal_AutoplayUser"),
 			filters: this.filters,
 			nowPlayingMessage: this.nowPlayingMessage,
 			isAutoplay: this.isAutoplay,
@@ -1020,7 +1016,7 @@ export class Player {
 		clonedPlayer.queueRepeat = oldPlayerProperties.queueRepeat;
 		clonedPlayer.dynamicRepeat = oldPlayerProperties.dynamicRepeat;
 		clonedPlayer.dynamicRepeatIntervalMs = oldPlayerProperties.dynamicRepeatIntervalMs;
-		clonedPlayer.set("Internal_BotUser", oldPlayerProperties.ClientUser as User | ClientUser);
+		clonedPlayer.set("Internal_AutoplayUser", oldPlayerProperties.ClientUser);
 		clonedPlayer.paused = oldPlayerProperties.paused;
 
 		// Update filters for the cloned player

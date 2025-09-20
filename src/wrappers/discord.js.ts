@@ -1,7 +1,7 @@
 import { Manager as BaseManager } from "../structures/Manager";
 import type { GatewayVoiceStateUpdate } from "discord-api-types/v10";
-import { Client } from "discord.js";
-import { ManagerOptions, VoicePacket } from "../structures/Types";
+import { Client, User } from "discord.js";
+import { ManagerOptions, PortableUser, VoicePacket } from "../structures/Types";
 import { version as djsVersion } from "discord.js";
 const [major, minor] = djsVersion.split(".").map(Number);
 
@@ -40,5 +40,17 @@ export class DiscordJSManager extends BaseManager {
 	protected override send(packet: GatewayVoiceStateUpdate) {
 		const guild = this.client.guilds.cache.get(packet.d.guild_id);
 		if (guild) guild.shard.send(packet);
+	}
+
+	public override async resolveUser(user: PortableUser | string): Promise<User | PortableUser> {
+		const id = typeof user === "string" ? user : user.id;
+		const cached = this.client.users.cache.get(id);
+		if (cached) return cached;
+		try {
+			const fetched = await this.client.users.fetch(id);
+			return fetched;
+		} catch {
+			return { id, username: typeof user === "string" ? undefined : user.username };
+		}
 	}
 }

@@ -6,7 +6,6 @@ import nodeCheck from "../utils/nodeCheck";
 import WebSocket from "ws";
 import fs from "fs";
 import path from "path";
-import { User, ClientUser } from "discord.js";
 import {
 	LavalinkInfo,
 	Lyrics,
@@ -19,6 +18,7 @@ import {
 	PlayerEvent,
 	PlayerEvents,
 	PlayerStateUpdateEvent,
+	PortableUser,
 	SponsorBlockChaptersLoaded,
 	SponsorBlockChapterStarted,
 	SponsorBlockSegmentSkipped,
@@ -717,9 +717,9 @@ export class Node {
 
 		this.manager.emit(ManagerEventTypes.TrackStart, player, track, payload);
 
-		const botUser = player.get("Internal_BotUser") as User | ClientUser;
+		const AutoplayUser = player.get("Internal_AutoplayUser") as PortableUser | null;
 
-		if (botUser && botUser.id === track.requester.id) {
+		if (AutoplayUser && AutoplayUser.id === track.requester.id) {
 			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, player, {
 				changeType: PlayerStateEventTypes.TrackChange,
 				details: {
@@ -831,7 +831,7 @@ export class Node {
 
 		const PreviousQueue = await player.queue.getPrevious();
 		const lastTrack = PreviousQueue?.at(-1);
-		lastTrack.requester = player.get("Internal_BotUser") as User | ClientUser;
+		lastTrack.requester = player.get("Internal_AutoplayUser");
 
 		if (!lastTrack) return false;
 

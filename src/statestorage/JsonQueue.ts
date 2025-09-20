@@ -1,7 +1,6 @@
 import { Manager } from "../structures/Manager";
-import { ClientUser, User } from "discord.js";
 import { ManagerEventTypes, PlayerStateEventTypes } from "../structures/Enums";
-import { IQueue, PlayerStateUpdateEvent, Track } from "../structures/Types";
+import { IQueue, PlayerStateUpdateEvent, PortableUser, Track } from "../structures/Types";
 import path from "path";
 import { promises as fs } from "fs";
 
@@ -58,8 +57,8 @@ export class JsonQueue implements IQueue {
 
 		if (this.manager.players.has(this.guildId) && this.manager.players.get(this.guildId).isAutoplay) {
 			if (!isArray) {
-				const botUser = (await this.manager.players.get(this.guildId).get("Internal_BotUser")) as User | ClientUser;
-				if (botUser && botUser.id === track.requester.id) {
+				const AutoplayUser = (await this.manager.players.get(this.guildId).get("Internal_AutoplayUser")) as PortableUser | null;
+				if (AutoplayUser && AutoplayUser.id === track.requester.id) {
 					this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 						changeType: PlayerStateEventTypes.QueueChange,
 						details: {
