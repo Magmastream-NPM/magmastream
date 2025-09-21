@@ -120,6 +120,16 @@ export abstract class TrackUtils {
 				youtube: "YouTube",
 				vkmusic: "VKMusic",
 				qobuz: "Qobuz",
+				http: "Http",
+				tts: "Tts",
+				clypit: "Clypit",
+				pornhub: "Pornhub",
+				soundgasm: "Soundgasm",
+				reddit: "Reddit",
+				flowertts: "Flowertts",
+				ocremix: "Ocremix",
+				mixcloud: "Mixcloud",
+				tiktok: "TikTok",
 			};
 
 			const track: Track = {
