@@ -82,6 +82,14 @@ export class Player {
 		// Check the player options for errors.
 		playerCheck(options);
 
+		this.options = {
+			...options,
+			applyVolumeAsFilter: options.applyVolumeAsFilter ?? false,
+			selfMute: options.selfMute ?? false,
+			selfDeafen: options.selfDeafen ?? false,
+			volume: options.volume ?? 100,
+		};
+
 		// Set the guild ID and voice state.
 		this.guildId = options.guildId;
 		this.voiceState = Object.assign({
@@ -117,7 +125,7 @@ export class Player {
 		this.manager.players.set(options.guildId, this);
 
 		// Set the initial volume.
-		this.setVolume(options.volume ?? 100);
+		this.setVolume(options.volume);
 
 		// Initialize the filters.
 		this.filters = new Filters(this, this.manager);
@@ -485,9 +493,11 @@ export class Player {
 		const oldVolume = this.volume;
 		const oldPlayer = { ...this };
 
+		const data = this.options.applyVolumeAsFilter ? { filters: { volume } } : { volume };
+
 		await this.node.rest.updatePlayer({
 			guildId: this.options.guildId,
-			data: { volume },
+			data,
 		});
 
 		this.volume = volume;
@@ -977,6 +987,7 @@ export class Player {
 			filters: this.filters,
 			nowPlayingMessage: this.nowPlayingMessage,
 			isAutoplay: this.isAutoplay,
+			applyVolumeAsFilter: this.options.applyVolumeAsFilter,
 		};
 
 		// If force is true, destroy the existing player for the new guild
@@ -988,6 +999,7 @@ export class Player {
 		newOptions.selfDeafen = newOptions.selfDeafen ?? oldPlayerProperties.selfDeafen;
 		newOptions.selfMute = newOptions.selfMute ?? oldPlayerProperties.selfMute;
 		newOptions.volume = newOptions.volume ?? oldPlayerProperties.volume;
+		newOptions.applyVolumeAsFilter = newOptions.applyVolumeAsFilter ?? oldPlayerProperties.applyVolumeAsFilter;
 
 		// Deep clone the current player
 		const clonedPlayer = this.manager.create(newOptions);

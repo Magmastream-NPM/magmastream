@@ -1080,6 +1080,8 @@ export interface PlayerOptions {
 	selfMute?: boolean;
 	/** If the player should deaf itself. */
 	selfDeafen?: boolean;
+	/** Whether to apply the volume as a filter. */
+	applyVolumeAsFilter?: boolean;
 }
 
 /**
