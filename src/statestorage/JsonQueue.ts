@@ -1,9 +1,9 @@
 import { Manager } from "../structures/Manager";
-import { ClientUser, User } from "discord.js";
 import { ManagerEventTypes, PlayerStateEventTypes } from "../structures/Enums";
-import { IQueue, PlayerStateUpdateEvent, Track } from "../structures/Types";
+import { IQueue, PlayerStateUpdateEvent, PortableUser, Track } from "../structures/Types";
 import path from "path";
 import { promises as fs } from "fs";
+import { JSONUtils } from "../structures/Utils";
 
 /**
  * The player's queue, the `current` property is the currently playing track, think of the rest as the up-coming tracks.
@@ -58,8 +58,8 @@ export class JsonQueue implements IQueue {
 
 		if (this.manager.players.has(this.guildId) && this.manager.players.get(this.guildId).isAutoplay) {
 			if (!isArray) {
-				const botUser = (await this.manager.players.get(this.guildId).get("Internal_BotUser")) as User | ClientUser;
-				if (botUser && botUser.id === track.requester.id) {
+				const AutoplayUser = (await this.manager.players.get(this.guildId).get("Internal_AutoplayUser")) as PortableUser | null;
+				if (AutoplayUser && AutoplayUser.id === track.requester.id) {
 					this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 						changeType: PlayerStateEventTypes.QueueChange,
 						details: {
@@ -459,7 +459,7 @@ export class JsonQueue implements IQueue {
 		const data = await this.readJSON<Track[]>(this.queuePath);
 		return Array.isArray(data) ? data : [];
 	}
-	
+
 	/**
 	 * @returns The previous path.
 	 */
@@ -501,7 +501,7 @@ export class JsonQueue implements IQueue {
 	 */
 	private async writeJSON<T>(filePath: string, data: T): Promise<void> {
 		await this.ensureDir();
-		await fs.writeFile(filePath, JSON.stringify(data, null, 2), "utf-8");
+		await fs.writeFile(filePath, JSONUtils.safe(data, 2), "utf-8");
 	}
 	// #endregion Private
 	// #region Protected

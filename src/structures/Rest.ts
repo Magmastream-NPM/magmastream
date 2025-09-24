@@ -3,6 +3,7 @@ import axios, { AxiosRequestConfig } from "axios";
 import { Manager } from "./Manager";
 import { ManagerEventTypes } from "./Enums";
 import { RestPlayOptions } from "./Types";
+import { JSONUtils } from "./Utils";
 
 /** Handles the requests sent to the Lavalink REST API. */
 export class Rest {
@@ -48,7 +49,7 @@ export class Rest {
 		const result = await this.get(`/v4/sessions/${this.sessionId}/players`);
 
 		// Log the result of the request.
-		this.manager.emit(ManagerEventTypes.Debug, `[REST] Getting all players on node: ${this.node.options.identifier} : ${JSON.stringify(result)}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[REST] Getting all players on node: ${this.node.options.identifier} : ${JSONUtils.safe(result, 2)}`);
 
 		// Return the result of the request.
 		return result;
@@ -61,7 +62,7 @@ export class Rest {
 	 */
 	public async updatePlayer(options: RestPlayOptions): Promise<unknown> {
 		// Log the request.
-		this.manager.emit(ManagerEventTypes.Debug, `[REST] Updating player: ${options.guildId}: ${JSON.stringify(options)}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[REST] Updating player: ${options.guildId}: ${JSONUtils.safe(options, 2)}`);
 
 		// Send the PATCH request.
 		return await this.patch(`/v4/sessions/${this.sessionId}/players/${options.guildId}?noReplace=false`, options.data);
@@ -103,7 +104,7 @@ export class Rest {
 	 * @returns {Promise<unknown>} The response data of the request.
 	 */
 	private async request(method: string, endpoint: string, body?: unknown): Promise<unknown> {
-		this.manager.emit(ManagerEventTypes.Debug, `[REST] ${method} api call for endpoint: ${endpoint} with data: ${JSON.stringify(body)}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[REST] ${method} api call for endpoint: ${endpoint} with data: ${JSONUtils.safe(body, 2)}`);
 		const config: AxiosRequestConfig = {
 			method,
 			url: this.url + endpoint,
@@ -128,7 +129,7 @@ export class Rest {
 				return [];
 			} else if (error.response.status === 404) {
 				await this.node.destroy();
-				this.node.manager.createNode(this.node.options).connect();
+				await this.node.manager.createNode(this.node.options).connect();
 			}
 
 			return null;

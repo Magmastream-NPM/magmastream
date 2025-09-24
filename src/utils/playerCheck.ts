@@ -11,8 +11,8 @@ export default function playerCheck(options: PlayerOptions) {
 		throw new TypeError("PlayerOptions must not be empty.");
 	}
 
-	// Get the guild ID, node, selfDeafen, selfMute, textChannelId, voiceChannelId, and volume from the options.
-	const { guildId, nodeIdentifier, selfDeafen, selfMute, textChannelId, voiceChannelId, volume } = options;
+	// Get the guild ID, node, selfDeafen, selfMute, textChannelId, voiceChannelId, volume, and applyVolumeAsFilter from the options.
+	const { guildId, nodeIdentifier, selfDeafen, selfMute, textChannelId, voiceChannelId, volume, applyVolumeAsFilter } = options;
 
 	// Validate the guild ID option
 	// The guild ID option must be a non-empty string.
@@ -54,5 +54,11 @@ export default function playerCheck(options: PlayerOptions) {
 	// The volume option must be a number.
 	if (typeof volume !== "undefined" && typeof volume !== "number") {
 		throw new TypeError('Player option "volume" must be a number.');
+	}
+
+	// Validate the applyVolumeAsFilter option
+	// The applyVolumeAsFilter option must be a boolean.
+	if (typeof applyVolumeAsFilter !== "undefined" && typeof applyVolumeAsFilter !== "boolean") {
+		throw new TypeError('Player option "applyVolumeAsFilter" must be a boolean.');
 	}
 }

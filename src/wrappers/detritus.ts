@@ -1,6 +1,6 @@
 import { GatewayReceivePayload, GatewayVoiceStateUpdate } from "discord-api-types/v10";
 import { Manager as BaseManager } from "../structures/Manager";
-import { ManagerOptions, VoicePacket } from "../structures/Types";
+import { ManagerOptions, PortableUser, VoicePacket } from "../structures/Types";
 
 import { ClusterClient, ShardClient } from "detritus-client";
 
@@ -31,5 +31,21 @@ export class DetritusManager extends BaseManager {
 			const shard = asCluster.shards.find((c) => c.guilds.has(packet.d.guild_id));
 			if (shard) shard.gateway.send(packet.op, packet.d);
 		}
+	}
+
+	public override async resolveUser(user: PortableUser | string): Promise<PortableUser> {
+		const id = typeof user === "string" ? user : user.id;
+
+		if (this.client instanceof ShardClient) {
+			const cached = this.client.users.get(id);
+			if (cached) return { id: cached.id, username: cached.username };
+		} else if (this.client instanceof ClusterClient) {
+			for (const [, shard] of this.client.shards) {
+				const cached = shard.users.get(id);
+				if (cached) return { id: cached.id, username: cached.username };
+			}
+		}
+
+		return typeof user === "string" ? { id: user } : user;
 	}
 }

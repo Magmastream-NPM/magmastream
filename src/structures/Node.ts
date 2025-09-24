@@ -1,4 +1,4 @@
-import { AutoPlayUtils } from "./Utils";
+import { AutoPlayUtils, JSONUtils } from "./Utils";
 import { Manager } from "./Manager";
 import { Player } from "./Player";
 import { Rest } from "./Rest";
@@ -6,7 +6,6 @@ import nodeCheck from "../utils/nodeCheck";
 import WebSocket from "ws";
 import fs from "fs";
 import path from "path";
-import { User, ClientUser } from "discord.js";
 import {
 	LavalinkInfo,
 	Lyrics,
@@ -19,6 +18,7 @@ import {
 	PlayerEvent,
 	PlayerEvents,
 	PlayerStateUpdateEvent,
+	PortableUser,
 	SponsorBlockChaptersLoaded,
 	SponsorBlockChapterStarted,
 	SponsorBlockSegmentSkipped,
@@ -163,7 +163,7 @@ export class Node {
 		if (!fs.existsSync(this.sessionIdsFilePath)) {
 			this.manager.emit(ManagerEventTypes.Debug, `[NODE] Creating sessionId file at: ${this.sessionIdsFilePath}`);
 
-			fs.writeFileSync(this.sessionIdsFilePath, JSON.stringify({}), "utf-8");
+			fs.writeFileSync(this.sessionIdsFilePath, JSONUtils.safe({}), "utf-8");
 		}
 	}
 
@@ -224,7 +224,7 @@ export class Node {
 				} else {
 					this.manager.emit(ManagerEventTypes.Debug, `[NODE] No sessionIds found in Redis — creating new key.`);
 
-					await this.manager.redis.set(key, JSON.stringify({}));
+					await this.manager.redis.set(key, JSONUtils.safe({}));
 					this.sessionIdsMap = new Map();
 				}
 				break;
@@ -270,7 +270,7 @@ export class Node {
 						fileData[compositeKey] = this.sessionId;
 
 						const tmpPath = `${filePath}.tmp`;
-						fs.writeFileSync(tmpPath, JSON.stringify(fileData, null, 2), "utf-8");
+						fs.writeFileSync(tmpPath, JSONUtils.safe(fileData, 2), "utf-8");
 						fs.renameSync(tmpPath, filePath);
 
 						this.sessionIdsMap = new Map(Object.entries(fileData));
@@ -316,7 +316,7 @@ export class Node {
 				sessionIds[compositeKey] = this.sessionId;
 
 				this.sessionIdsMap = new Map(Object.entries(sessionIds));
-				await this.manager.redis.set(key, JSON.stringify(sessionIds));
+				await this.manager.redis.set(key, JSONUtils.safe(sessionIds));
 				break;
 			}
 		}
@@ -370,7 +370,7 @@ export class Node {
 			},
 		};
 
-		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Connecting ${JSON.stringify(debugInfo)}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Connecting ${JSONUtils.safe(debugInfo, 2)}`);
 	}
 
 	/**
@@ -394,7 +394,7 @@ export class Node {
 			playerCount: this.manager.players.filter((p) => p.node == this).size,
 		};
 
-		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Destroying node: ${JSON.stringify(debugInfo)}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Destroying node: ${JSONUtils.safe(debugInfo, 2)}`);
 
 		// Automove all players connected to that node
 		const players = this.manager.players.filter((p) => p.node == this);
@@ -440,7 +440,7 @@ export class Node {
 			retryDelayMs: this.options.retryDelayMs,
 		};
 
-		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Reconnecting node: ${JSON.stringify(debugInfo)}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Reconnecting node: ${JSONUtils.safe(debugInfo, 2)}`);
 
 		this.reconnectTimeout = setTimeout(async () => {
 			if (this.reconnectAttempts >= this.options.maxRetryAttempts) {
@@ -453,7 +453,7 @@ export class Node {
 			this.socket = null;
 
 			this.manager.emit(ManagerEventTypes.NodeReconnect, this);
-			this.connect();
+			await this.connect();
 
 			this.reconnectAttempts++;
 		}, this.options.retryDelayMs);
@@ -484,7 +484,7 @@ export class Node {
 			connected: this.connected,
 		};
 
-		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Connected node: ${JSON.stringify(debugInfo)}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Connected node: ${JSONUtils.safe(debugInfo, 2)}`);
 		this.manager.emit(ManagerEventTypes.NodeConnect, this);
 
 		const playersOnBackupNode = this.manager.players.filter((p) => p.node.options.isBackup);
@@ -514,7 +514,7 @@ export class Node {
 		};
 
 		this.manager.emit(ManagerEventTypes.NodeDisconnect, this, { code, reason });
-		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Disconnected node: ${JSON.stringify(debugInfo)}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Disconnected node: ${JSONUtils.safe(debugInfo, 2)}`);
 
 		if (this.manager.useableNode) {
 			const players = this.manager.players.filter((p) => p.node.options.identifier == this.options.identifier);
@@ -549,7 +549,7 @@ export class Node {
 			error: error.message,
 		};
 
-		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Error on node: ${JSON.stringify(debugInfo)}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Error on node: ${JSONUtils.safe(debugInfo, 2)}`);
 		this.manager.emit(ManagerEventTypes.NodeError, this, error);
 	}
 
@@ -594,13 +594,13 @@ export class Node {
 					return;
 				}
 
-				this.manager.emit(ManagerEventTypes.Debug, `[NODE] Node message: ${JSON.stringify(payload)}`);
+				this.manager.emit(ManagerEventTypes.Debug, `[NODE] Node message: ${JSONUtils.safe(payload, 2)}`);
 
 				await this.handleEvent(payload);
 
 				break;
 			case "ready":
-				this.manager.emit(ManagerEventTypes.Debug, `[NODE] Node message: ${JSON.stringify(payload)}`);
+				this.manager.emit(ManagerEventTypes.Debug, `[NODE] Node message: ${JSONUtils.safe(payload, 2)}`);
 				this.rest.setSessionId(payload.sessionId);
 				this.sessionId = payload.sessionId;
 
@@ -717,9 +717,9 @@ export class Node {
 
 		this.manager.emit(ManagerEventTypes.TrackStart, player, track, payload);
 
-		const botUser = player.get("Internal_BotUser") as User | ClientUser;
+		const AutoplayUser = player.get("Internal_AutoplayUser") as PortableUser | null;
 
-		if (botUser && botUser.id === track.requester.id) {
+		if (AutoplayUser && AutoplayUser.id === track.requester.id) {
 			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, player, {
 				changeType: PlayerStateEventTypes.TrackChange,
 				details: {
@@ -831,7 +831,7 @@ export class Node {
 
 		const PreviousQueue = await player.queue.getPrevious();
 		const lastTrack = PreviousQueue?.at(-1);
-		lastTrack.requester = player.get("Internal_BotUser") as User | ClientUser;
+		lastTrack.requester = player.get("Internal_AutoplayUser");
 
 		if (!lastTrack) return false;
 
@@ -1101,7 +1101,7 @@ export class Node {
 	 */
 	protected socketClosed(player: Player, payload: WebSocketClosedEvent): void {
 		this.manager.emit(ManagerEventTypes.SocketClosed, player, payload);
-		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Websocket closed for player: ${player.guildId} with payload: ${JSON.stringify(payload)}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[NODE] Websocket closed for player: ${player.guildId} with payload: ${JSONUtils.safe(payload, 2)}`);
 	}
 
 	/**
@@ -1225,7 +1225,7 @@ export class Node {
 		if (segments.some((v) => !validSponsorBlocks.includes(v.toLowerCase())))
 			throw new SyntaxError(`You provided a sponsorblock which isn't valid, valid ones are: ${validSponsorBlocks.map((v) => `'${v}'`).join(", ")}`);
 
-		await this.rest.put(`/v4/sessions/${this.sessionId}/players/${player.guildId}/sponsorblock/categories`, JSON.stringify(segments.map((v) => v.toLowerCase())));
+		await this.rest.put(`/v4/sessions/${this.sessionId}/players/${player.guildId}/sponsorblock/categories`, JSONUtils.safe(segments.map((v) => v.toLowerCase()), 2));
 		return;
 	}
 

@@ -1,4 +1,4 @@
-import { AutoPlayUtils, PlayerUtils, Structure, TrackUtils } from "./Utils";
+import { AutoPlayUtils, JSONUtils, PlayerUtils, Structure, TrackUtils } from "./Utils";
 import { Collection } from "@discordjs/collection";
 import { GatewayVoiceStateUpdate } from "discord-api-types/v10";
 import { EventEmitter } from "events";
@@ -21,7 +21,7 @@ import {
 	PlayerOptions,
 	PlaylistInfoData,
 	PlaylistRawData,
-	PlaylistSearchResult,
+	PortableUser,
 	SearchQuery,
 	SearchResult,
 	Track,
@@ -215,26 +215,33 @@ export class Manager extends EventEmitter {
 
 		const _query: SearchQuery = typeof query === "string" ? { query } : query;
 		const _source = _query.source ?? this.options.defaultSearchPlatform;
-		let search = /^https?:\/\//.test(_query.query) ? _query.query : `${_source}:${_query.query}`;
+		const isUrl = /^https?:\/\//.test(_query.query);
+		const search = isUrl ? _query.query : `${_source}:${_query.query}`;
 
-		this.emit(ManagerEventTypes.Debug, `[MANAGER] Performing ${_source} search for: ${_query.query}`);
+		this.emit(
+			ManagerEventTypes.Debug,
+			isUrl ? `[MANAGER] Performing search for: ${_query.query}` : `[MANAGER] Performing ${_source} search for: ${_query.query}`
+		);
 
 		try {
 			const res = (await node.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(search)}`)) as LavalinkResponse;
 			if (!res) throw new Error("Query not found.");
 
-			let tracks: Track[] = [];
-			let playlist: PlaylistSearchResult["playlist"] = null;
+			let result: SearchResult;
 
 			switch (res.loadType) {
-				case LoadTypes.Search:
-					tracks = (res.data as TrackData[]).map((track) => TrackUtils.build(track, requester));
+				case LoadTypes.Search: {
+					const tracks = (res.data as TrackData[]).map((t) => TrackUtils.build(t, requester));
+					result = { loadType: res.loadType, tracks };
 					break;
+				}
 
 				case LoadTypes.Short:
-				case LoadTypes.Track:
-					tracks = [TrackUtils.build(res.data as unknown as TrackData, requester)];
+				case LoadTypes.Track: {
+					const track = TrackUtils.build(res.data as unknown as TrackData, requester);
+					result = { loadType: res.loadType, tracks: [track] };
 					break;
+				}
 
 				case LoadTypes.Album:
 				case LoadTypes.Artist:
@@ -243,20 +250,27 @@ export class Manager extends EventEmitter {
 				case LoadTypes.Show:
 				case LoadTypes.Playlist: {
 					const playlistData = res.data as PlaylistRawData;
-					tracks = playlistData.tracks.map((track) => TrackUtils.build(track, requester));
+					const tracks = playlistData.tracks.map((t) => TrackUtils.build(t, requester));
 
-					playlist = {
-						name: playlistData.info.name,
-						playlistInfo: playlistData.pluginInfo as PlaylistInfoData[],
-						requester: requester as User,
+					result = {
+						loadType: res.loadType,
 						tracks,
-						duration: tracks.reduce((acc, cur) => acc + ((cur as unknown as Track).duration || 0), 0),
+						playlist: {
+							name: playlistData.info.name,
+							playlistInfo: playlistData.pluginInfo as PlaylistInfoData[],
+							requester: requester as User,
+							tracks,
+							duration: tracks.reduce((acc, cur) => acc + (cur.duration || 0), 0),
+						},
 					};
 					break;
 				}
+
+				default:
+					result = { loadType: res.loadType };
 			}
 
-			if (this.options.normalizeYouTubeTitles) {
+			if (this.options.normalizeYouTubeTitles && "tracks" in result) {
 				const processTrack = (track: Track): Track => {
 					if (!/(youtube\.com|youtu\.be)/.test(track.uri)) return track;
 					const { cleanTitle, cleanAuthor } = this.parseYouTubeTitle(track.title, track.author);
@@ -264,38 +278,19 @@ export class Manager extends EventEmitter {
 					track.author = cleanAuthor;
 					return track;
 				};
+				result.tracks = result.tracks.map(processTrack);
 
-				if (playlist) {
-					playlist.tracks = playlist.tracks.map(processTrack);
-				} else {
-					tracks = tracks.map(processTrack);
+				if ("playlist" in result && result.playlist) {
+					result.playlist.tracks = result.playlist.tracks.map(processTrack);
 				}
 			}
 
-			let result: SearchResult;
+			const summary =
+				"tracks" in result
+					? result.tracks.map((t) => Object.fromEntries(Object.entries(t).filter(([key]) => key !== "requester")) as Omit<Track, "requester">)
+					: [];
 
-			switch (res.loadType) {
-				case LoadTypes.Album:
-				case LoadTypes.Artist:
-				case LoadTypes.Station:
-				case LoadTypes.Podcast:
-				case LoadTypes.Show:
-				case LoadTypes.Playlist:
-					result = { loadType: res.loadType, tracks, playlist };
-					break;
-				case LoadTypes.Search:
-					result = { loadType: res.loadType, tracks };
-					break;
-
-				case LoadTypes.Short:
-				case LoadTypes.Track:
-					result = { loadType: res.loadType, tracks: [tracks[0]] };
-					break;
-				default:
-					return { loadType: res.loadType };
-			}
-
-			this.emit(ManagerEventTypes.Debug, `[MANAGER] Result ${_source} search for: ${_query.query}: ${JSON.stringify(result)}`);
+			this.emit(ManagerEventTypes.Debug, `[MANAGER] Result search for ${_query.query}: ${JSONUtils.safe(summary, 2)}`);
 
 			return result;
 		} catch (err) {
@@ -323,7 +318,7 @@ export class Manager extends EventEmitter {
 		}
 
 		// Create a new player with the given options
-		this.emit(ManagerEventTypes.Debug, `[MANAGER] Creating new player with options: ${JSON.stringify(options)}`);
+		this.emit(ManagerEventTypes.Debug, `[MANAGER] Creating new player with options: ${JSONUtils.safe(options, 2)}`);
 		return new (Structure.get("Player"))(options);
 	}
 
@@ -361,7 +356,7 @@ export class Manager extends EventEmitter {
 		this.nodes.set(key, node);
 
 		// Emit a debug event for node creation
-		this.emit(ManagerEventTypes.Debug, `[MANAGER] Creating new node with options: ${JSON.stringify(options)}`);
+		this.emit(ManagerEventTypes.Debug, `[MANAGER] Creating new node with options: ${JSONUtils.safe(options, 2)}`);
 
 		// Return the created node
 		return node;
@@ -409,7 +404,7 @@ export class Manager extends EventEmitter {
 		const player = this.getPlayer(update.guild_id);
 		if (!player) return;
 
-		this.emit(ManagerEventTypes.Debug, `[MANAGER] Updating voice state: ${JSON.stringify(update)}`);
+		this.emit(ManagerEventTypes.Debug, `[MANAGER] Updating voice state: ${JSONUtils.safe(update, 2)}`);
 
 		if ("token" in update) {
 			return await this.handleVoiceServerUpdate(player, update);
@@ -428,12 +423,12 @@ export class Manager extends EventEmitter {
 	 * @throws Will throw an error if no nodes are available or if the API request fails.
 	 */
 	public async decodeTracks(tracks: string[]): Promise<TrackData[]> {
-		this.emit(ManagerEventTypes.Debug, `[MANAGER] Decoding tracks: ${JSON.stringify(tracks)}`);
+		this.emit(ManagerEventTypes.Debug, `[MANAGER] Decoding tracks: ${JSONUtils.safe(tracks, 2)}`);
 		return new Promise(async (resolve, reject) => {
 			const node = this.nodes.first();
 			if (!node) throw new Error("No available nodes.");
 
-			const res = (await node.rest.post("/v4/decodetracks", JSON.stringify(tracks)).catch((err) => reject(err))) as TrackData[];
+			const res = (await node.rest.post("/v4/decodetracks", JSONUtils.safe(tracks, 2)).catch((err) => reject(err))) as TrackData[];
 
 			if (!res) {
 				return reject(new Error("No data returned from query."));
@@ -476,7 +471,7 @@ export class Manager extends EventEmitter {
 						const serializedPlayer = await PlayerUtils.serializePlayer(player);
 
 						await fs.mkdir(path.dirname(playerStateFilePath), { recursive: true });
-						await fs.writeFile(playerStateFilePath, JSON.stringify(serializedPlayer, null, 2), "utf-8");
+						await fs.writeFile(playerStateFilePath, JSONUtils.safe(serializedPlayer, 2), "utf-8");
 
 						this.emit(ManagerEventTypes.Debug, `[MANAGER] Player state saved: ${guildId}`);
 					} catch (error) {
@@ -502,7 +497,7 @@ export class Manager extends EventEmitter {
 								: this.options.stateStorage.redisConfig.prefix ?? "magmastream:"
 						}playerstore:${guildId}`;
 
-						await this.redis.set(redisKey, JSON.stringify(serializedPlayer));
+						await this.redis.set(redisKey, JSONUtils.safe(serializedPlayer, 2));
 
 						this.emit(ManagerEventTypes.Debug, `[MANAGER] Player state saved to Redis: ${guildId}`);
 					} catch (error) {
@@ -582,7 +577,7 @@ export class Manager extends EventEmitter {
 									nodeIdentifier: nodeId,
 								};
 
-								this.emit(ManagerEventTypes.Debug, `[MANAGER] Recreating player: ${state.guildId} from saved file: ${JSON.stringify(state.options)}`);
+								this.emit(ManagerEventTypes.Debug, `[MANAGER] Recreating player: ${state.guildId} from saved file: ${JSONUtils.safe(state.options, 2)}`);
 								const player = this.create(playerOptions);
 
 								await player.node.rest.updatePlayer({
@@ -603,8 +598,11 @@ export class Manager extends EventEmitter {
 								const queueTracks = state.queue.tracks;
 
 								if (state.isAutoplay) {
-									Object.setPrototypeOf(state.data.clientUser, { constructor: { name: "User" } });
-									player.setAutoplay(true, state.data.clientUser, state.autoplayTries);
+									const savedUser = state.data.clientUser as PortableUser | null;
+									if (savedUser) {
+										const autoPlayUser = await player.manager.resolveUser(savedUser);
+										player.setAutoplay(true, autoPlayUser, state.autoplayTries);
+									}
 								}
 
 								if (lavaPlayer?.track) {
@@ -810,8 +808,11 @@ export class Manager extends EventEmitter {
 									const queueTracks = state.queue.tracks;
 
 									if (state.isAutoplay) {
-										Object.setPrototypeOf(state.data.clientUser, { constructor: { name: "User" } });
-										player.setAutoplay(true, state.data.clientUser, state.autoplayTries);
+										const savedUser = state.data.clientUser as PortableUser | null;
+										if (savedUser) {
+											const autoPlayUser = await player.manager.resolveUser(savedUser);
+											player.setAutoplay(true, autoPlayUser, state.autoplayTries);
+										}
 									}
 
 									if (lavaPlayer?.track) {
@@ -1496,5 +1497,15 @@ export class Manager extends EventEmitter {
 
 	public sendPacket(packet: GatewayVoiceStateUpdate): unknown {
 		return this.send(packet);
+	}
+
+	/**
+	 * Resolves a PortableUser or ID to a real user object.
+	 * Can be overridden by wrapper managers to return wrapper-specific User classes.
+	 */
+	public async resolveUser(user: PortableUser | string): Promise<PortableUser> {
+		if (!user) return null;
+		if (typeof user === "string") return { id: user }; // fallback by ID only
+		return user; // default: just return the portable user
 	}
 }

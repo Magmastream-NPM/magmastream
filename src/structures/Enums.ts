@@ -59,6 +59,7 @@ export enum LoadTypes {
  */
 export enum SearchPlatform {
 	AppleMusic = "amsearch",
+	Audius = "audsearch",
 	Bandcamp = "bcsearch",
 	Deezer = "dzsearch",
 	Jiosaavn = "jssearch",
@@ -92,16 +93,27 @@ export enum PlayerStateEventTypes {
  * Track Source Types Enum
  */
 export enum TrackSourceTypes {
-	AppleMusic = "applemusic",
-	Bandcamp = "bandcamp",
-	Deezer = "deezer",
-	Jiosaavn = "jiosaavn",
-	Qobuz = "qobuz",
-	SoundCloud = "soundcloud",
-	Spotify = "spotify",
-	Tidal = "tidal",
-	VKMusic = "vkmusic",
-	YouTube = "youtube",
+	AppleMusic = "AppleMusic",
+	Audius = "Audius",
+	Bandcamp = "Bandcamp",
+	Deezer = "Deezer",
+	Jiosaavn = "Jiosaavn",
+	Qobuz = "Qobuz",
+	SoundCloud = "SoundCloud",
+	Spotify = "Spotify",
+	Tidal = "Tidal",
+	VKMusic = "VKMusic",
+	YouTube = "YouTube",
+	Pornhub = "Pornub",
+	TikTok = "TikTok",
+	Flowertts = "Flowertts",
+	Ocremix = "Ocremix",
+	Mixcloud = "Mixcloud",
+	Soundgasm = "Soundgasm",
+	Reddit = "Reddit",
+	Clypit = "Clypit",
+	Http = "Http",
+	Tts = "Tts",
 }
 
 /**
