@@ -89,22 +89,9 @@
 
 ## Used By
 
-| Name                                                                                                                                                                                                                                                  | Creator       |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| [Lava Jukebox](https://discord.com/api/oauth2/authorize?client_id=887651843742793779&permissions=-1&redirect_uri=https%3A%2F%2Fdiscord.gg%2F4ZaXbbYSTZ&response_type=code&scope=guilds.join%20bot%20applications.commands)                            | Abel Purnwasy |
-| [Stal](https://discord.com/oauth2/authorize?client_id=923938180263182356&scope=bot%20applications.commands&permissions=27648861246)                                                                                                                   | memte         |
-| [Lunio](https://discord.com/api/oauth2/authorize?client_id=945030475779551415&permissions=61991952&scope=bot+applications.commands)                                                                                                                   | vexi          |
-| [JukeDisc](https://discord.com/oauth2/authorize?client_id=1109751797549105176&permissions=968552214080&scope=bot+applications.commands)                                                                                                               | Theo          |
-| [Leo](https://discord.com/oauth2/authorize?client_id=923529398425096193&permissions=12888394808&scope=bot%20identify%20applications.commands) | Itz Random    |
-| [Soundy](https://dsc.gg/sndy)                                                                                                                                                                                                                         | iaMJ          |
-| [HamBot](https://discord.com/oauth2/authorize?client_id=1049314312776335390)                                                                                                                                                                          | yanishamburger|
-| [Miyu](https://discord.com/oauth2/authorize?client_id=1277180179273482280&permissions=572851999731703&response_type=code&redirect_uri=https%3A%2F%2Fdiscord.gg%2Ftn3nbFB8nX&integration_type=0&scope=identify+applications.commands+bot)              | Kenver        |
-| [Savage Bot](https://discord.com/oauth2/authorize?client_id=823703707522433054&permissions=8&scope=bot%20applications.commands)                                                                                                                       | Savage        |
-| [rive](https://discord.com/oauth2/authorize?client_id=1384158871207280651)                                                                                                                                                                            | bob, xrm0s    |                                                                                                                                                                                                                                                                                                                                                                                                                    | pomice        | 
-| [Pepper](https://discord.com/oauth2/authorize?client_id=871808444502540379&permissions=6575631696&integration_type=0&scope=bot+applications.commands)                                                                                                 | murlee        |                                                               
+The "Used By" section can be found [here](https://magmastream.com/usedby).
 
-
-Want to showcase your bot? Feel free to create a pull request and add it to our growing list of amazing bots powered by Magmastream!
+Want to showcase your bot? Feel free to create a pull request in [the docs repo](https://github.com/Magmastream-NPM/magmastream_documentation) and add it to our growing list of amazing bots powered by Magmastream!
 
 ## 👥 Contributors
 
