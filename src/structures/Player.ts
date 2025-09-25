@@ -477,23 +477,30 @@ export class Player {
 
 	/**
 	 * Sets the volume of the player.
-	 * @param {number} volume - The new volume. Must be between 0 and 1000.
+	 * @param {number} volume - The new volume. Must be between 0 and 500 when using filter mode (100 = 100%).
 	 * @returns {Promise<Player>} - The updated player.
 	 * @throws {TypeError} If the volume is not a number.
-	 * @throws {RangeError} If the volume is not between 0 and 1000.
+	 * @throws {RangeError} If the volume is not between 0 and 500 when using filter mode (100 = 100%).
 	 * @emits {PlayerStateUpdate} - Emitted when the volume is changed.
 	 * @example
 	 * player.setVolume(50);
-	 * player.setVolume(50, { gradual: true, interval: 50, step: 5 });
 	 */
 	public async setVolume(volume: number): Promise<this> {
 		if (isNaN(volume)) throw new TypeError("Volume must be a number.");
-		if (volume < 0 || volume > 1000) throw new RangeError("Volume must be between 0 and 1000.");
+
+		if (this.options.applyVolumeAsFilter) {
+			if (volume < 0 || volume > 500) {
+				throw new RangeError("Volume must be between 0 and 500 when using filter mode (100 = 100%).");
+			}
+		} else {
+			if (volume < 0 || volume > 1000) {
+				throw new RangeError("Volume must be between 0 and 1000.");
+			}
+		}
 
 		const oldVolume = this.volume;
 		const oldPlayer = { ...this };
-
-		const data = this.options.applyVolumeAsFilter ? { filters: { volume } } : { volume };
+		const data = this.options.applyVolumeAsFilter ? { filters: { volume: volume / 100 } } : { volume };
 
 		await this.node.rest.updatePlayer({
 			guildId: this.options.guildId,
@@ -501,7 +508,7 @@ export class Player {
 		});
 
 		this.volume = volume;
-
+		this.options.volume = volume;
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.VolumeChange,
 			details: {
