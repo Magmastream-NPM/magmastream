@@ -13,7 +13,6 @@ import path from "path";
 import Redis, { Redis as RedisClient } from "ioredis";
 import {
 	LavalinkResponse,
-	LavaPlayer,
 	ManagerEvents,
 	ManagerInitOptions,
 	ManagerOptions,
@@ -525,8 +524,6 @@ export class Manager extends EventEmitter {
 		const node = this.nodes.get(nodeId);
 		if (!node) throw new Error(`Could not find node: ${nodeId}`);
 
-		const info = (await node.rest.getAllPlayers()) as LavaPlayer[];
-
 		switch (this.options.stateStorage.type) {
 			case StateStorageType.Memory:
 			case StateStorageType.JSON:
@@ -558,7 +555,8 @@ export class Manager extends EventEmitter {
 								if (state.clusterId !== this.options.clusterId) continue;
 								if (!state.guildId || state.node?.options?.identifier !== nodeId) continue;
 
-								const lavaPlayer = info.find((player) => player.guildId === state.guildId);
+								const lavaPlayer = await node.rest.getPlayer(state.guildId);
+
 								if (!lavaPlayer) {
 									await this.destroy(state.guildId);
 									continue;
@@ -602,17 +600,20 @@ export class Manager extends EventEmitter {
 									}
 								}
 
-								if (lavaPlayer?.track) {
-									tracks.push(...queueTracks);
+								if (lavaPlayer.track) {
+									await player.queue.clear();
 
-									if (currentTrack && currentTrack.uri === lavaPlayer.track.info.uri) {
-										await player.queue.setCurrent(TrackUtils.build(lavaPlayer.track as TrackData, currentTrack.requester));
+									if (currentTrack) {
+										await player.queue.add(TrackUtils.build(lavaPlayer.track as TrackData, currentTrack.requester));
 									}
 
-									if (tracks.length > 0) {
-										await player.queue.clear();
-										await player.queue.add(tracks);
+									const remainingQueue = queueTracks.filter((t: Track) => t.uri !== lavaPlayer.track.info.uri);
+
+									if (remainingQueue.length > 0) {
+										await player.queue.add(remainingQueue);
 									}
+
+									player.playing = !lavaPlayer.paused;
 								} else {
 									if (currentTrack) {
 										if (queueTracks.length > 0) {
@@ -663,11 +664,7 @@ export class Manager extends EventEmitter {
 									await player.queue.clearPrevious();
 								}
 
-								if (state.paused) {
-									await player.pause(true);
-								} else {
-									player.paused = false;
-								}
+								await player.pause(state.paused);
 
 								if (state.trackRepeat) player.setTrackRepeat(true);
 								if (state.queueRepeat) player.setQueueRepeat(true);
@@ -771,181 +768,178 @@ export class Manager extends EventEmitter {
 								if (!state || typeof state !== "object" || state.clusterId !== this.options.clusterId) continue;
 
 								const guildId = key.split(":").pop();
-								if (!guildId) continue;
+								if (!guildId || state.node.options.identifier !== nodeId) continue;
 
-								if (state.node?.options?.identifier === nodeId) {
-									const lavaPlayer = info.find((player) => player.guildId === guildId);
-									if (!lavaPlayer) {
-										await this.destroy(guildId);
-									}
+								const lavaPlayer = await node.rest.getPlayer(state.guildId);
 
-									const playerOptions: PlayerOptions = {
-										guildId: state.options.guildId,
-										textChannelId: state.options.textChannelId,
-										voiceChannelId: state.options.voiceChannelId,
-										selfDeafen: state.options.selfDeafen,
-										volume: lavaPlayer?.volume || state.options.volume,
-										nodeIdentifier: nodeId,
-										applyVolumeAsFilter: state.options.applyVolumeAsFilter,
-									};
+								if (!lavaPlayer) {
+									await this.destroy(guildId);
+								}
 
-									this.emit(ManagerEventTypes.Debug, `[MANAGER] Recreating player: ${guildId} from Redis`);
-									const player = this.create(playerOptions);
+								const playerOptions: PlayerOptions = {
+									guildId: state.options.guildId,
+									textChannelId: state.options.textChannelId,
+									voiceChannelId: state.options.voiceChannelId,
+									selfDeafen: state.options.selfDeafen,
+									volume: lavaPlayer.volume || state.options.volume,
+									nodeIdentifier: nodeId,
+									applyVolumeAsFilter: state.options.applyVolumeAsFilter,
+								};
 
-									await player.node.rest.updatePlayer({
-										guildId: state.options.guildId,
-										data: { voice: { token: state.voiceState.event.token, endpoint: state.voiceState.event.endpoint, sessionId: state.voiceState.sessionId } },
-									});
+								this.emit(ManagerEventTypes.Debug, `[MANAGER] Recreating player: ${guildId} from Redis`);
+								const player = this.create(playerOptions);
 
+								await player.node.rest.updatePlayer({
+									guildId: state.options.guildId,
+									data: { voice: { token: state.voiceState.event.token, endpoint: state.voiceState.event.endpoint, sessionId: state.voiceState.sessionId } },
+								});
+
+								if (!lavaPlayer || !lavaPlayer.state.connected) {
 									player.connect();
+								}
 
-									// Rest of the player state restoration code (tracks, filters, etc.)
-									const tracks: Track[] = [];
+								// Rest of the player state restoration code (tracks, filters, etc.)
+								const tracks: Track[] = [];
 
-									const currentTrack = state.queue.current;
-									const queueTracks = state.queue.tracks;
+								const currentTrack = state.queue.current;
+								const queueTracks = state.queue.tracks;
 
-									if (state.isAutoplay) {
-										const savedUser = state.data.clientUser as PortableUser | null;
-										if (savedUser) {
-											const autoPlayUser = await player.manager.resolveUser(savedUser);
-											player.setAutoplay(true, autoPlayUser, state.autoplayTries);
-										}
+								if (state.isAutoplay) {
+									const savedUser = state.data.clientUser as PortableUser | null;
+									if (savedUser) {
+										const autoPlayUser = await player.manager.resolveUser(savedUser);
+										player.setAutoplay(true, autoPlayUser, state.autoplayTries);
+									}
+								}
+
+								if (lavaPlayer.track) {
+									await player.queue.clear();
+
+									if (currentTrack) {
+										await player.queue.add(TrackUtils.build(lavaPlayer.track as TrackData, currentTrack.requester));
 									}
 
-									if (lavaPlayer?.track) {
-										// If lavaPlayer has a track, push all queue tracks
-										tracks.push(...queueTracks);
+									const remainingQueue = queueTracks.filter((t: Track) => t.uri !== lavaPlayer.track.info.uri);
 
-										// Set current track if matches lavaPlayer's track URI
-										if (currentTrack && currentTrack.uri === lavaPlayer.track.info.uri) {
-											await player.queue.setCurrent(TrackUtils.build(lavaPlayer.track as TrackData, currentTrack.requester));
-										}
+									if (remainingQueue.length > 0) {
+										await player.queue.add(remainingQueue);
+									}
 
-										// Add tracks to queue
-										if (tracks.length > 0) {
+									player.playing = !lavaPlayer.paused;
+								} else {
+									// LavaPlayer missing track or lavaPlayer is falsy
+									if (currentTrack) {
+										if (queueTracks.length > 0) {
+											tracks.push(...queueTracks);
 											await player.queue.clear();
 											await player.queue.add(tracks);
 										}
+
+										await node.trackEnd(player, currentTrack, {
+											reason: TrackEndReasonTypes.Finished,
+											type: "TrackEndEvent",
+										} as TrackEndEvent);
 									} else {
-										// LavaPlayer missing track or lavaPlayer is falsy
-										if (currentTrack) {
+										// No current track, check previous queue for last track
+										const previousQueue = await player.queue.getPrevious();
+										const lastTrack = previousQueue?.at(-1);
+
+										if (lastTrack) {
+											if (queueTracks.length === 0) {
+												// If no tracks in queue, end last track
+												await node.trackEnd(player, lastTrack, {
+													reason: TrackEndReasonTypes.Finished,
+													type: "TrackEndEvent",
+												} as TrackEndEvent);
+											} else {
+												// If there are queued tracks, add them
+												tracks.push(...queueTracks);
+
+												if (tracks.length > 0) {
+													await player.queue.clear();
+													await player.queue.add(tracks);
+												}
+											}
+										} else {
 											if (queueTracks.length > 0) {
 												tracks.push(...queueTracks);
-												await player.queue.clear();
-												await player.queue.add(tracks);
-											}
-
-											await node.trackEnd(player, currentTrack, {
-												reason: TrackEndReasonTypes.Finished,
-												type: "TrackEndEvent",
-											} as TrackEndEvent);
-										} else {
-											// No current track, check previous queue for last track
-											const previousQueue = await player.queue.getPrevious();
-											const lastTrack = previousQueue?.at(-1);
-
-											if (lastTrack) {
-												if (queueTracks.length === 0) {
-													// If no tracks in queue, end last track
-													await node.trackEnd(player, lastTrack, {
-														reason: TrackEndReasonTypes.Finished,
-														type: "TrackEndEvent",
-													} as TrackEndEvent);
-												} else {
-													// If there are queued tracks, add them
-													tracks.push(...queueTracks);
-
-													if (tracks.length > 0) {
-														await player.queue.clear();
-														await player.queue.add(tracks);
-													}
+												if (tracks.length > 0) {
+													await player.queue.clear();
+													await player.queue.add(tracks);
 												}
-											} else {
-												if (queueTracks.length > 0) {
-													tracks.push(...queueTracks);
-													if (tracks.length > 0) {
-														await player.queue.clear();
-														await player.queue.add(tracks);
-													}
 
-													await node.trackEnd(player, lastTrack, {
-														reason: TrackEndReasonTypes.Finished,
-														type: "TrackEndEvent",
-													} as TrackEndEvent);
-												}
+												await node.trackEnd(player, lastTrack, {
+													reason: TrackEndReasonTypes.Finished,
+													type: "TrackEndEvent",
+												} as TrackEndEvent);
 											}
 										}
 									}
-
-									if (state.queue.previous.length > 0) {
-										await player.queue.addPrevious(state.queue.previous);
-									} else {
-										await player.queue.clearPrevious();
-									}
-
-									if (state.paused) {
-										await player.pause(true);
-									} else {
-										player.paused = false;
-									}
-
-									if (state.trackRepeat) player.setTrackRepeat(true);
-									if (state.queueRepeat) player.setQueueRepeat(true);
-
-									if (state.dynamicRepeat && state.dynamicLoopInterval) {
-										player.setDynamicRepeat(state.dynamicRepeat, state.dynamicLoopInterval);
-									}
-									if (state.data) {
-										for (const [name, value] of Object.entries(state.data)) {
-											player.set(name, value);
-										}
-									}
-
-									const filterActions: Record<string, (enabled: boolean) => void> = {
-										bassboost: () => player.filters.bassBoost(state.filters.bassBoostlevel),
-										distort: (enabled) => player.filters.distort(enabled),
-										setDistortion: () => player.filters.setDistortion(state.filters.distortion),
-										eightD: (enabled) => player.filters.eightD(enabled),
-										setKaraoke: () => player.filters.setKaraoke(state.filters.karaoke),
-										nightcore: (enabled) => player.filters.nightcore(enabled),
-										slowmo: (enabled) => player.filters.slowmo(enabled),
-										soft: (enabled) => player.filters.soft(enabled),
-										trebleBass: (enabled) => player.filters.trebleBass(enabled),
-										setTimescale: () => player.filters.setTimescale(state.filters.timescale),
-										tv: (enabled) => player.filters.tv(enabled),
-										vibrato: () => player.filters.setVibrato(state.filters.vibrato),
-										vaporwave: (enabled) => player.filters.vaporwave(enabled),
-										pop: (enabled) => player.filters.pop(enabled),
-										party: (enabled) => player.filters.party(enabled),
-										earrape: (enabled) => player.filters.earrape(enabled),
-										electronic: (enabled) => player.filters.electronic(enabled),
-										radio: (enabled) => player.filters.radio(enabled),
-										setRotation: () => player.filters.setRotation(state.filters.rotation),
-										tremolo: (enabled) => player.filters.tremolo(enabled),
-										china: (enabled) => player.filters.china(enabled),
-										chipmunk: (enabled) => player.filters.chipmunk(enabled),
-										darthvader: (enabled) => player.filters.darthvader(enabled),
-										daycore: (enabled) => player.filters.daycore(enabled),
-										doubletime: (enabled) => player.filters.doubletime(enabled),
-										demon: (enabled) => player.filters.demon(enabled),
-									};
-
-									// Iterate through filterStatus and apply the enabled filters
-									for (const [filter, isEnabled] of Object.entries(state.filters.filterStatus)) {
-										if (isEnabled && filterActions[filter]) {
-											filterActions[filter](true);
-										}
-									}
-
-									// After processing, delete the Redis key
-									await this.redis.del(key);
-
-									this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleted player state from Redis: ${key}`);
-
-									this.emit(ManagerEventTypes.PlayerRestored, player, node);
-									await this.sleep(1000);
 								}
+
+								if (state.queue.previous.length > 0) {
+									await player.queue.addPrevious(state.queue.previous);
+								} else {
+									await player.queue.clearPrevious();
+								}
+
+								await player.pause(state.paused);
+
+								if (state.trackRepeat) player.setTrackRepeat(true);
+								if (state.queueRepeat) player.setQueueRepeat(true);
+
+								if (state.dynamicRepeat && state.dynamicLoopInterval) {
+									player.setDynamicRepeat(state.dynamicRepeat, state.dynamicLoopInterval);
+								}
+								if (state.data) {
+									for (const [name, value] of Object.entries(state.data)) {
+										player.set(name, value);
+									}
+								}
+
+								const filterActions: Record<string, (enabled: boolean) => void> = {
+									bassboost: () => player.filters.bassBoost(state.filters.bassBoostlevel),
+									distort: (enabled) => player.filters.distort(enabled),
+									setDistortion: () => player.filters.setDistortion(state.filters.distortion),
+									eightD: (enabled) => player.filters.eightD(enabled),
+									setKaraoke: () => player.filters.setKaraoke(state.filters.karaoke),
+									nightcore: (enabled) => player.filters.nightcore(enabled),
+									slowmo: (enabled) => player.filters.slowmo(enabled),
+									soft: (enabled) => player.filters.soft(enabled),
+									trebleBass: (enabled) => player.filters.trebleBass(enabled),
+									setTimescale: () => player.filters.setTimescale(state.filters.timescale),
+									tv: (enabled) => player.filters.tv(enabled),
+									vibrato: () => player.filters.setVibrato(state.filters.vibrato),
+									vaporwave: (enabled) => player.filters.vaporwave(enabled),
+									pop: (enabled) => player.filters.pop(enabled),
+									party: (enabled) => player.filters.party(enabled),
+									earrape: (enabled) => player.filters.earrape(enabled),
+									electronic: (enabled) => player.filters.electronic(enabled),
+									radio: (enabled) => player.filters.radio(enabled),
+									setRotation: () => player.filters.setRotation(state.filters.rotation),
+									tremolo: (enabled) => player.filters.tremolo(enabled),
+									china: (enabled) => player.filters.china(enabled),
+									chipmunk: (enabled) => player.filters.chipmunk(enabled),
+									darthvader: (enabled) => player.filters.darthvader(enabled),
+									daycore: (enabled) => player.filters.daycore(enabled),
+									doubletime: (enabled) => player.filters.doubletime(enabled),
+									demon: (enabled) => player.filters.demon(enabled),
+								};
+
+								// Iterate through filterStatus and apply the enabled filters
+								for (const [filter, isEnabled] of Object.entries(state.filters.filterStatus)) {
+									if (isEnabled && filterActions[filter]) {
+										filterActions[filter](true);
+									}
+								}
+
+								// After processing, delete the Redis key
+								await this.redis.del(key);
+
+								this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleted player state from Redis: ${key}`);
+
+								this.emit(ManagerEventTypes.PlayerRestored, player, node);
+								await this.sleep(1000);
 							} catch (error) {
 								console.log(error);
 								this.emit(ManagerEventTypes.Debug, `[MANAGER] Error processing Redis key ${key}: ${error}`);

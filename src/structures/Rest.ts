@@ -2,7 +2,7 @@ import { Node } from "./Node";
 import axios, { AxiosRequestConfig } from "axios";
 import { Manager } from "./Manager";
 import { ManagerEventTypes } from "./Enums";
-import { RestPlayOptions } from "./Types";
+import { LavaPlayer, RestPlayOptions } from "./Types";
 import { JSONUtils } from "./Utils";
 
 /** Handles the requests sent to the Lavalink REST API. */
@@ -41,12 +41,12 @@ export class Rest {
 	}
 
 	/**
-	 * Retrieves all the players that are currently running on the node.
+	 * Retrieves one the player that is currently running on the node.
 	 * @returns {Promise<unknown>} Returns the result of the GET request.
 	 */
-	public async getAllPlayers(): Promise<unknown> {
+	public async getPlayer(guildId: string): Promise<LavaPlayer> {
 		// Send a GET request to the Lavalink Node to retrieve all the players.
-		const result = await this.get(`/v4/sessions/${this.sessionId}/players`);
+		const result = (await this.get(`/v4/sessions/${this.sessionId}/players/${guildId}`)) as LavaPlayer;
 
 		// Log the result of the request.
 		this.manager.emit(ManagerEventTypes.Debug, `[REST] Getting all players on node: ${this.node.options.identifier} : ${JSONUtils.safe(result, 2)}`);
