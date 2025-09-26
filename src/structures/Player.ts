@@ -1062,6 +1062,22 @@ export class Player {
 	}
 
 	/**
+	 * Retrieves the data associated with the player.
+	 * @returns {Record<string, unknown>} - The data associated with the player.
+	 */
+	public getData(): Record<string, unknown> {
+		return this.data;
+	}
+
+	/**
+	 * Retrieves the dynamic loop interval of the player.
+	 * @returns {NodeJS.Timeout | null} - The dynamic loop interval of the player.
+	 */
+	public getDynamicLoopIntervalPublic(): NodeJS.Timeout | null {
+		return this.dynamicLoopInterval;
+	}
+
+	/**
 	 * Retrieves the current lyrics for the playing track.
 	 * @param skipTrackSource - Indicates whether to skip the track source when fetching lyrics.
 	 * @returns {Promise<Lyrics>} - The lyrics of the current track.
