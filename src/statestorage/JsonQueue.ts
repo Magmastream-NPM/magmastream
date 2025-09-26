@@ -87,11 +87,20 @@ export class JsonQueue implements IQueue {
 	 * @param track The track to add.
 	 */
 	public async addPrevious(track: Track | Track[]): Promise<void> {
+		const max = this.manager.options.maxPreviousTracks;
 		const tracks = Array.isArray(track) ? track : [track];
 		if (!tracks.length) return;
 
 		const current = await this.getPrevious();
-		await this.writeJSON(this.previousPath, [...tracks.reverse(), ...current]);
+
+		const newTracks = tracks.filter((t) => !current.some((p) => p.identifier === t.identifier));
+
+		if (!newTracks.length) return;
+		const updated = [...newTracks.reverse(), ...current];
+
+		const trimmed = updated.slice(0, max);
+
+		await this.writeJSON(this.previousPath, trimmed);
 	}
 
 	/**

@@ -757,12 +757,6 @@ export class Node {
 
 		if (!skipFlag && (previous.length === 0 || (previous[0] && previous[0].track !== current?.track))) {
 			await player.queue.addPrevious(current);
-			const updated = await player.queue.getPrevious();
-
-			if (updated.length > this.manager.options.maxPreviousTracks) {
-				const trimmed = updated.slice(0, this.manager.options.maxPreviousTracks);
-				await player.queue.setPrevious(trimmed);
-			}
 		}
 
 		player.set("skipFlag", false);
@@ -1225,7 +1219,13 @@ export class Node {
 		if (segments.some((v) => !validSponsorBlocks.includes(v.toLowerCase())))
 			throw new SyntaxError(`You provided a sponsorblock which isn't valid, valid ones are: ${validSponsorBlocks.map((v) => `'${v}'`).join(", ")}`);
 
-		await this.rest.put(`/v4/sessions/${this.sessionId}/players/${player.guildId}/sponsorblock/categories`, JSONUtils.safe(segments.map((v) => v.toLowerCase()), 2));
+		await this.rest.put(
+			`/v4/sessions/${this.sessionId}/players/${player.guildId}/sponsorblock/categories`,
+			JSONUtils.safe(
+				segments.map((v) => v.toLowerCase()),
+				2
+			)
+		);
 		return;
 	}
 
