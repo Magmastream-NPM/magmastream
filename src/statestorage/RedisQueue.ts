@@ -97,14 +97,15 @@ export class RedisQueue implements IQueue {
 	 */
 	public async addPrevious(track: Track | Track[]): Promise<void> {
 		const tracks = Array.isArray(track) ? track : [track];
-
 		if (!tracks.length) return;
 
 		const serialized = tracks.map(this.serialize);
-
 		if (!serialized.length) return;
 
 		await this.redis.lpush(this.previousKey, ...serialized.reverse());
+
+		const max = this.manager.options.maxPreviousTracks;
+		await this.redis.ltrim(this.previousKey, 0, max - 1);
 	}
 
 	/**
@@ -385,11 +386,13 @@ export class RedisQueue implements IQueue {
 	 */
 	public async setPrevious(track: Track | Track[]): Promise<void> {
 		const tracks = Array.isArray(track) ? track : [track];
-
 		if (!tracks.length) return;
 
-		await this.redis.del(this.previousKey);
-		await this.redis.rpush(this.previousKey, ...tracks.map(this.serialize));
+		await this.redis
+			.multi()
+			.del(this.previousKey)
+			.rpush(this.previousKey, ...tracks.map(this.serialize))
+			.exec();
 	}
 
 	/**
@@ -514,6 +517,7 @@ export class RedisQueue implements IQueue {
 	 * Helper to serialize/deserialize Track
 	 */
 	private serialize(track: Track): string {
+		// return JSONUtils.serializeTrack(track);
 		return JSONUtils.safe(track, 2);
 	}
 	// #endregion Private

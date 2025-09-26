@@ -120,6 +120,8 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 	 * @param track The track or tracks to add. Can be a single `Track` or an array of `Track`s.
 	 */
 	public async addPrevious(track: Track | Track[]): Promise<void> {
+		const max = this.manager.options.maxPreviousTracks;
+
 		if (Array.isArray(track)) {
 			const newTracks = track.filter((t) => !this.previous.some((p) => p.identifier === t.identifier));
 			this.previous.unshift(...newTracks);
@@ -128,6 +130,10 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 			if (!exists) {
 				this.previous.unshift(track);
 			}
+		}
+
+		if (this.previous.length > max) {
+			this.previous = this.previous.slice(0, max);
 		}
 	}
 
