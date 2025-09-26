@@ -741,76 +741,67 @@ export abstract class PlayerUtils {
 	 * @returns The serialized Player instance
 	 */
 	public static async serializePlayer(player: Player): Promise<Record<string, unknown>> {
-		const current = await player.queue.getCurrent();
-		const tracks = Array.isArray(await player.queue.getTracks()) ? await player.queue.getTracks() : [];
-		const previous = Array.isArray(await player.queue.getPrevious()) ? await player.queue.getPrevious() : [];
+		try {
+			const current = await player.queue.getCurrent();
+			const tracks = await player.queue.getTracks();
+			const previous = await player.queue.getPrevious();
 
-		const seen = new WeakSet();
+			const serializeTrack = (track: Track) => ({
+				...track,
+				requester: track.requester ? { id: track.requester.id, username: track.requester.username } : null,
+			});
 
-		// The replacer function
-		const replacer = (key: string, value: unknown) => {
-			if (value && typeof value === "object") {
-				if (seen.has(value)) return;
-				seen.add(value);
-			}
+			const safeNode = player.node
+				? JSON.parse(
+						JSON.stringify(player.node, (key, value) => {
+							if (key === "rest" || key === "players" || key === "shards" || key === "manager") return undefined;
+							return value;
+						})
+				  )
+				: null;
 
-			if (key === "manager") return null;
+			return JSON.parse(
+				JSON.stringify(player, (key, value) => {
+					if (key === "manager") return null;
 
-			if (key === "filters") {
-				if (!value || typeof value !== "object") return null;
+					if (key === "node") return safeNode;
 
-				const filters = value as {
-					distortion?: unknown;
-					equalizer?: unknown[];
-					karaoke?: unknown;
-					rotation?: unknown;
-					timescale?: unknown;
-					vibrato?: unknown;
-					reverb?: unknown;
-					volume?: number;
-					bassBoostlevel?: unknown;
-					filtersStatus?: object;
-				};
+					if (key === "filters") {
+						return {
+							distortion: value?.distortion ?? null,
+							equalizer: value?.equalizer ?? [],
+							karaoke: value?.karaoke ?? null,
+							rotation: value?.rotation ?? null,
+							timescale: value?.timescale ?? null,
+							vibrato: value?.vibrato ?? null,
+							reverb: value?.reverb ?? null,
+							volume: value?.volume ?? 1.0,
+							bassBoostlevel: value?.bassBoostlevel ?? null,
+							filterStatus: value?.filtersStatus ? { ...value.filtersStatus } : {},
+						};
+					}
 
-				return {
-					distortion: filters.distortion ?? null,
-					equalizer: filters.equalizer ?? [],
-					karaoke: filters.karaoke ?? null,
-					rotation: filters.rotation ?? null,
-					timescale: filters.timescale ?? null,
-					vibrato: filters.vibrato ?? null,
-					reverb: filters.reverb ?? null,
-					volume: filters.volume ?? 1.0,
-					bassBoostlevel: filters.bassBoostlevel ?? null,
-					filterStatus: filters.filtersStatus ? { ...filters.filtersStatus } : {},
-				};
-			}
+					if (key === "queue") {
+						return {
+							current: current ? serializeTrack(current) : null,
+							tracks: tracks.map(serializeTrack),
+							previous: previous.map(serializeTrack),
+						};
+					}
 
-			if (key === "queue") {
-				return { current, tracks, previous };
-			}
+					if (key === "data") {
+						return {
+							clientUser: value?.Internal_BotUser ?? null,
+						};
+					}
 
-			if (key === "data") {
-				const data = value as {
-					Internal_AutoplayUser?: { id: string; username: string };
-					autoplayTries?: number | null;
-				};
-
-				const AutoplayUser = data?.Internal_AutoplayUser;
-				const serializedUser: PortableUser | null = AutoplayUser ? { id: AutoplayUser.id, username: AutoplayUser.username } : null;
-
-				return {
-					clientUser: serializedUser,
-					autoplayTries: data?.autoplayTries ?? null,
-				};
-			}
-
-			return value;
-		};
-
-		const jsonString = stringify(player, replacer, 2);
-
-		return JSON.parse(jsonString) as Record<string, unknown>;
+					return value;
+				})
+			);
+		} catch (error) {
+			console.log(error);
+			return null;
+		}
 	}
 
 	/**
@@ -883,6 +874,15 @@ export abstract class Structure {
 export abstract class JSONUtils {
 	static safe<T>(obj: T, space?: number): string {
 		return stringify(obj, null, space);
+	}
+
+	static serializeTrack(track: Track) {
+		const serialized = {
+			...track,
+			requester: track.requester ? { id: track.requester.id, username: track.requester.username } : null,
+		};
+
+		return JSON.stringify(serialized);
 	}
 }
 

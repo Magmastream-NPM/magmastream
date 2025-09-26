@@ -455,20 +455,20 @@ export class Manager extends EventEmitter {
 	 * @param {string} guildId - The guild ID of the player to save
 	 */
 	public async savePlayerState(guildId: string): Promise<void> {
+		const player = this.getPlayer(guildId);
+
+		if (!player || player.state === StateTypes.Disconnected || !player.voiceChannelId) {
+			this.emit(ManagerEventTypes.Debug, `[MANAGER] Skipping save for inactive player: ${guildId}`);
+			return;
+		}
+
+		const serializedPlayer = await PlayerUtils.serializePlayer(player);
 		switch (this.options.stateStorage.type) {
 			case StateStorageType.Memory:
 			case StateStorageType.JSON:
 				{
 					try {
 						const playerStateFilePath = PlayerUtils.getPlayerStatePath(guildId);
-						const player = this.getPlayer(guildId);
-
-						if (!player || player.state === StateTypes.Disconnected || !player.voiceChannelId) {
-							this.emit(ManagerEventTypes.Debug, `[MANAGER] Skipping save for inactive player: ${guildId}`);
-							return;
-						}
-
-						const serializedPlayer = await PlayerUtils.serializePlayer(player);
 
 						await fs.mkdir(path.dirname(playerStateFilePath), { recursive: true });
 						await fs.writeFile(playerStateFilePath, JSONUtils.safe(serializedPlayer, 2), "utf-8");
@@ -483,21 +483,13 @@ export class Manager extends EventEmitter {
 			case StateStorageType.Redis:
 				{
 					try {
-						const player = this.getPlayer(guildId);
-
-						if (!player || player.state === StateTypes.Disconnected || !player.voiceChannelId) {
-							console.warn(`[MANAGER] Skipping save for inactive player: ${guildId}`);
-							return;
-						}
-
-						const serializedPlayer = await PlayerUtils.serializePlayer(player);
 						const redisKey = `${
 							this.options.stateStorage.redisConfig.prefix?.endsWith(":")
 								? this.options.stateStorage.redisConfig.prefix
 								: this.options.stateStorage.redisConfig.prefix ?? "magmastream:"
 						}playerstore:${guildId}`;
 
-						await this.redis.set(redisKey, JSONUtils.safe(serializedPlayer, 2));
+						await this.redis.set(redisKey, JSON.stringify(serializedPlayer));
 
 						this.emit(ManagerEventTypes.Debug, `[MANAGER] Player state saved to Redis: ${guildId}`);
 					} catch (error) {
@@ -508,6 +500,10 @@ export class Manager extends EventEmitter {
 			default:
 				return;
 		}
+
+		await player.queue.clear();
+		await player.queue.clearPrevious();
+		await player.queue.setCurrent(null);
 	}
 
 	/**
@@ -575,6 +571,7 @@ export class Manager extends EventEmitter {
 									selfDeafen: state.options.selfDeafen,
 									volume: lavaPlayer.volume || state.options.volume,
 									nodeIdentifier: nodeId,
+									applyVolumeAsFilter: state.options.applyVolumeAsFilter,
 								};
 
 								this.emit(ManagerEventTypes.Debug, `[MANAGER] Recreating player: ${state.guildId} from saved file: ${JSONUtils.safe(state.options, 2)}`);
@@ -675,8 +672,8 @@ export class Manager extends EventEmitter {
 								if (state.trackRepeat) player.setTrackRepeat(true);
 								if (state.queueRepeat) player.setQueueRepeat(true);
 
-								if (state.dynamicRepeat) {
-									player.setDynamicRepeat(state.dynamicRepeat, state.dynamicLoopInterval._idleTimeout);
+								if (state.dynamicRepeat && state.dynamicLoopInterval) {
+									player.setDynamicRepeat(state.dynamicRepeat, state.dynamicLoopInterval);
 								}
 
 								if (state.data) {
@@ -789,6 +786,7 @@ export class Manager extends EventEmitter {
 										selfDeafen: state.options.selfDeafen,
 										volume: lavaPlayer?.volume || state.options.volume,
 										nodeIdentifier: nodeId,
+										applyVolumeAsFilter: state.options.applyVolumeAsFilter,
 									};
 
 									this.emit(ManagerEventTypes.Debug, `[MANAGER] Recreating player: ${guildId} from Redis`);
@@ -895,8 +893,8 @@ export class Manager extends EventEmitter {
 									if (state.trackRepeat) player.setTrackRepeat(true);
 									if (state.queueRepeat) player.setQueueRepeat(true);
 
-									if (state.dynamicRepeat) {
-										player.setDynamicRepeat(state.dynamicRepeat, state.dynamicLoopInterval._idleTimeout);
+									if (state.dynamicRepeat && state.dynamicLoopInterval) {
+										player.setDynamicRepeat(state.dynamicRepeat, state.dynamicLoopInterval);
 									}
 									if (state.data) {
 										for (const [name, value] of Object.entries(state.data)) {
@@ -949,11 +947,13 @@ export class Manager extends EventEmitter {
 									await this.sleep(1000);
 								}
 							} catch (error) {
+								console.log(error);
 								this.emit(ManagerEventTypes.Debug, `[MANAGER] Error processing Redis key ${key}: ${error}`);
 								continue;
 							}
 						}
 					} catch (error) {
+						console.log(error);
 						this.emit(ManagerEventTypes.Debug, `[MANAGER] Error loading player states from Redis: ${error}`);
 					}
 				}
@@ -993,7 +993,6 @@ export class Manager extends EventEmitter {
 		console.warn("\x1b[31m%s\x1b[0m", "MAGMASTREAM WARNING: Shutting down! Please wait, saving active players...");
 
 		try {
-			await this.clearAllStoredPlayers();
 			const savePromises = Array.from(this.players.keys()).map(async (guildId) => {
 				try {
 					await this.savePlayerState(guildId);
@@ -1002,8 +1001,9 @@ export class Manager extends EventEmitter {
 				}
 			});
 
-			if (this.options.stateStorage.deleteInactivePlayers) await this.cleanupInactivePlayers();
 			await Promise.allSettled(savePromises);
+
+			if (this.options.stateStorage.deleteInactivePlayers) await this.cleanupInactivePlayers();
 
 			setTimeout(() => {
 				console.warn("\x1b[32m%s\x1b[0m", "MAGMASTREAM INFO: Shutting down complete, exiting...");
