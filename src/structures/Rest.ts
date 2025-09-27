@@ -1,9 +1,10 @@
 import { Node } from "./Node";
-import axios, { AxiosRequestConfig } from "axios";
+import axios, { AxiosError, AxiosRequestConfig } from "axios";
 import { Manager } from "./Manager";
-import { ManagerEventTypes } from "./Enums";
+import { MagmaStreamErrorCode, ManagerEventTypes } from "./Enums";
 import { LavaPlayer, RestPlayOptions } from "./Types";
 import { JSONUtils } from "./Utils";
+import { MagmaStreamError } from "./MagmastreamError";
 
 /** Handles the requests sent to the Lavalink REST API. */
 export class Rest {
@@ -104,7 +105,8 @@ export class Rest {
 	 * @returns {Promise<unknown>} The response data of the request.
 	 */
 	private async request(method: string, endpoint: string, body?: unknown): Promise<unknown> {
-		this.manager.emit(ManagerEventTypes.Debug, `[REST] ${method} api call for endpoint: ${endpoint} with data: ${JSONUtils.safe(body, 2)}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[REST] ${method} request to ${endpoint} with body: ${JSONUtils.safe(body, 2)}`);
+
 		const config: AxiosRequestConfig = {
 			method,
 			url: this.url + endpoint,
@@ -119,20 +121,35 @@ export class Rest {
 		try {
 			const response = await axios(config);
 			return response.data;
-		} catch (error) {
+		} catch (err: unknown) {
+			const error = err as AxiosError;
+
 			if (!error.response) {
-				console.error(`[REST] No response from node: ${error.message}`);
-				return null;
+				throw new MagmaStreamError({
+					code: MagmaStreamErrorCode.REST_REQUEST_FAILED,
+					message: `No response from node ${this.node.options.identifier}: ${error.message}`,
+				});
 			}
 
-			if (error.response.data?.message === "Guild not found") {
+			const data = error.response.data as { message?: string };
+
+			if (data?.message === "Guild not found") {
 				return [];
-			} else if (error.response.status === 404) {
-				await this.node.destroy();
-				await this.node.manager.createNode(this.node.options).connect();
 			}
 
-			return null;
+			if (error.response.status === 401) {
+				throw new MagmaStreamError({
+					code: MagmaStreamErrorCode.REST_UNAUTHORIZED,
+					message: `Unauthorized access to node ${this.node.options.identifier}`,
+				});
+			}
+
+			const dataMessage = typeof data === "string" ? data : data?.message ? data.message : JSONUtils.safe(data, 2);
+
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.REST_REQUEST_FAILED,
+				message: `Request to node ${this.node.options.identifier} failed with status ${error.response.status}: ${dataMessage}`,
+			});
 		}
 	}
 
