@@ -8,9 +8,10 @@ import playerCheck from "../utils/playerCheck";
 import { Message } from "discord.js";
 import { RedisQueue } from "../statestorage/RedisQueue";
 import { IQueue, Lyrics, PlayerOptions, PlayerStateUpdateEvent, PlayOptions, SearchQuery, SearchResult, Track, VoiceReceiverEvent, VoiceState } from "./Types";
-import { ManagerEventTypes, PlayerStateEventTypes, SponsorBlockSegment, StateStorageType, StateTypes } from "./Enums";
+import { MagmaStreamErrorCode, ManagerEventTypes, PlayerStateEventTypes, SponsorBlockSegment, StateStorageType, StateTypes } from "./Enums";
 import { WebSocket } from "ws";
 import { JsonQueue } from "../statestorage/JsonQueue";
+import { MagmaStreamError } from "./MagmastreamError";
 
 export class Player {
 	/** The Queue for the Player. */
@@ -76,7 +77,12 @@ export class Player {
 	constructor(public options: PlayerOptions) {
 		// If the Manager is not initiated, throw an error.
 		if (!this.manager) this.manager = Structure.get("Player")._manager;
-		if (!this.manager) throw new RangeError("Manager has not been initiated.");
+		if (!this.manager) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.GENERAL_INVALID_MANAGER,
+				message: "Manager instance is required.",
+			});
+		}
 
 		this.clusterId = this.manager.options.clusterId || 0;
 		// Check the player options for errors.
@@ -106,7 +112,13 @@ export class Player {
 		this.node = node || this.manager.useableNode;
 
 		// If no node is available, throw an error.
-		if (!this.node) throw new RangeError("No available nodes.");
+		if (!this.node) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.MANAGER_NO_NODES,
+				message: "No available nodes for the player found.",
+				context: { guildId: this.guildId },
+			});
+		}
 
 		// Initialize the queue with the guild ID and manager.
 		switch (this.manager.options.stateStorage.type) {
@@ -182,7 +194,11 @@ export class Player {
 	public connect(): void {
 		// Check if the voice channel has been set.
 		if (!this.voiceChannelId) {
-			throw new RangeError("No voice channel has been set. You must use the `setVoiceChannelId()` method to set the voice channel before connecting.");
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.PLAYER_INVALID_CONFIG,
+				message: "No voice channel has been set. You must set the voice channel before connecting.",
+				context: { voiceChannelId: this.voiceChannelId },
+			});
 		}
 
 		// Set the player state to connecting.
@@ -301,7 +317,12 @@ export class Player {
 	 */
 	public setVoiceChannelId(channel: string): this {
 		// Validate the channel parameter
-		if (typeof channel !== "string") throw new TypeError("Channel must be a non-empty string.");
+		if (typeof channel !== "string") {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.PLAYER_INVALID_CONFIG,
+				message: "Channel must be a non-empty string.",
+			});
+		}
 
 		// Clone the current player state for comparison
 		const oldPlayer = this ? { ...this } : null;
@@ -337,7 +358,12 @@ export class Player {
 	 */
 	public setTextChannelId(channel: string): this {
 		// Validate the channel parameter
-		if (typeof channel !== "string") throw new TypeError("Channel must be a non-empty string.");
+		if (typeof channel !== "string") {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.PLAYER_INVALID_CONFIG,
+				message: "Channel must be a non-empty string.",
+			});
+		}
 
 		// Clone the current player state for comparison
 		const oldPlayer = this ? { ...this } : null;
@@ -369,7 +395,10 @@ export class Player {
 	 */
 	public setNowPlayingMessage<T = Message>(message: T): Message {
 		if (!message) {
-			throw new TypeError("You must provide the message of the now playing message.");
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.PLAYER_INVALID_NOW_PLAYING_MESSAGE,
+				message: "You must provide the message of the now playing message.",
+			});
 		}
 
 		this.nowPlayingMessage = message as Message;
@@ -397,7 +426,12 @@ export class Player {
 			await this.queue.setCurrent(optionsOrTrack as Track);
 		}
 
-		if (!(await this.queue.getCurrent())) throw new RangeError("No current track.");
+		if (!(await this.queue.getCurrent())) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.PLAYER_QUEUE_EMPTY,
+				message: "The queue is empty.",
+			});
+		}
 
 		const finalOptions = playOptions
 			? playOptions
@@ -433,12 +467,18 @@ export class Player {
 	 */
 	public setAutoplay<T = unknown>(autoplayState: boolean, AutoplayUser?: T, tries?: number): this {
 		if (typeof autoplayState !== "boolean") {
-			throw new Error("autoplayState must be a boolean.");
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.PLAYER_INVALID_AUTOPLAY,
+				message: "autoplayState must be a boolean.",
+			});
 		}
 
 		if (autoplayState) {
 			if (!AutoplayUser) {
-				throw new Error("AutoplayUser must be provided when enabling autoplay.");
+				throw new MagmaStreamError({
+					code: MagmaStreamErrorCode.PLAYER_INVALID_AUTOPLAY,
+					message: "AutoplayUser must be provided when enabling autoplay.",
+				});
 			}
 
 			this.autoplayTries = tries && typeof tries === "number" && tries > 0 ? tries : 3; // Default to 3 if invalid
@@ -486,15 +526,26 @@ export class Player {
 	 * player.setVolume(50);
 	 */
 	public async setVolume(volume: number): Promise<this> {
-		if (isNaN(volume)) throw new TypeError("Volume must be a number.");
+		if (isNaN(volume)) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.PLAYER_INVALID_VOLUME,
+				message: "Volume must be a number.",
+			});
+		}
 
 		if (this.options.applyVolumeAsFilter) {
 			if (volume < 0 || volume > 500) {
-				throw new RangeError("Volume must be between 0 and 500 when using filter mode (100 = 100%).");
+				throw new MagmaStreamError({
+					code: MagmaStreamErrorCode.PLAYER_INVALID_VOLUME,
+					message: "Volume must be between 0 and 500 when using filter mode (100 = 100%).",
+				});
 			}
 		} else {
 			if (volume < 0 || volume > 1000) {
-				throw new RangeError("Volume must be between 0 and 1000.");
+				throw new MagmaStreamError({
+					code: MagmaStreamErrorCode.PLAYER_INVALID_VOLUME,
+					message: "Volume must be between 0 and 1000.",
+				});
 			}
 		}
 
@@ -558,7 +609,12 @@ export class Player {
 	 */
 	public setTrackRepeat(repeat: boolean): this {
 		// Ensure the repeat parameter is a boolean
-		if (typeof repeat !== "boolean") throw new TypeError('Repeat can only be "true" or "false".');
+		if (typeof repeat !== "boolean") {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.PLAYER_INVALID_REPEAT,
+				message: "Repeat must be a boolean.",
+			});
+		}
 
 		// Clone the current player state for event emission
 		const oldPlayer = this ? { ...this } : null;
@@ -597,7 +653,12 @@ export class Player {
 	 */
 	public setQueueRepeat(repeat: boolean): this {
 		// Ensure the repeat parameter is a boolean
-		if (typeof repeat !== "boolean") throw new TypeError('Repeat can only be "true" or "false".');
+		if (typeof repeat !== "boolean") {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.PLAYER_INVALID_REPEAT,
+				message: "Repeat must be a boolean.",
+			});
+		}
 
 		// Get the current player state
 		const oldPlayer = this ? { ...this } : null;
@@ -638,12 +699,18 @@ export class Player {
 	public async setDynamicRepeat(repeat: boolean, ms: number): Promise<this> {
 		// Validate the repeat parameter
 		if (typeof repeat !== "boolean") {
-			throw new TypeError('Repeat can only be "true" or "false".');
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.PLAYER_INVALID_REPEAT,
+				message: "Repeat must be a boolean.",
+			});
 		}
 
 		// Ensure the queue has more than one track for dynamic repeat
 		if ((await this.queue.size()) <= 1) {
-			throw new RangeError("The queue size must be greater than 1.");
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.PLAYER_INVALID_REPEAT,
+				message: "The queue size must be greater than 1.",
+			});
 		}
 
 		// Clone the current player state for comparison
@@ -726,7 +793,12 @@ export class Player {
 		let removedTracks: Track[] = [];
 
 		if (typeof amount === "number" && amount > 1) {
-			if (amount > (await this.queue.size())) throw new RangeError("Cannot skip more than the queue length.");
+			if (amount > (await this.queue.size())) {
+				throw new MagmaStreamError({
+					code: MagmaStreamErrorCode.PLAYER_QUEUE_EMPTY,
+					message: "The queue size must be greater than 1.",
+				});
+			}
 			removedTracks = await this.queue.getSlice(0, amount - 1);
 			await this.queue.modifyAt(0, amount - 1);
 		}
@@ -758,7 +830,12 @@ export class Player {
 	 */
 	public async pause(pause: boolean): Promise<this> {
 		// Validate the pause parameter to ensure it's a boolean.
-		if (typeof pause !== "boolean") throw new RangeError('Pause can only be "true" or "false".');
+		if (typeof pause !== "boolean") {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.PLAYER_INVALID_PAUSE,
+				message: "Pause must be a boolean.",
+			});
+		}
 
 		// If the pause state is already as desired or there are no tracks, return early.
 		if (this.paused === pause || !this.queue.totalSize) return this;
@@ -804,7 +881,10 @@ export class Player {
 
 		if (!lastTrack) {
 			await this.queue.clearPrevious();
-			throw new Error("No previous track available.");
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.PLAYER_PREVIOUS_EMPTY,
+				message: "Previous queue is empty.",
+			});
 		}
 
 		// Capture the current state of the player before making changes.
@@ -840,7 +920,10 @@ export class Player {
 
 		// Check if the position is valid.
 		if (isNaN(position)) {
-			throw new RangeError("Position must be a number.");
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.PLAYER_INVALID_SEEK,
+				message: "Position must be a number.",
+			});
 		}
 
 		// Get the old player state.
@@ -915,7 +998,14 @@ export class Player {
 	public async moveNode(identifier: string): Promise<Player> {
 		const node = this.manager.nodes.get(identifier);
 
-		if (!node) throw new Error(`Node with identifier ${identifier} not found`);
+		if (!node) {
+			this.manager.emit(ManagerEventTypes.Debug, `[MANAGER] Tried to move to non-existent node: ${identifier}`);
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.MANAGER_NODE_NOT_FOUND,
+				message: "Node not found.",
+				context: { identifier },
+			});
+		}
 
 		if (this.state !== StateTypes.Connected) {
 			return this;
@@ -935,7 +1025,15 @@ export class Player {
 			const endpoint = this.voiceState?.event?.endpoint;
 
 			if (!sessionId || !token || !endpoint) {
-				throw new Error(`Voice state is not properly initialized for player ${this.guildId}. The bot might not be connected to a voice channel.`);
+				this.manager.emit(
+					ManagerEventTypes.Debug,
+					`[MANAGER] Voice state is not properly initialized for player ${this.guildId}. The bot might not be connected to a voice channel.`
+				);
+				throw new MagmaStreamError({
+					code: MagmaStreamErrorCode.PLAYER_STATE_INVALID,
+					message: `Voice state is not properly initialized. The bot might not be connected to a voice channel.`,
+					context: { guildId: this.guildId },
+				});
 			}
 
 			await this.node.rest.destroyPlayer(this.guildId).catch(() => {});
@@ -951,8 +1049,19 @@ export class Player {
 			});
 
 			await this.filters.updateFilters();
-		} catch (error) {
-			throw new Error(`Failed to move player to node ${identifier}: ${error}`);
+		} catch (err) {
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.PLAYER_MOVE_FAILED,
+							message: "Error moving player to node.",
+							cause: err,
+							context: { guildId: this.guildId },
+					  });
+
+			this.manager.emit(ManagerEventTypes.Debug, error);
+			console.error(error);
 		}
 	}
 
@@ -965,9 +1074,24 @@ export class Player {
 	 * @returns {Promise<Player>} - The new player instance.
 	 */
 	public async switchGuild(newOptions: PlayerOptions, force: boolean = false): Promise<Player> {
-		if (!newOptions.guildId) throw new Error("guildId is required");
-		if (!newOptions.voiceChannelId) throw new Error("Voice channel ID is required");
-		if (!newOptions.textChannelId) throw new Error("Text channel ID is required");
+		if (!newOptions.guildId) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.PLAYER_INVALID_CONFIG,
+				message: "guildId is required for switchGuild",
+			});
+		}
+		if (!newOptions.voiceChannelId) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.PLAYER_INVALID_CONFIG,
+				message: "voiceChannelId is required for switchGuild",
+			});
+		}
+		if (!newOptions.textChannelId) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.PLAYER_INVALID_CONFIG,
+				message: "textChannelId is required for switchGuild",
+			});
+		}
 
 		// Check if a player already exists for the new guild
 		let newPlayer = this.manager.getPlayer(newOptions.guildId);
@@ -1081,15 +1205,8 @@ export class Player {
 	 * Retrieves the current lyrics for the playing track.
 	 * @param skipTrackSource - Indicates whether to skip the track source when fetching lyrics.
 	 * @returns {Promise<Lyrics>} - The lyrics of the current track.
-	 * @throws {RangeError} - If the 'lavalyrics-plugin' is not available on the Lavalink node.
 	 */
 	public async getCurrentLyrics(skipTrackSource: boolean = false): Promise<Lyrics> {
-		// Check if the 'lavalyrics-plugin' is available on the node
-		const hasLyricsPlugin = this.node.info.plugins.some((plugin: { name: string }) => plugin.name === "lavalyrics-plugin");
-		if (!hasLyricsPlugin) {
-			throw new RangeError(`There is no lavalyrics-plugin available in the Lavalink node: ${this.node.options.identifier}`);
-		}
-
 		// Fetch the lyrics for the current track from the Lavalink node
 		let result = (await this.node.getLyrics(await this.queue.getCurrent(), skipTrackSource)) as Lyrics;
 
@@ -1113,7 +1230,13 @@ export class Player {
 	 * @throws {Error} - If the node is not a NodeLink.
 	 */
 	public async setupVoiceReceiver(): Promise<void> {
-		if (!this.node.isNodeLink) throw new Error("This function is only available for NodeLinks");
+		if (!this.node.isNodeLink) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+				message: `The node is not a NodeLink, cannot setup voice receiver.`,
+				context: { identifier: this.node.options.identifier },
+			});
+		}
 
 		if (this.voiceReceiverWsClient) await this.removeVoiceReceiver();
 
@@ -1139,7 +1262,13 @@ export class Player {
 	 * @throws {Error} - If the node is not a NodeLink.
 	 */
 	public async removeVoiceReceiver(): Promise<void> {
-		if (!this.node.isNodeLink) throw new Error("This function is only available for NodeLinks");
+		if (!this.node.isNodeLink) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+				message: `The node is not a NodeLink, cannot remove voice receiver.`,
+				context: { identifier: this.node.options.identifier },
+			});
+		}
 
 		if (this.voiceReceiverWsClient) {
 			this.voiceReceiverWsClient.close(1000, "destroy");
@@ -1170,7 +1299,13 @@ export class Player {
 	 */
 	private async reconnectVoiceReceiver(): Promise<void> {
 		this.voiceReceiverReconnectTimeout = setTimeout(async () => {
-			if (this.voiceReceiverAttempt > this.voiceReceiverReconnectTries) throw new Error("Failed to reconnect to voice receiver");
+			if (this.voiceReceiverAttempt > this.voiceReceiverReconnectTries) {
+				throw new MagmaStreamError({
+					code: MagmaStreamErrorCode.PLAYER_VOICE_RECEIVER_ERROR,
+					message: `Failed to reconnect to voice receiver for player ${this.guildId}`,
+					context: { identifier: this.node.options.identifier },
+				});
+			}
 
 			this.voiceReceiverWsClient?.removeAllListeners();
 			this.voiceReceiverWsClient = null;
