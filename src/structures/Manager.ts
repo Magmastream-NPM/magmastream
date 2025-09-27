@@ -30,8 +30,19 @@ import {
 	VoiceServer,
 	VoiceState,
 } from "./Types";
-import { AutoPlayPlatform, LoadTypes, ManagerEventTypes, SearchPlatform, StateStorageType, StateTypes, TrackEndReasonTypes, UseNodeOptions } from "./Enums";
+import {
+	AutoPlayPlatform,
+	LoadTypes,
+	MagmaStreamErrorCode,
+	ManagerEventTypes,
+	SearchPlatform,
+	StateStorageType,
+	StateTypes,
+	TrackEndReasonTypes,
+	UseNodeOptions,
+} from "./Enums";
 import { version } from "../../package.json";
+import { MagmaStreamError } from "./MagmastreamError";
 
 /**
  * The main hub for interacting with Lavalink and using Magmastream.
@@ -130,8 +141,18 @@ export class Manager extends EventEmitter {
 				setTimeout(() => {
 					process.exit(0);
 				}, 2000);
-			} catch (error) {
-				console.error(`[MANAGER] Error during shutdown: ${error}`);
+			} catch (err) {
+				const error =
+					err instanceof MagmaStreamError
+						? err
+						: new MagmaStreamError({
+								code: MagmaStreamErrorCode.MANAGER_SHUTDOWN_FAILED,
+								message: "An unknown error occurred.",
+								cause: err,
+								context: { stage: "SIGINT" },
+						  });
+
+				console.error(error);
 				process.exit(1);
 			}
 		});
@@ -143,8 +164,18 @@ export class Manager extends EventEmitter {
 				await this.handleShutdown();
 				console.warn("\x1b[32mShutdown complete. Exiting now...\x1b[0m");
 				process.exit(0);
-			} catch (error) {
-				console.error(`[MANAGER] Error during SIGTERM shutdown: ${error}`);
+			} catch (err) {
+				const error =
+					err instanceof MagmaStreamError
+						? err
+						: new MagmaStreamError({
+								code: MagmaStreamErrorCode.MANAGER_SHUTDOWN_FAILED,
+								message: "An unknown error occurred.",
+								cause: err,
+								context: { stage: "SIGTERM" },
+						  });
+
+				console.error(error);
 				process.exit(1);
 			}
 		});
@@ -165,7 +196,11 @@ export class Manager extends EventEmitter {
 
 		if (clientId !== undefined) {
 			if (typeof clientId !== "string" || !/^\d+$/.test(clientId)) {
-				throw new Error('"clientId" must be a valid Discord client ID.');
+				throw new MagmaStreamError({
+					code: MagmaStreamErrorCode.MANAGER_INIT_FAILED,
+					message: '"clientId" must be a valid Discord client ID.',
+					context: { clientId },
+				});
 			}
 			this.options.clientId = clientId;
 		}
@@ -192,7 +227,17 @@ export class Manager extends EventEmitter {
 			try {
 				await node.connect();
 			} catch (err) {
-				this.emit(ManagerEventTypes.NodeError, node, err);
+				const error =
+					err instanceof MagmaStreamError
+						? err
+						: new MagmaStreamError({
+								code: MagmaStreamErrorCode.NODE_CONNECT_FAILED,
+								message: `Failed to connect node "${node.options.identifier}".`,
+								cause: err instanceof Error ? err : undefined,
+								context: { nodeId: node.options.identifier },
+						  });
+
+				this.emit(ManagerEventTypes.NodeError, node, error);
 			}
 		}
 
@@ -210,7 +255,13 @@ export class Manager extends EventEmitter {
 	 */
 	public async search<T = unknown>(query: string | SearchQuery, requester?: T): Promise<SearchResult> {
 		const node = this.useableNode;
-		if (!node) throw new Error("No available nodes.");
+		if (!node) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.MANAGER_NO_NODES,
+				message: "No available nodes to perform the search.",
+				context: { query, requester },
+			});
+		}
 
 		const _query: SearchQuery = typeof query === "string" ? { query } : query;
 		const _source = _query.source ?? this.options.defaultSearchPlatform;
@@ -224,7 +275,13 @@ export class Manager extends EventEmitter {
 
 		try {
 			const res = (await node.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(search)}`)) as LavalinkResponse;
-			if (!res) throw new Error("Query not found.");
+			if (!res) {
+				throw new MagmaStreamError({
+					code: MagmaStreamErrorCode.REST_REQUEST_FAILED,
+					message: `No results returned from Lavalink for query "${search}".`,
+					context: { query: search, requester },
+				});
+			}
 
 			let result: SearchResult;
 
@@ -293,7 +350,14 @@ export class Manager extends EventEmitter {
 
 			return result;
 		} catch (err) {
-			throw new Error(`An error occurred while searching: ${err}`);
+			throw err instanceof MagmaStreamError
+				? err
+				: new MagmaStreamError({
+						code: MagmaStreamErrorCode.MANAGER_SEARCH_FAILED,
+						message: `An error occurred while searching: ${err instanceof Error ? err.message : String(err)}`,
+						cause: err instanceof Error ? err : undefined,
+						context: { query, requester },
+				  });
 		}
 	}
 
@@ -369,10 +433,16 @@ export class Manager extends EventEmitter {
 	 */
 	public async destroyNode(identifier: string): Promise<void> {
 		const node = this.nodes.get(identifier);
+
 		if (!node) {
 			this.emit(ManagerEventTypes.Debug, `[MANAGER] Tried to destroy non-existent node: ${identifier}`);
-			return;
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.MANAGER_NODE_NOT_FOUND,
+				message: "Node not found.",
+				context: { identifier },
+			});
 		}
+
 		this.emit(ManagerEventTypes.Debug, `[MANAGER] Destroying node: ${identifier}`);
 		this.nodes.delete(identifier);
 		await node.destroy();
@@ -424,13 +494,21 @@ export class Manager extends EventEmitter {
 	public async decodeTracks(tracks: string[]): Promise<TrackData[]> {
 		this.emit(ManagerEventTypes.Debug, `[MANAGER] Decoding tracks: ${JSONUtils.safe(tracks, 2)}`);
 		return new Promise(async (resolve, reject) => {
-			const node = this.nodes.first();
-			if (!node) throw new Error("No available nodes.");
+			const node = this.useableNode;
+			if (!node) {
+				throw new MagmaStreamError({
+					code: MagmaStreamErrorCode.MANAGER_NO_NODES,
+					message: "No available nodes to decode tracks.",
+				});
+			}
 
 			const res = (await node.rest.post("/v4/decodetracks", JSONUtils.safe(tracks, 2)).catch((err) => reject(err))) as TrackData[];
 
 			if (!res) {
-				return reject(new Error("No data returned from query."));
+				throw new MagmaStreamError({
+					code: MagmaStreamErrorCode.REST_REQUEST_FAILED,
+					message: "No decoded tracks returned from node.",
+				});
 			}
 
 			return resolve(res);
@@ -522,7 +600,14 @@ export class Manager extends EventEmitter {
 	public async loadPlayerStates(nodeId: string): Promise<void> {
 		this.emit(ManagerEventTypes.Debug, "[MANAGER] Loading saved players.");
 		const node = this.nodes.get(nodeId);
-		if (!node) throw new Error(`Could not find node: ${nodeId}`);
+		if (!node) {
+			this.emit(ManagerEventTypes.Debug, `[MANAGER] Tried to load non-existent node: ${nodeId}`);
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.MANAGER_NODE_NOT_FOUND,
+				message: "Node not found.",
+				context: { nodeId },
+			});
+		}
 
 		switch (this.options.stateStorage.type) {
 			case StateStorageType.Memory:
@@ -947,7 +1032,6 @@ export class Manager extends EventEmitter {
 							}
 						}
 					} catch (error) {
-						console.log(error);
 						this.emit(ManagerEventTypes.Debug, `[MANAGER] Error loading player states from Redis: ${error}`);
 					}
 				}
@@ -990,8 +1074,18 @@ export class Manager extends EventEmitter {
 			const savePromises = Array.from(this.players.keys()).map(async (guildId) => {
 				try {
 					await this.savePlayerState(guildId);
-				} catch (error) {
-					console.error(`[MANAGER] Error saving player state for guild ${guildId}:`, error);
+				} catch (err) {
+					const error =
+						err instanceof MagmaStreamError
+							? err
+							: new MagmaStreamError({
+									code: MagmaStreamErrorCode.MANAGER_SHUTDOWN_FAILED,
+									message: "Error saving player state.",
+									cause: err,
+									context: { guildId },
+							  });
+
+					console.error(error);
 				}
 			});
 
@@ -1003,8 +1097,18 @@ export class Manager extends EventEmitter {
 				console.warn("\x1b[32m%s\x1b[0m", "MAGMASTREAM INFO: Shutting down complete, exiting...");
 				process.exit(0);
 			}, 500);
-		} catch (error) {
-			console.error(`[MANAGER] Unexpected error during shutdown:`, error);
+		} catch (err) {
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.MANAGER_SHUTDOWN_FAILED,
+							message: "Error saving player state.",
+							cause: err,
+							context: { stage: "SHUTDOWN" },
+					  });
+
+			console.error(error);
 			process.exit(1);
 		}
 	}
@@ -1210,13 +1314,23 @@ export class Manager extends EventEmitter {
 								this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleted inactive player data folder: ${guildId}`);
 							}
 						}
-					} catch (error) {
-						this.emit(ManagerEventTypes.Debug, `[MANAGER] Error cleaning up inactive JSON players: ${error}`);
+					} catch (err) {
+						this.emit(ManagerEventTypes.Debug, `[MANAGER] Error cleaning up inactive JSON players: ${err}`);
+
+						const error =
+							err instanceof MagmaStreamError
+								? err
+								: new MagmaStreamError({
+										code: MagmaStreamErrorCode.MANAGER_CLEANUP_INACTIVE_PLAYERS_FAILED,
+										message: "Error cleaning up inactive players.",
+										cause: err,
+										context: { stage: "CLEANUP_INACTIVE_PLAYERS" },
+								  });
+
+						console.error(error);
 					}
-					return;
 				}
 				break;
-
 			case StateStorageType.Redis:
 				{
 					const prefix = this.options.stateStorage.redisConfig.prefix?.endsWith(":")
@@ -1225,33 +1339,46 @@ export class Manager extends EventEmitter {
 
 					const pattern = `${prefix}queue:*:current`;
 
-					const stream = this.redis.scanStream({
-						match: pattern,
-						count: 100,
-					});
+					try {
+						const stream = this.redis.scanStream({
+							match: pattern,
+							count: 100,
+						});
 
-					for await (const keys of stream) {
-						for (const key of keys) {
-							// Extract guildId from queue key
-							const match = key.match(new RegExp(`^${prefix}queue:(.+):current$`));
-							if (!match) continue;
+						for await (const keys of stream) {
+							for (const key of keys) {
+								// Extract guildId from queue key
+								const match = key.match(new RegExp(`^${prefix}queue:(.+):current$`));
+								if (!match) continue;
 
-							const guildId = match[1];
+								const guildId = match[1];
 
-							// If player is not active in memory, clean up all keys
-							if (!this.players.has(guildId)) {
-								await this.redis.del(
-									`${prefix}playerstore:${guildId}`,
-									`${prefix}queue:${guildId}:current`,
-									`${prefix}queue:${guildId}:tracks`,
-									`${prefix}queue:${guildId}:previous`
-								);
+								// If player is not active in memory, clean up all keys
+								if (!this.players.has(guildId)) {
+									await this.redis.del(
+										`${prefix}playerstore:${guildId}`,
+										`${prefix}queue:${guildId}:current`,
+										`${prefix}queue:${guildId}:tracks`,
+										`${prefix}queue:${guildId}:previous`
+									);
 
-								this.emit(ManagerEventTypes.Debug, `[MANAGER] Cleaned inactive Redis player data: ${guildId}`);
+									this.emit(ManagerEventTypes.Debug, `[MANAGER] Cleaned inactive Redis player data: ${guildId}`);
+								}
 							}
 						}
+					} catch (err) {
+						const error =
+							err instanceof MagmaStreamError
+								? err
+								: new MagmaStreamError({
+										code: MagmaStreamErrorCode.MANAGER_SHUTDOWN_FAILED,
+										message: "Error saving player state.",
+										cause: err,
+										context: { stage: "CLEANUP_INACTIVE_PLAYERS" },
+								  });
+
+						console.error(error);
 					}
-					return;
 				}
 				break;
 			default:
@@ -1265,41 +1392,62 @@ export class Manager extends EventEmitter {
 	 * @param guildId The guild ID of the player to clean up.
 	 */
 	public async cleanupInactivePlayer(guildId: string): Promise<void> {
+		const player = this.getPlayer(guildId);
 		switch (this.options.stateStorage.type) {
 			case StateStorageType.JSON:
 				{
 					try {
-						if (!this.players.has(guildId)) {
+						if (!player) {
 							const guildDir = PlayerUtils.getGuildDir(guildId);
 							await fs.rm(guildDir, { recursive: true, force: true });
 
 							this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleted inactive player data folder: ${guildId}`);
 						}
-					} catch (error) {
-						if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-							this.emit(ManagerEventTypes.Debug, `[MANAGER] Error deleting player files for ${guildId}: ${error}`);
-						}
+					} catch (err) {
+						const error =
+							err instanceof MagmaStreamError
+								? err
+								: new MagmaStreamError({
+										code: MagmaStreamErrorCode.MANAGER_CLEANUP_INACTIVE_PLAYERS_FAILED,
+										message: "Error cleaning up inactive player.",
+										cause: err,
+										context: { guildId },
+								  });
+
+						console.error(error);
 					}
 				}
 				break;
 			case StateStorageType.Redis:
 				{
-					const player = this.getPlayer(guildId);
+					try {
+						if (!player) {
+							const prefix = this.options.stateStorage.redisConfig.prefix?.endsWith(":")
+								? this.options.stateStorage.redisConfig.prefix
+								: `${this.options.stateStorage.redisConfig.prefix ?? "magmastream"}:`;
 
-					if (!player) {
-						const prefix = this.options.stateStorage.redisConfig.prefix?.endsWith(":")
-							? this.options.stateStorage.redisConfig.prefix
-							: `${this.options.stateStorage.redisConfig.prefix ?? "magmastream"}:`;
+							const keysToDelete = [
+								`${prefix}playerstore:${guildId}`,
+								`${prefix}queue:${guildId}:tracks`,
+								`${prefix}queue:${guildId}:current`,
+								`${prefix}queue:${guildId}:previous`,
+							];
 
-						const keysToDelete = [
-							`${prefix}playerstore:${guildId}`,
-							`${prefix}queue:${guildId}:tracks`,
-							`${prefix}queue:${guildId}:current`,
-							`${prefix}queue:${guildId}:previous`,
-						];
+							await this.redis.del(...keysToDelete);
+							this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleted Redis player and queue data for: ${guildId}`);
+						}
+					} catch (err) {
+						const error =
+							err instanceof MagmaStreamError
+								? err
+								: new MagmaStreamError({
+										code: MagmaStreamErrorCode.MANAGER_CLEANUP_INACTIVE_PLAYERS_FAILED,
+										message: "Error cleaning up inactive player.",
+										cause: err,
+										context: { guildId },
+								  });
 
-						await this.redis.del(...keysToDelete);
-						this.emit(ManagerEventTypes.Debug, `[MANAGER] Deleted Redis player and queue data for: ${guildId}`);
+						console.error(error);
 					}
 				}
 				break;
@@ -1315,8 +1463,13 @@ export class Manager extends EventEmitter {
 		if (!Array.isArray(this.options.enabledPlugins)) return;
 
 		for (const [index, plugin] of this.options.enabledPlugins.entries()) {
+			// Validate plugin class
 			if (!(plugin instanceof Plugin)) {
-				throw new RangeError(`Plugin at index ${index} does not extend Plugin.`);
+				throw new MagmaStreamError({
+					code: MagmaStreamErrorCode.PLUGIN_LOAD_FAILED,
+					message: `Plugin at index ${index} does not extend Plugin.`,
+					context: { index, plugin },
+				});
 			}
 
 			try {
@@ -1324,7 +1477,17 @@ export class Manager extends EventEmitter {
 				this.loadedPlugins.add(plugin);
 				this.emit(ManagerEventTypes.Debug, `[PLUGIN] Loaded plugin: ${plugin.name}`);
 			} catch (err) {
-				this.emit(ManagerEventTypes.Debug, `[PLUGIN] Failed to load plugin "${plugin.name}": ${err}`);
+				const error =
+					err instanceof MagmaStreamError
+						? err
+						: new MagmaStreamError({
+								code: MagmaStreamErrorCode.PLUGIN_RUNTIME_ERROR,
+								message: `Failed to load plugin "${plugin.name}".`,
+								cause: err instanceof Error ? err : undefined,
+								context: { pluginName: plugin.name, index },
+						  });
+
+				this.emit(ManagerEventTypes.Debug, `[PLUGIN] ${error.name}: ${error.message}`);
 			}
 		}
 	}
@@ -1338,9 +1501,20 @@ export class Manager extends EventEmitter {
 				plugin.unload(this);
 				this.emit(ManagerEventTypes.Debug, `[PLUGIN] Unloaded plugin: ${plugin.name}`);
 			} catch (err) {
-				this.emit(ManagerEventTypes.Debug, `[PLUGIN] Failed to unload plugin "${plugin.name}": ${err}`);
+				const error =
+					err instanceof MagmaStreamError
+						? err
+						: new MagmaStreamError({
+								code: MagmaStreamErrorCode.PLUGIN_RUNTIME_ERROR,
+								message: `Failed to unload plugin "${plugin.name}".`,
+								cause: err instanceof Error ? err : undefined,
+								context: { pluginName: plugin.name },
+						  });
+
+				this.emit(ManagerEventTypes.Debug, `[PLUGIN] ${error.name}: ${error.message}`);
 			}
 		}
+
 		this.loadedPlugins.clear();
 	}
 
