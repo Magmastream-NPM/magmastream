@@ -6,6 +6,7 @@ export * from "./structures/Plugin";
 export * from "./statestorage/MemoryQueue";
 export * from "./structures/Rest";
 export * from "./structures/Utils";
+export * from "./structures/MagmastreamError";
 // wrappers
 export * from "./wrappers/discord.js";
 export * from "./wrappers/eris";
