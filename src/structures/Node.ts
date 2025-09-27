@@ -30,8 +30,9 @@ import {
 	TrackStuckEvent,
 	WebSocketClosedEvent,
 } from "./Types";
-import { ManagerEventTypes, PlayerStateEventTypes, SponsorBlockSegment, StateStorageType, TrackEndReasonTypes } from "./Enums";
+import { MagmaStreamErrorCode, ManagerEventTypes, PlayerStateEventTypes, SponsorBlockSegment, StateStorageType, TrackEndReasonTypes } from "./Enums";
 import { IncomingMessage } from "http";
+import { MagmaStreamError } from "./MagmastreamError";
 
 const validSponsorBlocks = Object.values(SponsorBlockSegment).map((v) => v.toLowerCase());
 
@@ -63,7 +64,12 @@ export class Node {
 	 * @param options - The options for the node.
 	 */
 	constructor(public manager: Manager, public options: NodeOptions) {
-		if (!this.manager) throw new RangeError("Manager instance is required.");
+		if (!this.manager) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.GENERAL_INVALID_MANAGER,
+				message: "Manager instance is required.",
+			});
+		}
 
 		if (this.manager.nodes.has(options.identifier || options.host)) {
 			return this.manager.nodes.get(options.identifier || options.host);
@@ -206,7 +212,11 @@ export class Node {
 						const sessionIds: Record<string, string> = JSON.parse(currentRaw);
 
 						if (typeof sessionIds !== "object" || Array.isArray(sessionIds)) {
-							throw new Error("[NODE] loadSessionIds invalid data type from Redis.");
+							throw new MagmaStreamError({
+								code: MagmaStreamErrorCode.NODE_SESSION_IDS_LOAD_FAILED,
+								message: "Invalid sessionIds data type from Redis.",
+								context: { sessionIds },
+							});
 						}
 
 						this.sessionIdsMap = new Map(Object.entries(sessionIds));
@@ -246,10 +256,10 @@ export class Node {
 		switch (this.manager.options.stateStorage.type) {
 			case StateStorageType.Memory:
 			case StateStorageType.JSON: {
-				this.manager.emit(ManagerEventTypes.Debug, `[NODE] Updating sessionIds to file: ${this.sessionIdsFilePath}`);
-
 				const compositeKey = `${this.options.identifier}::${this.manager.options.clusterId}`;
 				const filePath = this.sessionIdsFilePath!;
+
+				this.manager.emit(ManagerEventTypes.Debug, `[NODE] Updating sessionIds to file: ${filePath}`);
 
 				let updated = false;
 				let retries = 3;
@@ -278,8 +288,12 @@ export class Node {
 					} catch (err) {
 						retries--;
 						if (retries === 0) {
-							this.manager.emit(ManagerEventTypes.Debug, `[NODE] Failed to update sessionIds after retries: ${(err as Error).message}`);
-							throw err;
+							throw new MagmaStreamError({
+								code: MagmaStreamErrorCode.NODE_SESSION_IDS_UPDATE_FAILED,
+								message: `Failed to update sessionIds after retries.`,
+								cause: err instanceof Error ? err : undefined,
+								context: { filePath, compositeKey, storage: "file" },
+							});
 						}
 
 						await new Promise((r) => setTimeout(r, 50));
@@ -295,28 +309,37 @@ export class Node {
 
 				this.manager.emit(ManagerEventTypes.Debug, `[NODE] Updating sessionIds in Redis key: ${key}`);
 
-				const currentRaw = await this.manager.redis.get(key);
-				let sessionIds: Record<string, string>;
+				let sessionIds: Record<string, string> = {};
 
-				if (currentRaw) {
-					try {
+				try {
+					const currentRaw = await this.manager.redis.get(key);
+					if (currentRaw) {
 						sessionIds = JSON.parse(currentRaw);
 						if (typeof sessionIds !== "object" || Array.isArray(sessionIds)) {
 							throw new Error("Invalid data type in Redis");
 						}
-					} catch (err) {
-						this.manager.emit(ManagerEventTypes.Debug, `[NODE] Corrupted Redis sessionIds, reinitializing: ${(err as Error).message}`);
+					} else {
+						this.manager.emit(ManagerEventTypes.Debug, `[NODE] Redis key not found — creating new sessionIds key.`);
 						sessionIds = {};
 					}
-				} else {
-					this.manager.emit(ManagerEventTypes.Debug, `[NODE] Redis key not found — creating new sessionIds key.`);
+				} catch (err) {
+					this.manager.emit(ManagerEventTypes.Debug, `[NODE] Corrupted Redis sessionIds, reinitializing: ${(err as Error).message}`);
 					sessionIds = {};
 				}
 
-				sessionIds[compositeKey] = this.sessionId;
+				try {
+					sessionIds[compositeKey] = this.sessionId;
+					this.sessionIdsMap = new Map(Object.entries(sessionIds));
+					await this.manager.redis.set(key, JSONUtils.safe(sessionIds));
+				} catch (err) {
+					throw new MagmaStreamError({
+						code: MagmaStreamErrorCode.NODE_SESSION_IDS_UPDATE_FAILED,
+						message: `Failed to update sessionIds in Redis.`,
+						cause: err instanceof Error ? err : undefined,
+						context: { key, compositeKey, storage: "redis" },
+					});
+				}
 
-				this.sessionIdsMap = new Map(Object.entries(sessionIds));
-				await this.manager.redis.set(key, JSONUtils.safe(sessionIds));
 				break;
 			}
 		}
@@ -444,7 +467,11 @@ export class Node {
 
 		this.reconnectTimeout = setTimeout(async () => {
 			if (this.reconnectAttempts >= this.options.maxRetryAttempts) {
-				const error = new Error(`Unable to connect after ${this.options.maxRetryAttempts} attempts.`);
+				const error = new MagmaStreamError({
+					code: MagmaStreamErrorCode.NODE_RECONNECT_FAILED,
+					message: `Unable to reconnect after ${this.options.maxRetryAttempts} attempts.`,
+					context: { ...debugInfo },
+				});
 				this.manager.emit(ManagerEventTypes.NodeError, this, error);
 				return await this.destroy();
 			}
@@ -986,7 +1013,13 @@ export class Node {
 	 * @returns {Promise<Lyrics | NodeLinkGetLyrics>} A promise that resolves with the lyrics data.
 	 */
 	public async getLyrics(track: Track, skipTrackSource: boolean = false, language?: string): Promise<Lyrics | NodeLinkGetLyrics> {
-		if (!this.connected) throw new RangeError(`The node is not connected to the lavalink server: ${this.options.identifier}`);
+		if (!this.connected) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.NODE_DISCONNECTED,
+				message: `The node is not connected to the lavalink server.`,
+				context: { identifier: this.options.identifier },
+			});
+		}
 
 		if (this.isNodeLink) {
 			return (await this.rest.get(
@@ -994,25 +1027,28 @@ export class Node {
 			)) as NodeLinkGetLyrics;
 		}
 
-		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "lavalyrics-plugin")) {
-			throw new RangeError(`The plugin "lavalyrics-plugin" must be present in the lavalink node: ${this.options.identifier}`);
-		}
-
-		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "lavasrc-plugin" || plugin.name === "java-lyrics-plugin")) {
-			throw new RangeError(
-				`One of the following plugins must also be present in the lavalink node: "lavasrc-plugin" or "java-lyrics-plugin" (Node: ${this.options.identifier})`
-			);
-		}
-
-		return (
-			((await this.rest.get(`/v4/lyrics?track=${encodeURIComponent(track.track)}&skipTrackSource=${skipTrackSource}`)) as Lyrics) || {
-				source: null,
-				provider: null,
-				text: null,
-				lines: [],
-				plugin: [],
+		const requiredPlugins = ["lavalyrics-plugin"];
+		for (const plugin of requiredPlugins) {
+			if (!this.info.plugins.some((p: { name: string }) => p.name === plugin)) {
+				throw new MagmaStreamError({
+					code: MagmaStreamErrorCode.NODE_PLUGIN_ERROR,
+					message: `The plugin "${plugin}" must be present in the lavalink node.`,
+					context: { identifier: this.options.identifier },
+				});
 			}
-		);
+		}
+
+		if (!this.info.plugins.some((p: { name: string }) => p.name === "lavasrc-plugin" || p.name === "java-lyrics-plugin")) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.NODE_PLUGIN_ERROR,
+				message: `One of the following plugins must also be present in the lavalink node: "lavasrc-plugin" or "java-lyrics-plugin".`,
+				context: { identifier: this.options.identifier },
+			});
+		}
+
+		const lyrics = (await this.rest.get(`/v4/lyrics?track=${encodeURIComponent(track.track)}&skipTrackSource=${skipTrackSource}`)) as Lyrics;
+
+		return lyrics || { source: null, provider: null, text: null, lines: [], plugin: [] };
 	}
 
 	/**
@@ -1023,21 +1059,53 @@ export class Node {
 	 * @throws {RangeError} If the node is not connected to the lavalink server or if the java-lyrics-plugin is not available.
 	 */
 	public async lyricsSubscribe(guildId: string, skipTrackSource: boolean = false): Promise<unknown> {
-		if (!this.connected) throw new RangeError(`The node is not connected to the lavalink server: ${this.options.identifier}`);
-
-		if (this.isNodeLink) throw new RangeError(`The node is a node link: ${this.options.identifier}`);
-
-		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "lavalyrics-plugin")) {
-			throw new RangeError(`The plugin "lavalyrics-plugin" must be present in the lavalink node: ${this.options.identifier}`);
+		if (!this.connected) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.NODE_DISCONNECTED,
+				message: `The node is not connected to the lavalink server.`,
+				context: { identifier: this.options.identifier },
+			});
 		}
 
-		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "lavasrc-plugin" || plugin.name === "java-lyrics-plugin")) {
-			throw new RangeError(
-				`One of the following plugins must also be present in the lavalink node: "lavasrc-plugin" or "java-lyrics-plugin" (Node: ${this.options.identifier})`
-			);
+		if (this.isNodeLink) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+				message: `The node is a NodeLink, cannot subscribe to lyrics.`,
+				context: { identifier: this.options.identifier },
+			});
 		}
 
-		return await this.rest.post(`/v4/sessions/${this.sessionId}/players/${guildId}/lyrics/subscribe?skipTrackSource=${skipTrackSource}`, {});
+		const requiredPlugins = ["lavalyrics-plugin"];
+		for (const plugin of requiredPlugins) {
+			if (!this.info.plugins.some((p: { name: string }) => p.name === plugin)) {
+				throw new MagmaStreamError({
+					code: MagmaStreamErrorCode.NODE_PLUGIN_ERROR,
+					message: `The plugin "${plugin}" must be present in the lavalink node.`,
+					context: { identifier: this.options.identifier },
+				});
+			}
+		}
+
+		if (!this.info.plugins.some((p: { name: string }) => p.name === "lavasrc-plugin" || p.name === "java-lyrics-plugin")) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.NODE_PLUGIN_ERROR,
+				message: `One of the following plugins must also be present in the lavalink node: "lavasrc-plugin" or "java-lyrics-plugin".`,
+				context: { identifier: this.options.identifier },
+			});
+		}
+
+		try {
+			return await this.rest.post(`/v4/sessions/${this.sessionId}/players/${guildId}/lyrics/subscribe?skipTrackSource=${skipTrackSource}`, {});
+		} catch (err) {
+			throw err instanceof MagmaStreamError
+				? err
+				: new MagmaStreamError({
+						code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+						message: "Failed to subscribe to lyrics session.",
+						cause: err instanceof Error ? err : undefined,
+						context: { identifier: this.options.identifier, guildId, skipTrackSource },
+				  });
+		}
 	}
 
 	/**
@@ -1047,16 +1115,44 @@ export class Node {
 	 * @throws {RangeError} If the node is not connected to the lavalink server or if the java-lyrics-plugin is not available.
 	 */
 	public async lyricsUnsubscribe(guildId: string): Promise<unknown> {
-		if (!this.connected) throw new RangeError(`The node is not connected to the lavalink server: ${this.options.identifier}`);
-
-		if (this.isNodeLink) throw new RangeError(`The node is a node link: ${this.options.identifier}`);
-
-		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "java-lyrics-plugin")) {
-			throw new RangeError(`there is no java-lyrics-plugin available in the lavalink node: ${this.options.identifier}`);
+		if (!this.connected) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.NODE_DISCONNECTED,
+				message: `The node is not connected to the lavalink server.`,
+				context: { identifier: this.options.identifier },
+			});
 		}
 
-		return await this.rest.delete(`/v4/sessions/${this.sessionId}/players/${guildId}/lyrics/subscribe`);
+		if (this.isNodeLink) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+				message: `The node is a NodeLink, cannot unsubscribe from lyrics.`,
+				context: { identifier: this.options.identifier },
+			});
+		}
+
+		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "java-lyrics-plugin")) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.NODE_PLUGIN_ERROR,
+				message: `The plugin "java-lyrics-plugin" must be present in the lavalink node to unsubscribe.`,
+				context: { identifier: this.options.identifier },
+			});
+		}
+
+		try {
+			return await this.rest.delete(`/v4/sessions/${this.sessionId}/players/${guildId}/lyrics/subscribe`);
+		} catch (err) {
+			throw err instanceof MagmaStreamError
+				? err
+				: new MagmaStreamError({
+						code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+						message: "Failed to unsubscribe from lyrics session.",
+						cause: err instanceof Error ? err : undefined,
+						context: { identifier: this.options.identifier, guildId },
+				  });
+		}
 	}
+
 	/**
 	 * Handles the event when a track becomes stuck during playback.
 	 * Stops the current track and emits a `trackStuck` event.
@@ -1190,10 +1286,26 @@ export class Node {
 	 * @throws {RangeError} If the sponsorblock-plugin is not available in the Lavalink node.
 	 */
 	public async getSponsorBlock(player: Player): Promise<SponsorBlockSegment[]> {
-		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "sponsorblock-plugin"))
-			throw new RangeError(`there is no sponsorblock-plugin available in the lavalink node: ${this.options.identifier}`);
+		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "sponsorblock-plugin")) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.NODE_PLUGIN_ERROR,
+				message: `The plugin "sponsorblock-plugin" must be present in the lavalink node to fetch SponsorBlock data.`,
+				context: { identifier: this.options.identifier, guildId: player.guildId },
+			});
+		}
 
-		return (await this.rest.get(`/v4/sessions/${this.sessionId}/players/${player.guildId}/sponsorblock/categories`)) as SponsorBlockSegment[];
+		try {
+			return (await this.rest.get(`/v4/sessions/${this.sessionId}/players/${player.guildId}/sponsorblock/categories`)) as SponsorBlockSegment[];
+		} catch (err) {
+			throw err instanceof MagmaStreamError
+				? err
+				: new MagmaStreamError({
+						code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+						message: "Failed to fetch SponsorBlock segments.",
+						cause: err instanceof Error ? err : undefined,
+						context: { identifier: this.options.identifier, guildId: player.guildId },
+				  });
+		}
 	}
 
 	/**
@@ -1211,22 +1323,48 @@ export class Node {
 	 * ```
 	 */
 	public async setSponsorBlock(player: Player, segments: SponsorBlockSegment[] = [SponsorBlockSegment.Sponsor, SponsorBlockSegment.SelfPromo]): Promise<void> {
-		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "sponsorblock-plugin"))
-			throw new RangeError(`there is no sponsorblock-plugin available in the lavalink node: ${this.options.identifier}`);
+		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "sponsorblock-plugin")) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.NODE_PLUGIN_ERROR,
+				message: `The plugin "sponsorblock-plugin" must be present in the lavalink node to set SponsorBlock segments.`,
+				context: { identifier: this.options.identifier, guildId: player.guildId },
+			});
+		}
 
-		if (!segments.length) throw new RangeError("No Segments provided. Did you mean to use 'deleteSponsorBlock'?");
+		if (!segments.length) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+				message: "No segments provided. Did you mean to use 'deleteSponsorBlock'?",
+				context: { identifier: this.options.identifier, guildId: player.guildId },
+			});
+		}
 
-		if (segments.some((v) => !validSponsorBlocks.includes(v.toLowerCase())))
-			throw new SyntaxError(`You provided a sponsorblock which isn't valid, valid ones are: ${validSponsorBlocks.map((v) => `'${v}'`).join(", ")}`);
+		if (segments.some((v) => !validSponsorBlocks.includes(v.toLowerCase()))) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+				message: `Invalid SponsorBlock segments provided. Valid ones are: ${validSponsorBlocks.map((v) => `'${v}'`).join(", ")}`,
+				context: { identifier: this.options.identifier, guildId: player.guildId, invalidSegments: segments },
+			});
+		}
 
-		await this.rest.put(
-			`/v4/sessions/${this.sessionId}/players/${player.guildId}/sponsorblock/categories`,
-			JSONUtils.safe(
-				segments.map((v) => v.toLowerCase()),
-				2
-			)
-		);
-		return;
+		try {
+			await this.rest.put(
+				`/v4/sessions/${this.sessionId}/players/${player.guildId}/sponsorblock/categories`,
+				JSONUtils.safe(
+					segments.map((v) => v.toLowerCase()),
+					2
+				)
+			);
+		} catch (err) {
+			throw err instanceof MagmaStreamError
+				? err
+				: new MagmaStreamError({
+						code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+						message: "Failed to set SponsorBlock segments.",
+						cause: err instanceof Error ? err : undefined,
+						context: { identifier: this.options.identifier, guildId: player.guildId, segments },
+				  });
+		}
 	}
 
 	/**
@@ -1236,11 +1374,26 @@ export class Node {
 	 * @throws {RangeError} If the sponsorblock-plugin is not available in the Lavalink node.
 	 */
 	public async deleteSponsorBlock(player: Player): Promise<void> {
-		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "sponsorblock-plugin"))
-			throw new RangeError(`there is no sponsorblock-plugin available in the lavalink node: ${this.options.identifier}`);
+		if (!this.info.plugins.some((plugin: { name: string }) => plugin.name === "sponsorblock-plugin")) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.NODE_PLUGIN_ERROR,
+				message: `The plugin "sponsorblock-plugin" must be present in the lavalink node to delete SponsorBlock segments.`,
+				context: { identifier: this.options.identifier, guildId: player.guildId },
+			});
+		}
 
-		await this.rest.delete(`/v4/sessions/${this.sessionId}/players/${player.guildId}/sponsorblock/categories`);
-		return;
+		try {
+			await this.rest.delete(`/v4/sessions/${this.sessionId}/players/${player.guildId}/sponsorblock/categories`);
+		} catch (err) {
+			throw err instanceof MagmaStreamError
+				? err
+				: new MagmaStreamError({
+						code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+						message: "Failed to delete SponsorBlock segments.",
+						cause: err instanceof Error ? err : undefined,
+						context: { identifier: this.options.identifier, guildId: player.guildId },
+				  });
+		}
 	}
 
 	/**

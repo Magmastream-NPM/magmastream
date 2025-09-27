@@ -1,73 +1,99 @@
 import { NodeOptions } from "../structures/Types";
+import { MagmaStreamError } from "../structures/MagmastreamError";
+import { MagmaStreamErrorCode } from "../structures/Enums";
 
 /**
  * Validates the provided NodeOptions object.
  * @param options - The options to validate.
- * @throws {TypeError} Throws if any required option is missing or invalid.
+ * @throws {MagmaStreamError} Throws if any required option is missing or invalid.
  */
 export default function nodeCheck(options: NodeOptions) {
-	// If the options are empty, throw an error.
-	if (!options) throw new TypeError("NodeOptions must not be empty.");
+	if (!options) {
+		throw new MagmaStreamError({
+			code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+			message: "NodeOptions must not be empty.",
+		});
+	}
 
-	// Validate the host option
-	// The host option must be present and be a non-empty string.
 	const { host, identifier, password, port, enableSessionResumeOption, sessionTimeoutSeconds, maxRetryAttempts, retryDelayMs, useSSL, nodePriority } = options;
 
 	if (typeof host !== "string" || !/.+/.test(host)) {
-		throw new TypeError('Node option "host" must be present and be a non-empty string.');
+		throw new MagmaStreamError({
+			code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+			message: 'Node option "host" must be present and be a non-empty string.',
+			context: { host },
+		});
 	}
 
-	// Validate the identifier option
-	// The identifier option must be a non-empty string or undefined.
 	if (typeof identifier !== "undefined" && typeof identifier !== "string") {
-		throw new TypeError('Node option "identifier" must be a non-empty string.');
+		throw new MagmaStreamError({
+			code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+			message: 'Node option "identifier" must be a non-empty string.',
+			context: { identifier },
+		});
 	}
 
-	// Validate the password option
-	// The password option must be a non-empty string or undefined.
 	if (typeof password !== "undefined" && (typeof password !== "string" || !/.+/.test(password))) {
-		throw new TypeError('Node option "password" must be a non-empty string.');
+		throw new MagmaStreamError({
+			code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+			message: 'Node option "password" must be a non-empty string.',
+			context: { password },
+		});
 	}
 
-	// Validate the port option
-	// The port option must be a number or undefined.
 	if (typeof port !== "undefined" && typeof port !== "number") {
-		throw new TypeError('Node option "port" must be a number.');
+		throw new MagmaStreamError({
+			code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+			message: 'Node option "port" must be a number.',
+			context: { port },
+		});
 	}
 
-	// Validate the enableSessionResumeOption option
-	// The enableSessionResumeOption option must be a boolean or undefined.
 	if (typeof enableSessionResumeOption !== "undefined" && typeof enableSessionResumeOption !== "boolean") {
-		throw new TypeError('Node option "enableSessionResumeOption" must be a boolean.');
+		throw new MagmaStreamError({
+			code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+			message: 'Node option "enableSessionResumeOption" must be a boolean.',
+			context: { enableSessionResumeOption },
+		});
 	}
 
-	// Validate the sessionTimeoutSeconds option
-	// The sessionTimeoutSeconds option must be a number or undefined.
 	if (typeof sessionTimeoutSeconds !== "undefined" && typeof sessionTimeoutSeconds !== "number") {
-		throw new TypeError('Node option "sessionTimeoutSeconds" must be a number.');
+		throw new MagmaStreamError({
+			code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+			message: 'Node option "sessionTimeoutSeconds" must be a number.',
+			context: { sessionTimeoutSeconds },
+		});
 	}
 
-	// Validate the maxRetryAttempts option
-	// The maxRetryAttempts option must be a number or undefined.
 	if (typeof maxRetryAttempts !== "undefined" && typeof maxRetryAttempts !== "number") {
-		throw new TypeError('Node option "maxRetryAttempts" must be a number.');
+		throw new MagmaStreamError({
+			code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+			message: 'Node option "maxRetryAttempts" must be a number.',
+			context: { maxRetryAttempts },
+		});
 	}
 
-	// Validate the retryDelayMs option
-	// The retryDelayMs option must be a number or undefined.
 	if (typeof retryDelayMs !== "undefined" && typeof retryDelayMs !== "number") {
-		throw new TypeError('Node option "retryDelayMs" must be a number.');
+		throw new MagmaStreamError({
+			code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+			message: 'Node option "retryDelayMs" must be a number.',
+			context: { retryDelayMs },
+		});
 	}
 
-	// Validate the useSSL option
-	// The useSSL option must be a boolean or undefined.
 	if (typeof useSSL !== "undefined" && typeof useSSL !== "boolean") {
-		throw new TypeError('Node option "useSSL" must be a boolean.');
+		throw new MagmaStreamError({
+			code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+			message: 'Node option "useSSL" must be a boolean.',
+			context: { useSSL },
+		});
 	}
 
-	// Validate the nodePriority option
-	// The nodePriority option must be a number or undefined.
 	if (typeof nodePriority !== "undefined" && typeof nodePriority !== "number") {
-		throw new TypeError('Node option "nodePriority" must be a number.');
+		throw new MagmaStreamError({
+			code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+			message: 'Node option "nodePriority" must be a number.',
+			context: { nodePriority },
+		});
 	}
 }
