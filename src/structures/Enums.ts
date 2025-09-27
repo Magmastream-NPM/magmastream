@@ -303,7 +303,6 @@ export enum MagmaStreamErrorCode {
 	QUEUE_LIMIT_REACHED = "MS_QUEUE_LIMIT_REACHED",
 
 	// FILTERS (1500)
-	FILTER_INVALID = "MS_FILTER_INVALID",
 	FILTER_APPLY_FAILED = "MS_FILTER_APPLY_FAILED",
 
 	// REST (1600)
@@ -350,8 +349,7 @@ export const MagmaStreamErrorNumbers: Record<MagmaStreamErrorCode, number> = {
 	[MagmaStreamErrorCode.QUEUE_LIMIT_REACHED]: 1402,
 
 	// FILTERS
-	[MagmaStreamErrorCode.FILTER_INVALID]: 1500,
-	[MagmaStreamErrorCode.FILTER_APPLY_FAILED]: 1501,
+	[MagmaStreamErrorCode.FILTER_APPLY_FAILED]: 1500,
 
 	// REST
 	[MagmaStreamErrorCode.REST_REQUEST_FAILED]: 1600,

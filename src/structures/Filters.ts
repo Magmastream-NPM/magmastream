@@ -10,7 +10,8 @@ import {
 	vaporwaveEqualizer,
 	demonEqualizer,
 } from "../utils/filtersEqualizers";
-import { AvailableFilters, ManagerEventTypes, PlayerStateEventTypes } from "./Enums";
+import { AvailableFilters, MagmaStreamErrorCode, ManagerEventTypes, PlayerStateEventTypes } from "./Enums";
+import { MagmaStreamError } from "./MagmastreamError";
 import { Manager } from "./Manager";
 import { Player } from "./Player";
 import { DistortionOptions, KaraokeOptions, PlayerStateUpdateEvent, ReverbOptions, RotationOptions, TimescaleOptions, VibratoOptions } from "./Types";
@@ -62,20 +63,34 @@ export class Filters {
 	public async updateFilters(): Promise<this> {
 		const { distortion, equalizer, karaoke, rotation, timescale, vibrato, volume } = this;
 
-		await this.player.node.rest.updatePlayer({
-			data: {
-				filters: {
-					distortion,
-					equalizer,
-					karaoke,
-					rotation,
-					timescale,
-					vibrato,
-					volume,
+		try {
+			await this.player.node.rest.updatePlayer({
+				data: {
+					filters: {
+						distortion,
+						equalizer,
+						karaoke,
+						rotation,
+						timescale,
+						vibrato,
+						volume,
+					},
 				},
-			},
-			guildId: this.player.guildId,
-		});
+				guildId: this.player.guildId,
+			});
+		} catch (err) {
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.FILTER_APPLY_FAILED,
+							message: `Failed to apply filters to player "${this.player.guildId}".`,
+							cause: err instanceof Error ? err : undefined,
+							context: { nodeId: this.player.node.options.identifier },
+					  });
+
+			console.log(error);
+		}
 
 		return this;
 	}
