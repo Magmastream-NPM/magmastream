@@ -10,7 +10,7 @@ import { MagmaStreamErrorCode } from "../structures/Enums";
 export default function nodeCheck(options: NodeOptions) {
 	if (!options) {
 		throw new MagmaStreamError({
-			code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+			code: MagmaStreamErrorCode.NODE_INVALID_CONFIG,
 			message: "NodeOptions must not be empty.",
 		});
 	}
@@ -19,7 +19,7 @@ export default function nodeCheck(options: NodeOptions) {
 
 	if (typeof host !== "string" || !/.+/.test(host)) {
 		throw new MagmaStreamError({
-			code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+			code: MagmaStreamErrorCode.NODE_INVALID_CONFIG,
 			message: 'Node option "host" must be present and be a non-empty string.',
 			context: { host },
 		});
@@ -27,7 +27,7 @@ export default function nodeCheck(options: NodeOptions) {
 
 	if (typeof identifier !== "undefined" && typeof identifier !== "string") {
 		throw new MagmaStreamError({
-			code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+			code: MagmaStreamErrorCode.NODE_INVALID_CONFIG,
 			message: 'Node option "identifier" must be a non-empty string.',
 			context: { identifier },
 		});
@@ -35,7 +35,7 @@ export default function nodeCheck(options: NodeOptions) {
 
 	if (typeof password !== "undefined" && (typeof password !== "string" || !/.+/.test(password))) {
 		throw new MagmaStreamError({
-			code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+			code: MagmaStreamErrorCode.NODE_INVALID_CONFIG,
 			message: 'Node option "password" must be a non-empty string.',
 			context: { password },
 		});
@@ -43,7 +43,7 @@ export default function nodeCheck(options: NodeOptions) {
 
 	if (typeof port !== "undefined" && typeof port !== "number") {
 		throw new MagmaStreamError({
-			code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+			code: MagmaStreamErrorCode.NODE_INVALID_CONFIG,
 			message: 'Node option "port" must be a number.',
 			context: { port },
 		});
@@ -51,7 +51,7 @@ export default function nodeCheck(options: NodeOptions) {
 
 	if (typeof enableSessionResumeOption !== "undefined" && typeof enableSessionResumeOption !== "boolean") {
 		throw new MagmaStreamError({
-			code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+			code: MagmaStreamErrorCode.NODE_INVALID_CONFIG,
 			message: 'Node option "enableSessionResumeOption" must be a boolean.',
 			context: { enableSessionResumeOption },
 		});
@@ -59,7 +59,7 @@ export default function nodeCheck(options: NodeOptions) {
 
 	if (typeof sessionTimeoutSeconds !== "undefined" && typeof sessionTimeoutSeconds !== "number") {
 		throw new MagmaStreamError({
-			code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+			code: MagmaStreamErrorCode.NODE_INVALID_CONFIG,
 			message: 'Node option "sessionTimeoutSeconds" must be a number.',
 			context: { sessionTimeoutSeconds },
 		});
@@ -67,7 +67,7 @@ export default function nodeCheck(options: NodeOptions) {
 
 	if (typeof maxRetryAttempts !== "undefined" && typeof maxRetryAttempts !== "number") {
 		throw new MagmaStreamError({
-			code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+			code: MagmaStreamErrorCode.NODE_INVALID_CONFIG,
 			message: 'Node option "maxRetryAttempts" must be a number.',
 			context: { maxRetryAttempts },
 		});
@@ -75,7 +75,7 @@ export default function nodeCheck(options: NodeOptions) {
 
 	if (typeof retryDelayMs !== "undefined" && typeof retryDelayMs !== "number") {
 		throw new MagmaStreamError({
-			code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+			code: MagmaStreamErrorCode.NODE_INVALID_CONFIG,
 			message: 'Node option "retryDelayMs" must be a number.',
 			context: { retryDelayMs },
 		});
@@ -83,7 +83,7 @@ export default function nodeCheck(options: NodeOptions) {
 
 	if (typeof useSSL !== "undefined" && typeof useSSL !== "boolean") {
 		throw new MagmaStreamError({
-			code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+			code: MagmaStreamErrorCode.NODE_INVALID_CONFIG,
 			message: 'Node option "useSSL" must be a boolean.',
 			context: { useSSL },
 		});
@@ -91,7 +91,7 @@ export default function nodeCheck(options: NodeOptions) {
 
 	if (typeof nodePriority !== "undefined" && typeof nodePriority !== "number") {
 		throw new MagmaStreamError({
-			code: MagmaStreamErrorCode.NODE_PROTOCOL_ERROR,
+			code: MagmaStreamErrorCode.NODE_INVALID_CONFIG,
 			message: 'Node option "nodePriority" must be a number.',
 			context: { nodePriority },
 		});
