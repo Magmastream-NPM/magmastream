@@ -1,8 +1,9 @@
 import { Manager } from "../structures/Manager";
 import { Redis } from "ioredis";
-import { ManagerEventTypes, PlayerStateEventTypes } from "../structures/Enums";
+import { MagmaStreamErrorCode, ManagerEventTypes, PlayerStateEventTypes } from "../structures/Enums";
 import { IQueue, PlayerStateUpdateEvent, PortableUser, Track } from "../structures/Types";
 import { JSONUtils } from "../structures/Utils";
+import { MagmaStreamError } from "../structures/MagmastreamError";
 
 /**
  * The player's queue, the `current` property is the currently playing track, think of the rest as the up-coming tracks.
@@ -24,9 +25,10 @@ export class RedisQueue implements IQueue {
 	 */
 	constructor(public readonly guildId: string, public readonly manager: Manager) {
 		this.redis = manager.redis;
-		this.redisPrefix = manager.options.stateStorage.redisConfig.prefix?.endsWith(":")
-			? manager.options.stateStorage.redisConfig.prefix
-			: `${manager.options.stateStorage.redisConfig.prefix ?? "magmastream"}:`;
+		const rawPrefix = manager.options.stateStorage.redisConfig.prefix;
+		let clean = typeof rawPrefix === "string" ? rawPrefix.trim() : "";
+		if (!clean.endsWith(":")) clean = clean || "magmastream";
+		this.redisPrefix = `${clean}:`;
 	}
 
 	// #region Public
@@ -36,59 +38,93 @@ export class RedisQueue implements IQueue {
 	 * @param [offset=null] The position to add the track(s) at. If not provided, the track(s) will be added at the end of the queue.
 	 */
 	public async add(track: Track | Track[], offset?: number): Promise<void> {
-		const isArray = Array.isArray(track);
-		const tracks = isArray ? track : [track];
-		const serialized = tracks.map((t) => this.serialize(t));
+		try {
+			const isArray = Array.isArray(track);
+			const tracks = isArray ? track : [track];
 
-		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
-
-		// If there's no current track, pop one from the list
-		if (!(await this.getCurrent())) {
-			const current = serialized.shift();
-			if (current) {
-				await this.setCurrent(this.deserialize(current));
+			// Serialize tracks
+			let serialized: string[];
+			try {
+				serialized = tracks.map((t) => this.serialize(t));
+			} catch (err) {
+				throw new MagmaStreamError({
+					code: MagmaStreamErrorCode.QUEUE_SERIALIZATION_FAILED,
+					message: `Failed to serialize tracks for guild ${this.guildId}: ${(err as Error).message}`,
+				});
 			}
-		}
 
-		if (typeof offset === "number" && !isNaN(offset)) {
-			const queue = await this.redis.lrange(this.queueKey, 0, -1);
-			queue.splice(offset, 0, ...serialized);
-			await this.redis.del(this.queueKey);
-			if (queue.length > 0) {
-				await this.redis.rpush(this.queueKey, ...queue);
-			}
-		} else if (serialized.length > 0) {
-			await this.redis.rpush(this.queueKey, ...serialized);
-		}
+			const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
-		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Added ${tracks.length} track(s) to queue`);
-
-		if (this.manager.players.has(this.guildId) && this.manager.players.get(this.guildId).isAutoplay) {
-			if (!Array.isArray(track)) {
-				const AutoplayUser = (await this.manager.players.get(this.guildId).get("Internal_AutoplayUser")) as PortableUser | null;
-				if (AutoplayUser && AutoplayUser.id === track.requester.id) {
-					this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
-						changeType: PlayerStateEventTypes.QueueChange,
-						details: {
-							type: "queue",
-							action: "autoPlayAdd",
-							tracks: Array.isArray(track) ? track : [track],
-						},
-					} as PlayerStateUpdateEvent);
-
-					return;
+			// Set current track if none exists
+			if (!(await this.getCurrent())) {
+				const current = serialized.shift();
+				if (current) {
+					try {
+						await this.setCurrent(this.deserialize(current));
+					} catch (err) {
+						throw new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_DESERIALIZATION_FAILED,
+							message: `Failed to set current track for guild ${this.guildId}: ${(err as Error).message}`,
+						});
+					}
 				}
 			}
-		}
 
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
-			changeType: PlayerStateEventTypes.QueueChange,
-			details: {
-				type: "queue",
-				action: "add",
-				tracks,
-			},
-		} as PlayerStateUpdateEvent);
+			// Insert at offset or append
+			try {
+				if (typeof offset === "number" && !isNaN(offset)) {
+					const queue = await this.redis.lrange(this.queueKey, 0, -1);
+					queue.splice(offset, 0, ...serialized);
+					await this.redis.del(this.queueKey);
+					if (queue.length > 0) {
+						await this.redis.rpush(this.queueKey, ...queue);
+					}
+				} else if (serialized.length > 0) {
+					await this.redis.rpush(this.queueKey, ...serialized);
+				}
+			} catch (err) {
+				throw new MagmaStreamError({
+					code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+					message: `Failed to add tracks to Redis queue for guild ${this.guildId}: ${(err as Error).message}`,
+				});
+			}
+
+			this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Added ${tracks.length} track(s) to queue`);
+
+			// Autoplay logic
+			if (this.manager.players.has(this.guildId) && this.manager.players.get(this.guildId).isAutoplay) {
+				if (!Array.isArray(track)) {
+					const AutoplayUser = (await this.manager.players.get(this.guildId).get("Internal_AutoplayUser")) as PortableUser | null;
+					if (AutoplayUser && AutoplayUser.id === track.requester.id) {
+						this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+							changeType: PlayerStateEventTypes.QueueChange,
+							details: {
+								type: "queue",
+								action: "autoPlayAdd",
+								tracks: [track],
+							},
+						} as PlayerStateUpdateEvent);
+
+						return;
+					}
+				}
+			}
+
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+				changeType: PlayerStateEventTypes.QueueChange,
+				details: {
+					type: "queue",
+					action: "add",
+					tracks,
+				},
+			} as PlayerStateUpdateEvent);
+		} catch (err) {
+			if (err instanceof MagmaStreamError) throw err;
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_MANIPULATION_FAILED,
+				message: `Unexpected error in add() for guild ${this.guildId}: ${(err as Error).message}`,
+			});
+		}
 	}
 
 	/**
@@ -96,16 +132,42 @@ export class RedisQueue implements IQueue {
 	 * @param track The track or tracks to add.
 	 */
 	public async addPrevious(track: Track | Track[]): Promise<void> {
-		const tracks = Array.isArray(track) ? track : [track];
-		if (!tracks.length) return;
+		try {
+			const tracks = Array.isArray(track) ? track : [track];
+			if (!tracks.length) {
+				throw new MagmaStreamError({
+					code: MagmaStreamErrorCode.QUEUE_INVALID_TRACKS,
+					message: `No tracks provided for addPrevious in guild ${this.guildId}`,
+				});
+			}
 
-		const serialized = tracks.map(this.serialize);
-		if (!serialized.length) return;
+			let serialized: string[];
+			try {
+				serialized = tracks.map(this.serialize);
+			} catch (err) {
+				throw new MagmaStreamError({
+					code: MagmaStreamErrorCode.QUEUE_SERIALIZATION_FAILED,
+					message: `Failed to serialize previous tracks for guild ${this.guildId}: ${(err as Error).message}`,
+				});
+			}
 
-		await this.redis.lpush(this.previousKey, ...serialized.reverse());
-
-		const max = this.manager.options.maxPreviousTracks;
-		await this.redis.ltrim(this.previousKey, 0, max - 1);
+			try {
+				await this.redis.lpush(this.previousKey, ...serialized.reverse());
+				const max = this.manager.options.maxPreviousTracks;
+				await this.redis.ltrim(this.previousKey, 0, max - 1);
+			} catch (err) {
+				throw new MagmaStreamError({
+					code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+					message: `Failed to add previous tracks to Redis for guild ${this.guildId}: ${(err as Error).message}`,
+				});
+			}
+		} catch (err) {
+			if (err instanceof MagmaStreamError) throw err;
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_MANIPULATION_FAILED,
+				message: `Unexpected error in addPrevious() for guild ${this.guildId}: ${(err as Error).message}`,
+			});
+		}
 	}
 
 	/**
@@ -113,7 +175,15 @@ export class RedisQueue implements IQueue {
 	 */
 	public async clear(): Promise<void> {
 		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
-		await this.redis.del(this.queueKey);
+
+		try {
+			await this.redis.del(this.queueKey);
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+				message: `Failed to clear queue for guild ${this.guildId}: ${(err as Error).message}`,
+			});
+		}
 
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 			changeType: PlayerStateEventTypes.QueueChange,
@@ -131,15 +201,29 @@ export class RedisQueue implements IQueue {
 	 * Clears the previous tracks.
 	 */
 	public async clearPrevious(): Promise<void> {
-		await this.redis.del(this.previousKey);
+		try {
+			await this.redis.del(this.previousKey);
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+				message: `Failed to clear previous tracks for guild ${this.guildId}: ${(err as Error).message}`,
+			});
+		}
 	}
 
 	/**
 	 * Removes the first track from the queue.
 	 */
 	public async dequeue(): Promise<Track | undefined> {
-		const raw = await this.redis.lpop(this.queueKey);
-		return raw ? this.deserialize(raw) : undefined;
+		try {
+			const raw = await this.redis.lpop(this.queueKey);
+			return raw ? this.deserialize(raw) : undefined;
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+				message: `Failed to dequeue track for guild ${this.guildId}: ${(err as Error).message}`,
+			});
+		}
 	}
 
 	/**
@@ -147,19 +231,31 @@ export class RedisQueue implements IQueue {
 	 * This includes the duration of the currently playing track.
 	 */
 	public async duration(): Promise<number> {
-		const tracks = await this.redis.lrange(this.queueKey, 0, -1);
-		const currentDuration = (await this.getCurrent())?.duration || 0;
+		try {
+			const tracks = await this.redis.lrange(this.queueKey, 0, -1);
+			const currentDuration = (await this.getCurrent())?.duration || 0;
 
-		const total = tracks.reduce((acc, raw) => {
-			try {
-				const parsed = this.deserialize(raw);
-				return acc + (parsed.duration || 0);
-			} catch {
-				return acc;
-			}
-		}, currentDuration);
+			const total = tracks.reduce((acc, raw) => {
+				try {
+					const parsed = this.deserialize(raw);
+					return acc + (parsed.duration || 0);
+				} catch (err) {
+					// Skip invalid tracks but log
+					this.manager.emit(
+						ManagerEventTypes.Debug,
+						`[QUEUE] Skipping invalid track during duration calculation for guild ${this.guildId}: ${(err as Error).message}`
+					);
+					return acc;
+				}
+			}, currentDuration);
 
-		return total;
+			return total;
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+				message: `Failed to calculate total queue duration for guild ${this.guildId}: ${(err as Error).message}`,
+			});
+		}
 	}
 
 	/**
@@ -167,10 +263,17 @@ export class RedisQueue implements IQueue {
 	 * @param track The track or tracks to add.
 	 */
 	public async enqueueFront(track: Track | Track[]): Promise<void> {
-		const serialized = Array.isArray(track) ? track.map(this.serialize) : [this.serialize(track)];
+		try {
+			const serialized = Array.isArray(track) ? track.map(this.serialize) : [this.serialize(track)];
 
-		// Redis: LPUSH adds to front, reverse to maintain order if multiple tracks
-		await this.redis.lpush(this.queueKey, ...serialized.reverse());
+			// Redis: LPUSH adds to front, reverse to maintain order if multiple tracks
+			await this.redis.lpush(this.queueKey, ...serialized.reverse());
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+				message: `Failed to enqueue track to front for guild ${this.guildId}: ${(err as Error).message}`,
+			});
+		}
 	}
 
 	/**
@@ -207,33 +310,60 @@ export class RedisQueue implements IQueue {
 	 * @returns The current track.
 	 */
 	public async getCurrent(): Promise<Track | null> {
-		const raw = await this.redis.get(this.currentKey);
-		return raw ? this.deserialize(raw) : null;
+		try {
+			const raw = await this.redis.get(this.currentKey);
+			return raw ? this.deserialize(raw) : null;
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+				message: `Failed to get current track for guild ${this.guildId}: ${(err as Error).message}`,
+			});
+		}
 	}
 
 	/**
 	 * @returns The previous tracks.
 	 */
 	public async getPrevious(): Promise<Track[]> {
-		const raw = await this.redis.lrange(this.previousKey, 0, -1);
-
-		return raw.map(this.deserialize);
+		try {
+			const raw = await this.redis.lrange(this.previousKey, 0, -1);
+			return raw.map(this.deserialize);
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+				message: `Failed to get previous tracks for guild ${this.guildId}: ${(err as Error).message}`,
+			});
+		}
 	}
 
 	/**
 	 * @returns The tracks in the queue from the start to the end.
 	 */
 	public async getSlice(start = 0, end = -1): Promise<Track[]> {
-		const raw = await this.redis.lrange(this.queueKey, start, end === -1 ? -1 : end - 1);
-		return raw.map(this.deserialize);
+		try {
+			const raw = await this.redis.lrange(this.queueKey, start, end === -1 ? -1 : end - 1);
+			return raw.map(this.deserialize);
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+				message: `Failed to get slice of queue for guild ${this.guildId}: ${(err as Error).message}`,
+			});
+		}
 	}
 
 	/**
 	 * @returns The tracks in the queue.
 	 */
 	public async getTracks(): Promise<Track[]> {
-		const raw = await this.redis.lrange(this.queueKey, 0, -1);
-		return raw.map(this.deserialize);
+		try {
+			const raw = await this.redis.lrange(this.queueKey, 0, -1);
+			return raw.map(this.deserialize);
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+				message: `Failed to get tracks for guild ${this.guildId}: ${(err as Error).message}`,
+			});
+		}
 	}
 
 	/**
@@ -253,16 +383,23 @@ export class RedisQueue implements IQueue {
 	 * @returns The removed tracks.
 	 */
 	public async modifyAt(start: number, deleteCount = 0, ...items: Track[]): Promise<Track[]> {
-		const queue = await this.redis.lrange(this.queueKey, 0, -1);
+		try {
+			const queue = await this.redis.lrange(this.queueKey, 0, -1);
 
-		const removed = queue.splice(start, deleteCount, ...items.map(this.serialize));
+			const removed = queue.splice(start, deleteCount, ...items.map(this.serialize));
 
-		await this.redis.del(this.queueKey);
-		if (queue.length > 0) {
-			await this.redis.rpush(this.queueKey, ...queue);
+			await this.redis.del(this.queueKey);
+
+			if (queue.length > 0) {
+				await this.redis.rpush(this.queueKey, ...queue);
+			}
+			return removed.map(this.deserialize);
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+				message: `Failed to modify queue at index ${start} for guild ${this.guildId}: ${(err as Error).message}`,
+			});
 		}
-
-		return removed.map(this.deserialize);
 	}
 
 	/**
@@ -270,8 +407,15 @@ export class RedisQueue implements IQueue {
 	 * @returns The newest track.
 	 */
 	public async popPrevious(): Promise<Track | null> {
-		const raw = await this.redis.lpop(this.previousKey); // get newest track (index 0)
-		return raw ? this.deserialize(raw) : null;
+		try {
+			const raw = await this.redis.lpop(this.previousKey); // get newest track (index 0)
+			return raw ? this.deserialize(raw) : null;
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+				message: `Failed to pop previous track for guild ${this.guildId}: ${(err as Error).message}`,
+			});
+		}
 	}
 
 	/**
@@ -282,90 +426,104 @@ export class RedisQueue implements IQueue {
 	public async remove(position?: number): Promise<Track[]>;
 	public async remove(start: number, end: number): Promise<Track[]>;
 	public async remove(startOrPos = 0, end?: number): Promise<Track[]> {
-		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
+		try {
+			const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
-		const queue = await this.redis.lrange(this.queueKey, 0, -1);
+			const queue = await this.redis.lrange(this.queueKey, 0, -1);
 
-		let removed: string[] = [];
+			let removed: string[] = [];
 
-		if (typeof end === "number") {
-			if (startOrPos >= end || startOrPos >= queue.length) {
-				throw new RangeError("Invalid range.");
+			if (typeof end === "number") {
+				if (startOrPos >= end || startOrPos >= queue.length) {
+					throw new RangeError("Invalid range.");
+				}
+				removed = queue.slice(startOrPos, end);
+				queue.splice(startOrPos, end - startOrPos);
+			} else {
+				removed = queue.splice(startOrPos, 1);
 			}
-			removed = queue.slice(startOrPos, end);
-			queue.splice(startOrPos, end - startOrPos);
-		} else {
-			removed = queue.splice(startOrPos, 1);
+
+			await this.redis.del(this.queueKey);
+			if (queue.length > 0) {
+				await this.redis.rpush(this.queueKey, ...queue);
+			}
+
+			const deserialized = removed.map(this.deserialize);
+
+			this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Removed ${removed.length} track(s) from position ${startOrPos}${end ? ` to ${end}` : ""}`);
+
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+				changeType: PlayerStateEventTypes.QueueChange,
+				details: {
+					type: "queue",
+					action: "remove",
+					tracks: deserialized,
+				},
+			} as PlayerStateUpdateEvent);
+
+			return deserialized;
+		} catch (error) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+				message: `Failed to remove track for guild ${this.guildId}: ${(error as Error).message}`,
+			});
 		}
-
-		await this.redis.del(this.queueKey);
-		if (queue.length > 0) {
-			await this.redis.rpush(this.queueKey, ...queue);
-		}
-
-		const deserialized = removed.map(this.deserialize);
-
-		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Removed ${removed.length} track(s) from position ${startOrPos}${end ? ` to ${end}` : ""}`);
-
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
-			changeType: PlayerStateEventTypes.QueueChange,
-			details: {
-				type: "queue",
-				action: "remove",
-				tracks: deserialized,
-			},
-		} as PlayerStateUpdateEvent);
-
-		return deserialized;
 	}
 
 	/**
 	 * Shuffles the queue round-robin style.
 	 */
 	public async roundRobinShuffle(): Promise<void> {
-		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
+		try {
+			const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
-		const rawTracks = await this.redis.lrange(this.queueKey, 0, -1);
-		const deserialized = rawTracks.map(this.deserialize);
+			const rawTracks = await this.redis.lrange(this.queueKey, 0, -1);
+			const deserialized = rawTracks.map(this.deserialize);
 
-		const userMap = new Map<string, Track[]>();
-		for (const track of deserialized) {
-			const userId = track.requester.id;
-			if (!userMap.has(userId)) userMap.set(userId, []);
-			userMap.get(userId)!.push(track);
-		}
-
-		// Shuffle each user's tracks
-		for (const tracks of userMap.values()) {
-			for (let i = tracks.length - 1; i > 0; i--) {
-				const j = Math.floor(Math.random() * (i + 1));
-				[tracks[i], tracks[j]] = [tracks[j], tracks[i]];
+			const userMap = new Map<string, Track[]>();
+			for (const track of deserialized) {
+				const userId = track.requester.id;
+				if (!userMap.has(userId)) userMap.set(userId, []);
+				userMap.get(userId)!.push(track);
 			}
-		}
 
-		const users = [...userMap.keys()];
-		const queues = users.map((id) => userMap.get(id)!);
-		const shuffledQueue: Track[] = [];
-
-		while (queues.some((q) => q.length > 0)) {
-			for (const q of queues) {
-				const track = q.shift();
-				if (track) shuffledQueue.push(track);
+			// Shuffle each user's tracks
+			for (const tracks of userMap.values()) {
+				for (let i = tracks.length - 1; i > 0; i--) {
+					const j = Math.floor(Math.random() * (i + 1));
+					[tracks[i], tracks[j]] = [tracks[j], tracks[i]];
+				}
 			}
+
+			const users = [...userMap.keys()];
+			const queues = users.map((id) => userMap.get(id)!);
+			const shuffledQueue: Track[] = [];
+
+			while (queues.some((q) => q.length > 0)) {
+				for (const q of queues) {
+					const track = q.shift();
+					if (track) shuffledQueue.push(track);
+				}
+			}
+
+			await this.redis.del(this.queueKey);
+			await this.redis.rpush(this.queueKey, ...shuffledQueue.map(this.serialize));
+
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+				changeType: PlayerStateEventTypes.QueueChange,
+				details: {
+					type: "queue",
+					action: "roundRobin",
+				},
+			} as PlayerStateUpdateEvent);
+
+			this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] roundRobinShuffled the queue for: ${this.guildId}`);
+		} catch (error) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+				message: `Failed to roundRobinShuffle the queue for guild ${this.guildId}: ${(error as Error).message}`,
+			});
 		}
-
-		await this.redis.del(this.queueKey);
-		await this.redis.rpush(this.queueKey, ...shuffledQueue.map(this.serialize));
-
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
-			changeType: PlayerStateEventTypes.QueueChange,
-			details: {
-				type: "queue",
-				action: "roundRobin",
-			},
-		} as PlayerStateUpdateEvent);
-
-		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] roundRobinShuffled the queue for: ${this.guildId}`);
 	}
 
 	/**
@@ -373,10 +531,17 @@ export class RedisQueue implements IQueue {
 	 * @param track The track to set.
 	 */
 	public async setCurrent(track: Track | null): Promise<void> {
-		if (track) {
-			await this.redis.set(this.currentKey, this.serialize(track));
-		} else {
-			await this.redis.del(this.currentKey);
+		try {
+			if (track) {
+				await this.redis.set(this.currentKey, this.serialize(track));
+			} else {
+				await this.redis.del(this.currentKey);
+			}
+		} catch (error) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+				message: `Failed to setCurrent the queue for guild ${this.guildId}: ${(error as Error).message}`,
+			});
 		}
 	}
 
@@ -385,49 +550,70 @@ export class RedisQueue implements IQueue {
 	 * @param track The track to set.
 	 */
 	public async setPrevious(track: Track | Track[]): Promise<void> {
-		const tracks = Array.isArray(track) ? track : [track];
-		if (!tracks.length) return;
+		try {
+			const tracks = Array.isArray(track) ? track : [track];
+			if (!tracks.length) return;
 
-		await this.redis
-			.multi()
-			.del(this.previousKey)
-			.rpush(this.previousKey, ...tracks.map(this.serialize))
-			.exec();
+			await this.redis
+				.multi()
+				.del(this.previousKey)
+				.rpush(this.previousKey, ...tracks.map(this.serialize))
+				.exec();
+		} catch (error) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+				message: `Failed to setPrevious the queue for guild ${this.guildId}: ${(error as Error).message}`,
+			});
+		}
 	}
 
 	/**
 	 * Shuffles the queue.
 	 */
 	public async shuffle(): Promise<void> {
-		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
+		try {
+			const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
-		const queue = await this.redis.lrange(this.queueKey, 0, -1);
-		for (let i = queue.length - 1; i > 0; i--) {
-			const j = Math.floor(Math.random() * (i + 1));
-			[queue[i], queue[j]] = [queue[j], queue[i]];
+			const queue = await this.redis.lrange(this.queueKey, 0, -1);
+			for (let i = queue.length - 1; i > 0; i--) {
+				const j = Math.floor(Math.random() * (i + 1));
+				[queue[i], queue[j]] = [queue[j], queue[i]];
+			}
+
+			await this.redis.del(this.queueKey);
+			if (queue.length > 0) {
+				await this.redis.rpush(this.queueKey, ...queue);
+			}
+
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+				changeType: PlayerStateEventTypes.QueueChange,
+				details: {
+					type: "queue",
+					action: "shuffle",
+				},
+			} as PlayerStateUpdateEvent);
+
+			this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Shuffled the queue for: ${this.guildId}`);
+		} catch (error) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+				message: `Failed to shuffle the queue for guild ${this.guildId}: ${(error as Error).message}`,
+			});
 		}
-
-		await this.redis.del(this.queueKey);
-		if (queue.length > 0) {
-			await this.redis.rpush(this.queueKey, ...queue);
-		}
-
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
-			changeType: PlayerStateEventTypes.QueueChange,
-			details: {
-				type: "queue",
-				action: "shuffle",
-			},
-		} as PlayerStateUpdateEvent);
-
-		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Shuffled the queue for: ${this.guildId}`);
 	}
 
 	/**
 	 * @returns The size of the queue.
 	 */
 	public async size(): Promise<number> {
-		return await this.redis.llen(this.queueKey);
+		try {
+			return await this.redis.llen(this.queueKey);
+		} catch (error) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+				message: `Failed to get the size of the queue for guild ${this.guildId}: ${(error as Error).message}`,
+			});
+		}
 	}
 
 	/**
@@ -450,38 +636,45 @@ export class RedisQueue implements IQueue {
 	 * Shuffles the queue, but keeps the tracks of the same user together.
 	 */
 	public async userBlockShuffle(): Promise<void> {
-		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
+		try {
+			const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
-		const rawTracks = await this.redis.lrange(this.queueKey, 0, -1);
-		const deserialized = rawTracks.map(this.deserialize);
+			const rawTracks = await this.redis.lrange(this.queueKey, 0, -1);
+			const deserialized = rawTracks.map(this.deserialize);
 
-		const userMap = new Map<string, Track[]>();
-		for (const track of deserialized) {
-			const userId = track.requester.id;
-			if (!userMap.has(userId)) userMap.set(userId, []);
-			userMap.get(userId)!.push(track);
-		}
-
-		const shuffledQueue: Track[] = [];
-		while (shuffledQueue.length < deserialized.length) {
-			for (const [, tracks] of userMap) {
-				const track = tracks.shift();
-				if (track) shuffledQueue.push(track);
+			const userMap = new Map<string, Track[]>();
+			for (const track of deserialized) {
+				const userId = track.requester.id;
+				if (!userMap.has(userId)) userMap.set(userId, []);
+				userMap.get(userId)!.push(track);
 			}
+
+			const shuffledQueue: Track[] = [];
+			while (shuffledQueue.length < deserialized.length) {
+				for (const [, tracks] of userMap) {
+					const track = tracks.shift();
+					if (track) shuffledQueue.push(track);
+				}
+			}
+
+			await this.redis.del(this.queueKey);
+			await this.redis.rpush(this.queueKey, ...shuffledQueue.map(this.serialize));
+
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+				changeType: PlayerStateEventTypes.QueueChange,
+				details: {
+					type: "queue",
+					action: "userBlock",
+				},
+			} as PlayerStateUpdateEvent);
+
+			this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] userBlockShuffled the queue for: ${this.guildId}`);
+		} catch (error) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+				message: `Failed to userBlockShuffle the queue for guild ${this.guildId}: ${(error as Error).message}`,
+			});
 		}
-
-		await this.redis.del(this.queueKey);
-		await this.redis.rpush(this.queueKey, ...shuffledQueue.map(this.serialize));
-
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
-			changeType: PlayerStateEventTypes.QueueChange,
-			details: {
-				type: "queue",
-				action: "userBlock",
-			},
-		} as PlayerStateUpdateEvent);
-
-		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] userBlockShuffled the queue for: ${this.guildId}`);
 	}
 	// #endregion Public
 	// #region Private
