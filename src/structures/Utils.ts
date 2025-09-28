@@ -2,7 +2,7 @@
 import axios from "axios";
 import { ClientUser, User } from "discord.js";
 import { JSDOM } from "jsdom";
-import { AutoPlayPlatform, LoadTypes, SearchPlatform, TrackPartial } from "./Enums";
+import { AutoPlayPlatform, LoadTypes, MagmaStreamErrorCode, SearchPlatform, TrackPartial } from "./Enums";
 import { Manager } from "./Manager";
 import {
 	ErrorOrEmptySearchResult,
@@ -18,6 +18,7 @@ import {
 import { Player } from "./Player";
 import path from "path";
 import stringify from "safe-stable-stringify";
+import { MagmaStreamError } from "./MagmastreamError";
 // import playwright from "playwright";
 
 /** @hidden */
@@ -43,7 +44,12 @@ export abstract class TrackUtils {
 	 * @param {TrackPartial} partial The array of string property names to remove from the Track class.
 	 */
 	static setTrackPartial(partial: TrackPartial[]): void {
-		if (!Array.isArray(partial) || !partial.every((str) => typeof str === "string")) throw new Error("Provided partial is not an array or not a string array.");
+		if (!Array.isArray(partial) || !partial.every((str) => typeof str === "string")) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.UTILS_TRACK_PARTIAL_INVALID,
+				message: "Partial must be an array of strings.",
+			});
+		}
 
 		const defaultProperties = [
 			TrackPartial.Track,
@@ -105,7 +111,12 @@ export abstract class TrackUtils {
 	 * @returns The built Track.
 	 */
 	static build<T = PortableUser | User | ClientUser>(data: TrackData, requester?: T): Track {
-		if (typeof data === "undefined") throw new RangeError('Argument "data" must be present.');
+		if (typeof data === "undefined") {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.UTILS_TRACK_BUILD_FAILED,
+				message: 'Argument "data" must be present.',
+			});
+		}
 
 		try {
 			const sourceNameMap: Record<string, TrackSourceName> = {
@@ -165,7 +176,14 @@ export abstract class TrackUtils {
 
 			return track;
 		} catch (error) {
-			throw new RangeError(`Argument "data" is not a valid track: ${error.message}`);
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.UTILS_TRACK_BUILD_FAILED,
+				message: `Argument "data" is not a valid track: ${error.message}`,
+				context: {
+					data,
+					requester,
+				},
+			});
 		}
 	}
 
@@ -190,12 +208,13 @@ export abstract class AutoPlayUtils {
 	 * @hidden
 	 */
 	public static async init(manager: Manager): Promise<void> {
-		if (!manager) throw new Error("AutoPlayUtils.init() requires a valid Manager instance.");
+		if (!manager) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.GENERAL_INVALID_MANAGER,
+				message: "AutoPlayUtils requires a valid Manager instance.",
+			});
+		}
 		this.manager = manager;
-
-		// if (this.manager.options.autoPlaySearchPlatforms.includes(AutoPlayPlatform.Spotify)) {
-		// 	await this.getSpotifyAccessToken();
-		// }
 	}
 
 	/**
@@ -206,7 +225,11 @@ export abstract class AutoPlayUtils {
 	public static async getRecommendedTracks(track: Track): Promise<Track[]> {
 		const node = this.manager.useableNode;
 		if (!node) {
-			throw new Error("No available nodes.");
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.MANAGER_NO_NODES,
+				message: "No available nodes to get recommended tracks from.",
+				context: { track },
+			});
 		}
 
 		const apiKey = this.manager.options.lastFmApiKey;
@@ -606,61 +629,6 @@ export abstract class AutoPlayUtils {
 		}
 	}
 
-	// static async getSpotifyAccessToken() {
-	// 	const timeoutMs = 15000;
-
-	// 	let browser;
-	// 	let timeout;
-
-	// 	try {
-	// 		browser = await playwright.chromium.launch({ headless: true, args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"] });
-	// 		const page = await browser.newPage();
-
-	// 		let tokenCaptured = false;
-
-	// 		timeout = setTimeout(async () => {
-	// 			if (!tokenCaptured) {
-	// 				console.warn("[Spotify] Token request timeout — did Spotify change their internals?");
-	// 				await browser?.close();
-	// 			}
-	// 		}, timeoutMs);
-
-	// 		page.on("requestfinished", async (request) => {
-	// 			if (!request.url().includes("/api/token")) return;
-
-	// 			tokenCaptured = true;
-
-	// 			try {
-	// 				const response = await request.response();
-	// 				if (response && response.ok()) {
-	// 					const data = await response.json();
-	// 					this.cachedAccessToken = data?.accessToken ?? null;
-	// 					this.cachedAccessTokenExpiresAt = data?.accessTokenExpirationTimestampMs ?? 0;
-	// 				}
-	// 			} catch (err) {
-	// 				console.error("[Spotify] Error reading token response:", err);
-	// 			}
-
-	// 			clearTimeout(timeout);
-	// 			page.removeAllListeners();
-	// 			await browser.close();
-	// 		});
-
-	// 		try {
-	// 			await page.goto("https://open.spotify.com/", { waitUntil: "domcontentloaded" });
-	// 		} catch (err) {
-	// 			clearTimeout(timeout);
-	// 			await browser.close();
-	// 			console.error("[Spotify] Failed to navigate:", err);
-	// 			return [];
-	// 		}
-	// 	} catch (err) {
-	// 		clearTimeout(timeout);
-	// 		await browser?.close();
-	// 		console.error("[Spotify] Failed to launch Playwright:", err);
-	// 	}
-	// }
-
 	private static isPlaylistRawData(data: unknown): data is PlaylistRawData {
 		return typeof data === "object" && data !== null && Array.isArray((data as PlaylistRawData).tracks);
 	}
@@ -686,7 +654,11 @@ export abstract class AutoPlayUtils {
 				const data = recommendedResult.data;
 
 				if (!this.isTrackData(data)) {
-					throw new Error("[TrackBuilder] Invalid TrackData object.");
+					throw new MagmaStreamError({
+						code: MagmaStreamErrorCode.UTILS_AUTOPLAY_BUILD_FAILED,
+						message: "Invalid TrackData object.",
+						context: { recommendedResult },
+					});
 				}
 
 				return [TrackUtils.build(data, requester)];
@@ -697,7 +669,11 @@ export abstract class AutoPlayUtils {
 				const data = recommendedResult.data;
 
 				if (!this.isTrackDataArray(data)) {
-					throw new Error("[TrackBuilder] Invalid TrackData[] array for LoadTypes.Search or Short.");
+					throw new MagmaStreamError({
+						code: MagmaStreamErrorCode.UTILS_AUTOPLAY_BUILD_FAILED,
+						message: "Invalid TrackData[] array for LoadTypes.Search or Short.",
+						context: { recommendedResult },
+					});
 				}
 
 				return data.map((d) => TrackUtils.build(d, requester));
@@ -714,10 +690,18 @@ export abstract class AutoPlayUtils {
 					return data.tracks.map((d) => TrackUtils.build(d, requester));
 				}
 
-				throw new Error(`[TrackBuilder] Invalid playlist data for loadType: ${recommendedResult.loadType}`);
+				throw new MagmaStreamError({
+					code: MagmaStreamErrorCode.UTILS_AUTOPLAY_BUILD_FAILED,
+					message: "Invalid playlist data for loadType: " + recommendedResult.loadType,
+					context: { recommendedResult },
+				});
 			}
 			default:
-				throw new Error(`[TrackBuilder] Unsupported loadType: ${recommendedResult.loadType}`);
+				throw new MagmaStreamError({
+					code: MagmaStreamErrorCode.UTILS_AUTOPLAY_BUILD_FAILED,
+					message: "Unsupported loadType: " + recommendedResult.loadType,
+					context: { recommendedResult },
+				});
 		}
 	}
 }
@@ -731,7 +715,12 @@ export abstract class PlayerUtils {
 	 * @hidden
 	 */
 	public static init(manager: Manager): void {
-		if (!manager) throw new Error("PlayerUtils.init() requires a valid Manager instance.");
+		if (!manager) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.GENERAL_INVALID_MANAGER,
+				message: "PlayerUtils requires a valid Manager instance.",
+			});
+		}
 		this.manager = manager;
 	}
 
@@ -798,9 +787,14 @@ export abstract class PlayerUtils {
 					return value;
 				})
 			);
-		} catch (error) {
-			console.log(error);
-			return null;
+		} catch (err) {
+			throw err instanceof MagmaStreamError
+				? err
+				: new MagmaStreamError({
+						code: MagmaStreamErrorCode.MANAGER_SEARCH_FAILED,
+						message: `An error occurred while searching: ${err instanceof Error ? err.message : String(err)}`,
+						cause: err instanceof Error ? err : undefined,
+				  });
 		}
 	}
 
