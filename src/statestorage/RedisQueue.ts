@@ -43,15 +43,7 @@ export class RedisQueue implements IQueue {
 			const tracks = isArray ? track : [track];
 
 			// Serialize tracks
-			let serialized: string[];
-			try {
-				serialized = tracks.map((t) => this.serialize(t));
-			} catch (err) {
-				throw new MagmaStreamError({
-					code: MagmaStreamErrorCode.QUEUE_SERIALIZATION_FAILED,
-					message: `Failed to serialize tracks for guild ${this.guildId}: ${(err as Error).message}`,
-				});
-			}
+			const serialized = tracks.map((t) => this.serialize(t));
 
 			const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
@@ -59,14 +51,7 @@ export class RedisQueue implements IQueue {
 			if (!(await this.getCurrent())) {
 				const current = serialized.shift();
 				if (current) {
-					try {
-						await this.setCurrent(this.deserialize(current));
-					} catch (err) {
-						throw new MagmaStreamError({
-							code: MagmaStreamErrorCode.QUEUE_DESERIALIZATION_FAILED,
-							message: `Failed to set current track for guild ${this.guildId}: ${(err as Error).message}`,
-						});
-					}
+					await this.setCurrent(this.deserialize(current));
 				}
 			}
 
@@ -121,7 +106,7 @@ export class RedisQueue implements IQueue {
 		} catch (err) {
 			if (err instanceof MagmaStreamError) throw err;
 			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_MANIPULATION_FAILED,
+				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
 				message: `Unexpected error in add() for guild ${this.guildId}: ${(err as Error).message}`,
 			});
 		}
@@ -136,25 +121,20 @@ export class RedisQueue implements IQueue {
 			const tracks = Array.isArray(track) ? track : [track];
 			if (!tracks.length) {
 				throw new MagmaStreamError({
-					code: MagmaStreamErrorCode.QUEUE_INVALID_TRACKS,
+					code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
 					message: `No tracks provided for addPrevious in guild ${this.guildId}`,
 				});
 			}
 
-			let serialized: string[];
-			try {
-				serialized = tracks.map(this.serialize);
-			} catch (err) {
-				throw new MagmaStreamError({
-					code: MagmaStreamErrorCode.QUEUE_SERIALIZATION_FAILED,
-					message: `Failed to serialize previous tracks for guild ${this.guildId}: ${(err as Error).message}`,
-				});
-			}
+			const serialized = tracks.map(this.serialize);
 
 			try {
-				await this.redis.lpush(this.previousKey, ...serialized.reverse());
+				// Push newest to TAIL
+				await this.redis.rpush(this.previousKey, ...serialized);
+
+				// Keep only the most recent maxPreviousTracks (trim from HEAD)
 				const max = this.manager.options.maxPreviousTracks;
-				await this.redis.ltrim(this.previousKey, 0, max - 1);
+				await this.redis.ltrim(this.previousKey, -max, -1);
 			} catch (err) {
 				throw new MagmaStreamError({
 					code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
@@ -164,7 +144,7 @@ export class RedisQueue implements IQueue {
 		} catch (err) {
 			if (err instanceof MagmaStreamError) throw err;
 			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_MANIPULATION_FAILED,
+				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
 				message: `Unexpected error in addPrevious() for guild ${this.guildId}: ${(err as Error).message}`,
 			});
 		}
@@ -408,7 +388,8 @@ export class RedisQueue implements IQueue {
 	 */
 	public async popPrevious(): Promise<Track | null> {
 		try {
-			const raw = await this.redis.lpop(this.previousKey); // get newest track (index 0)
+			// Pop the newest track from the TAIL
+			const raw = await this.redis.rpop(this.previousKey);
 			return raw ? this.deserialize(raw) : null;
 		} catch (err) {
 			throw new MagmaStreamError({

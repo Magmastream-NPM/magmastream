@@ -1,7 +1,8 @@
 import { Manager } from "../structures/Manager";
-import { ManagerEventTypes, PlayerStateEventTypes } from "../structures/Enums";
+import { MagmaStreamErrorCode, ManagerEventTypes, PlayerStateEventTypes } from "../structures/Enums";
 import { IQueue, PlayerStateUpdateEvent, PortableUser, Track } from "../structures/Types";
 import { JSONUtils } from "../structures/Utils";
+import { MagmaStreamError } from "../structures/MagmastreamError";
 
 /**
  * The player's queue, the `current` property is the currently playing track, think of the rest as the up-coming tracks.
@@ -39,80 +40,87 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 	 * @param [offset=null] The position to add the track(s) at. If not provided, the track(s) will be added at the end of the queue.
 	 */
 	public async add(track: Track | Track[], offset?: number): Promise<void> {
-		const isArray = Array.isArray(track);
-		const tracks = isArray ? [...track] : [track];
+		try {
+			const isArray = Array.isArray(track);
+			const tracks = isArray ? [...track] : [track];
 
-		// Get the track info as a string
-		const trackInfo = isArray ? tracks.map((t) => JSONUtils.safe(t, 2)).join(", ") : JSONUtils.safe(track, 2);
+			// Get the track info as a string
+			const trackInfo = isArray ? tracks.map((t) => JSONUtils.safe(t, 2)).join(", ") : JSONUtils.safe(track, 2);
 
-		// Emit a debug message
-		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Added ${tracks.length} track(s) to queue: ${trackInfo}`);
+			// Emit a debug message
+			this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Added ${tracks.length} track(s) to queue: ${trackInfo}`);
 
-		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
+			const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
-		// If the queue is empty, set the track as the current track
-		if (!this.current) {
-			if (isArray) {
-				this.current = (tracks.shift() as Track) || null;
-				this.push(...tracks);
-			} else {
-				this.current = track;
-			}
-		} else {
-			// If an offset is provided, add the track(s) at that position
-			if (typeof offset !== "undefined" && typeof offset === "number") {
-				// Validate the offset
-				if (isNaN(offset)) {
-					throw new RangeError("Offset must be a number.");
-				}
-
-				// Make sure the offset is between 0 and the length of the queue
-				if (offset < 0 || offset > this.length) {
-					throw new RangeError(`Offset must be between 0 and ${this.length}.`);
-				}
-
-				// Add the track(s) at the offset position
+			// If the queue is empty, set the track as the current track
+			if (!this.current) {
 				if (isArray) {
-					this.splice(offset, 0, ...tracks);
-				} else {
-					this.splice(offset, 0, track);
-				}
-			} else {
-				// If no offset is provided, add the track(s) at the end of the queue
-				if (isArray) {
+					this.current = (tracks.shift() as Track) || null;
 					this.push(...tracks);
 				} else {
-					this.push(track);
+					this.current = track;
+				}
+			} else {
+				// If an offset is provided, add the track(s) at that position
+				if (typeof offset !== "undefined" && typeof offset === "number") {
+					// Validate the offset
+					if (isNaN(offset)) {
+						throw new RangeError("Offset must be a number.");
+					}
+
+					// Make sure the offset is between 0 and the length of the queue
+					if (offset < 0 || offset > this.length) {
+						throw new RangeError(`Offset must be between 0 and ${this.length}.`);
+					}
+
+					// Add the track(s) at the offset position
+					if (isArray) {
+						this.splice(offset, 0, ...tracks);
+					} else {
+						this.splice(offset, 0, track);
+					}
+				} else {
+					// If no offset is provided, add the track(s) at the end of the queue
+					if (isArray) {
+						this.push(...tracks);
+					} else {
+						this.push(track);
+					}
 				}
 			}
-		}
 
-		if (this.manager.players.has(this.guildId) && this.manager.players.get(this.guildId).isAutoplay) {
-			if (!isArray) {
-				const AutoplayUser = this.manager.players.get(this.guildId).get("Internal_AutoplayUser") as PortableUser | null;
-				if (AutoplayUser && AutoplayUser.id === track.requester.id) {
-					this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
-						changeType: PlayerStateEventTypes.QueueChange,
-						details: {
-							type: "queue",
-							action: "autoPlayAdd",
-							tracks: [track],
-						},
-					} as PlayerStateUpdateEvent);
+			if (this.manager.players.has(this.guildId) && this.manager.players.get(this.guildId).isAutoplay) {
+				if (!isArray) {
+					const AutoplayUser = this.manager.players.get(this.guildId).get("Internal_AutoplayUser") as PortableUser | null;
+					if (AutoplayUser && AutoplayUser.id === track.requester.id) {
+						this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+							changeType: PlayerStateEventTypes.QueueChange,
+							details: {
+								type: "queue",
+								action: "autoPlayAdd",
+								tracks: [track],
+							},
+						} as PlayerStateUpdateEvent);
 
-					return;
+						return;
+					}
 				}
 			}
+			// Emit a player state update event with the added track(s)
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+				changeType: PlayerStateEventTypes.QueueChange,
+				details: {
+					type: "queue",
+					action: "add",
+					tracks: isArray ? tracks : [track],
+				},
+			} as PlayerStateUpdateEvent);
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_MEMORY_ERROR,
+				message: `Failed to add tracks to queue for guild ${this.guildId}: ${(err as Error).message}`,
+			});
 		}
-		// Emit a player state update event with the added track(s)
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
-			changeType: PlayerStateEventTypes.QueueChange,
-			details: {
-				type: "queue",
-				action: "add",
-				tracks: isArray ? tracks : [track],
-			},
-		} as PlayerStateUpdateEvent);
 	}
 
 	/**
@@ -120,20 +128,27 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 	 * @param track The track or tracks to add. Can be a single `Track` or an array of `Track`s.
 	 */
 	public async addPrevious(track: Track | Track[]): Promise<void> {
-		const max = this.manager.options.maxPreviousTracks;
+		try {
+			const max = this.manager.options.maxPreviousTracks;
 
-		if (Array.isArray(track)) {
-			const newTracks = track.filter((t) => !this.previous.some((p) => p.identifier === t.identifier));
-			this.previous.unshift(...newTracks);
-		} else {
-			const exists = this.previous.some((p) => p.identifier === track.identifier);
-			if (!exists) {
-				this.previous.unshift(track);
+			if (Array.isArray(track)) {
+				const newTracks = track.filter((t) => !this.previous.some((p) => p.identifier === t.identifier));
+				this.previous.push(...newTracks);
+			} else {
+				const exists = this.previous.some((p) => p.identifier === track.identifier);
+				if (!exists) {
+					this.previous.push(track);
+				}
 			}
-		}
 
-		if (this.previous.length > max) {
-			this.previous = this.previous.slice(0, max);
+			if (this.previous.length > max) {
+				this.previous = this.previous.slice(-max);
+			}
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_MEMORY_ERROR,
+				message: `Failed to add tracks to previous tracks for guild ${this.guildId}: ${(err as Error).message}`,
+			});
 		}
 	}
 
@@ -142,24 +157,31 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 	 * This will remove all tracks from the queue and emit a state update event.
 	 */
 	public async clear(): Promise<void> {
-		// Capture the current state of the player for event emission.
-		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
+		try {
+			// Capture the current state of the player for event emission.
+			const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
-		// Remove all items from the queue.
-		this.splice(0);
+			// Remove all items from the queue.
+			this.splice(0);
 
-		// Emit an event to update the player state indicating the queue has been cleared.
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
-			changeType: PlayerStateEventTypes.QueueChange,
-			details: {
-				type: "queue",
-				action: "clear",
-				tracks: [], // No tracks are left after clearing
-			},
-		} as PlayerStateUpdateEvent);
+			// Emit an event to update the player state indicating the queue has been cleared.
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+				changeType: PlayerStateEventTypes.QueueChange,
+				details: {
+					type: "queue",
+					action: "clear",
+					tracks: [], // No tracks are left after clearing
+				},
+			} as PlayerStateUpdateEvent);
 
-		// Emit a debug message indicating the queue has been cleared for a specific guild ID.
-		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Cleared the queue for: ${this.guildId}`);
+			// Emit a debug message indicating the queue has been cleared for a specific guild ID.
+			this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Cleared the queue for: ${this.guildId}`);
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_MEMORY_ERROR,
+				message: `Failed to clear queue for guild ${this.guildId}: ${(err as Error).message}`,
+			});
+		}
 	}
 
 	/**
@@ -268,7 +290,7 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 	 * @returns The newest track.
 	 */
 	public async popPrevious(): Promise<Track | null> {
-		return this.previous.shift() || null; // get newest track
+		return this.previous.pop() || null; // get newest track
 	}
 
 	/**
@@ -281,119 +303,133 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 	public async remove(position?: number): Promise<Track[]>;
 	public async remove(start: number, end: number): Promise<Track[]>;
 	public async remove(startOrPosition = 0, end?: number): Promise<Track[]> {
-		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
+		try {
+			const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
-		if (typeof end !== "undefined") {
-			// Validate input for `start` and `end`
-			if (isNaN(Number(startOrPosition)) || isNaN(Number(end))) {
-				throw new RangeError(`Invalid "start" or "end" parameter: start = ${startOrPosition}, end = ${end}`);
+			if (typeof end !== "undefined") {
+				// Validate input for `start` and `end`
+				if (isNaN(Number(startOrPosition)) || isNaN(Number(end))) {
+					throw new RangeError(`Invalid "start" or "end" parameter: start = ${startOrPosition}, end = ${end}`);
+				}
+
+				if (startOrPosition >= end || startOrPosition >= this.length) {
+					throw new RangeError("Invalid range: start should be less than end and within queue length.");
+				}
+
+				const removedTracks = this.splice(startOrPosition, end - startOrPosition);
+				this.manager.emit(
+					ManagerEventTypes.Debug,
+					`[QUEUE] Removed ${removedTracks.length} track(s) from player: ${this.guildId} from position ${startOrPosition} to ${end}.`
+				);
+
+				this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+					changeType: PlayerStateEventTypes.QueueChange,
+					details: {
+						type: "queue",
+						action: "remove",
+						tracks: removedTracks,
+					},
+				} as PlayerStateUpdateEvent);
+
+				return removedTracks;
 			}
 
-			if (startOrPosition >= end || startOrPosition >= this.length) {
-				throw new RangeError("Invalid range: start should be less than end and within queue length.");
-			}
-
-			const removedTracks = this.splice(startOrPosition, end - startOrPosition);
+			// Single item removal when no end specified
+			const removedTrack = this.splice(startOrPosition, 1);
 			this.manager.emit(
 				ManagerEventTypes.Debug,
-				`[QUEUE] Removed ${removedTracks.length} track(s) from player: ${this.guildId} from position ${startOrPosition} to ${end}.`
+				`[QUEUE] Removed 1 track from player: ${this.guildId} from position ${startOrPosition}: ${JSONUtils.safe(removedTrack[0], 2)}`
 			);
+
+			// Ensure removedTrack is an array for consistency
+			const tracksToEmit = removedTrack.length > 0 ? removedTrack : [];
 
 			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 				changeType: PlayerStateEventTypes.QueueChange,
 				details: {
 					type: "queue",
 					action: "remove",
-					tracks: removedTracks,
+					tracks: tracksToEmit,
 				},
 			} as PlayerStateUpdateEvent);
 
-			return removedTracks;
+			return removedTrack;
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_MEMORY_ERROR,
+				message: `Failed to remove track(s) from queue for guild ${this.guildId}: ${(err as Error).message}`,
+			});
 		}
-
-		// Single item removal when no end specified
-		const removedTrack = this.splice(startOrPosition, 1);
-		this.manager.emit(
-			ManagerEventTypes.Debug,
-			`[QUEUE] Removed 1 track from player: ${this.guildId} from position ${startOrPosition}: ${JSONUtils.safe(removedTrack[0], 2)}`
-		);
-
-		// Ensure removedTrack is an array for consistency
-		const tracksToEmit = removedTrack.length > 0 ? removedTrack : [];
-
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
-			changeType: PlayerStateEventTypes.QueueChange,
-			details: {
-				type: "queue",
-				action: "remove",
-				tracks: tracksToEmit,
-			},
-		} as PlayerStateUpdateEvent);
-
-		return removedTrack;
 	}
 
 	/**
 	 * Shuffles the queue to play tracks requested by each user one by one.
 	 */
 	public async roundRobinShuffle(): Promise<void> {
-		// Capture the current state of the player for event emission.
-		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
+		try {
+			// Capture the current state of the player for event emission.
+			const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
-		// Group the tracks in the queue by the user that requested them.
-		const userTracks = new Map<string, Array<Track>>();
+			// Group the tracks in the queue by the user that requested them.
+			const userTracks = new Map<string, Array<Track>>();
 
-		// Group the tracks in the queue by the user that requested them.
-		this.forEach((track) => {
-			const user = track.requester.id;
+			// Group the tracks in the queue by the user that requested them.
+			this.forEach((track) => {
+				const user = track.requester.id;
 
-			if (!userTracks.has(user)) {
-				userTracks.set(user, []);
-			}
+				if (!userTracks.has(user)) {
+					userTracks.set(user, []);
+				}
 
-			userTracks.get(user).push(track);
-		});
+				userTracks.get(user).push(track);
+			});
 
-		// Shuffle the tracks of each user.
-		userTracks.forEach((tracks) => {
-			for (let i = tracks.length - 1; i > 0; i--) {
-				const j = Math.floor(Math.random() * (i + 1));
-				[tracks[i], tracks[j]] = [tracks[j], tracks[i]];
-			}
-		});
+			// Shuffle the tracks of each user.
+			userTracks.forEach((tracks) => {
+				for (let i = tracks.length - 1; i > 0; i--) {
+					const j = Math.floor(Math.random() * (i + 1));
+					[tracks[i], tracks[j]] = [tracks[j], tracks[i]];
+				}
+			});
 
-		// Create a new array for the shuffled queue.
-		const shuffledQueue: Array<Track> = [];
+			// Create a new array for the shuffled queue.
+			const shuffledQueue: Array<Track> = [];
 
-		// Add the shuffled tracks to the queue in a round-robin fashion.
-		const users = Array.from(userTracks.keys());
-		const userQueues = users.map((user) => userTracks.get(user)!);
-		const userCount = users.length;
+			// Add the shuffled tracks to the queue in a round-robin fashion.
+			const users = Array.from(userTracks.keys());
+			const userQueues = users.map((user) => userTracks.get(user)!);
+			const userCount = users.length;
 
-		while (userQueues.some((queue) => queue.length > 0)) {
-			for (let i = 0; i < userCount; i++) {
-				const queue = userQueues[i];
-				if (queue.length > 0) {
-					shuffledQueue.push(queue.shift()!);
+			while (userQueues.some((queue) => queue.length > 0)) {
+				for (let i = 0; i < userCount; i++) {
+					const queue = userQueues[i];
+					if (queue.length > 0) {
+						shuffledQueue.push(queue.shift()!);
+					}
 				}
 			}
+
+			// Clear the queue and add the shuffled tracks.
+			this.splice(0);
+			this.add(shuffledQueue);
+
+			// Emit an event to update the player state indicating the queue has been shuffled.
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+				changeType: PlayerStateEventTypes.QueueChange,
+				details: {
+					type: "queue",
+					action: "roundRobin",
+				},
+			} as PlayerStateUpdateEvent);
+
+			// Emit a debug message indicating the queue has been shuffled for a specific guild ID.
+			this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] roundRobinShuffled the queue for: ${this.guildId}`);
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_MEMORY_ERROR,
+				message: `Failed to shuffle queue for guild ${this.guildId}: ${(err as Error).message}`,
+			});
 		}
-
-		// Clear the queue and add the shuffled tracks.
-		this.splice(0);
-		this.add(shuffledQueue);
-
-		// Emit an event to update the player state indicating the queue has been shuffled.
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
-			changeType: PlayerStateEventTypes.QueueChange,
-			details: {
-				type: "queue",
-				action: "roundRobin",
-			},
-		} as PlayerStateUpdateEvent);
-
-		// Emit a debug message indicating the queue has been shuffled for a specific guild ID.
-		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] roundRobinShuffled the queue for: ${this.guildId}`);
 	}
 
 	/**
@@ -415,26 +451,33 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 	 * This will randomize the order of the tracks in the queue and emit a state update event.
 	 */
 	public async shuffle(): Promise<void> {
-		// Capture the current state of the player for event emission.
-		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
+		try {
+			// Capture the current state of the player for event emission.
+			const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
-		// Shuffle the queue.
-		for (let i = this.length - 1; i > 0; i--) {
-			const j = Math.floor(Math.random() * (i + 1));
-			[this[i], this[j]] = [this[j], this[i]];
+			// Shuffle the queue.
+			for (let i = this.length - 1; i > 0; i--) {
+				const j = Math.floor(Math.random() * (i + 1));
+				[this[i], this[j]] = [this[j], this[i]];
+			}
+
+			// Emit an event to update the player state indicating the queue has been shuffled.
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+				changeType: PlayerStateEventTypes.QueueChange,
+				details: {
+					type: "queue",
+					action: "shuffle",
+				},
+			} as PlayerStateUpdateEvent);
+
+			// Emit a debug message indicating the queue has been shuffled for a specific guild ID.
+			this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Shuffled the queue for: ${this.guildId}`);
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_MEMORY_ERROR,
+				message: `Failed to shuffle queue for guild ${this.guildId}: ${(err as Error).message}`,
+			});
 		}
-
-		// Emit an event to update the player state indicating the queue has been shuffled.
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
-			changeType: PlayerStateEventTypes.QueueChange,
-			details: {
-				type: "queue",
-				action: "shuffle",
-			},
-		} as PlayerStateUpdateEvent);
-
-		// Emit a debug message indicating the queue has been shuffled for a specific guild ID.
-		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Shuffled the queue for: ${this.guildId}`);
 	}
 
 	/**
@@ -466,50 +509,57 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 	 * Shuffles the queue to play tracks requested by each user one block at a time.
 	 */
 	public async userBlockShuffle(): Promise<void> {
-		// Capture the current state of the player for event emission.
-		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
+		try {
+			// Capture the current state of the player for event emission.
+			const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
-		// Group the tracks in the queue by the user that requested them.
-		const userTracks = new Map<string, Array<Track>>();
-		this.forEach((track) => {
-			const user = track.requester.id;
+			// Group the tracks in the queue by the user that requested them.
+			const userTracks = new Map<string, Array<Track>>();
+			this.forEach((track) => {
+				const user = track.requester.id;
 
-			if (!userTracks.has(user)) {
-				userTracks.set(user, []);
+				if (!userTracks.has(user)) {
+					userTracks.set(user, []);
+				}
+
+				userTracks.get(user).push(track);
+			});
+
+			// Create a new array for the shuffled queue.
+			const shuffledQueue: Array<Track> = [];
+
+			// Iterate over the user tracks and add one track from each user to the shuffled queue.
+			// This will ensure that all the tracks requested by each user are played in a block order.
+			while (shuffledQueue.length < this.length) {
+				userTracks.forEach((tracks) => {
+					const track = tracks.shift();
+					if (track) {
+						shuffledQueue.push(track);
+					}
+				});
 			}
 
-			userTracks.get(user).push(track);
-		});
+			// Clear the queue and add the shuffled tracks.
+			this.splice(0);
+			this.add(shuffledQueue);
 
-		// Create a new array for the shuffled queue.
-		const shuffledQueue: Array<Track> = [];
+			// Emit an event to update the player state indicating the queue has been shuffled.
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+				changeType: PlayerStateEventTypes.QueueChange,
+				details: {
+					type: "queue",
+					action: "userBlock",
+				},
+			} as PlayerStateUpdateEvent);
 
-		// Iterate over the user tracks and add one track from each user to the shuffled queue.
-		// This will ensure that all the tracks requested by each user are played in a block order.
-		while (shuffledQueue.length < this.length) {
-			userTracks.forEach((tracks) => {
-				const track = tracks.shift();
-				if (track) {
-					shuffledQueue.push(track);
-				}
+			// Emit a debug message indicating the queue has been shuffled for a specific guild ID.
+			this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] userBlockShuffled the queue for: ${this.guildId}`);
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_MEMORY_ERROR,
+				message: `Failed to shuffle queue for guild ${this.guildId}: ${(err as Error).message}`,
 			});
 		}
-
-		// Clear the queue and add the shuffled tracks.
-		this.splice(0);
-		this.add(shuffledQueue);
-
-		// Emit an event to update the player state indicating the queue has been shuffled.
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
-			changeType: PlayerStateEventTypes.QueueChange,
-			details: {
-				type: "queue",
-				action: "userBlock",
-			},
-		} as PlayerStateUpdateEvent);
-
-		// Emit a debug message indicating the queue has been shuffled for a specific guild ID.
-		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] userBlockShuffled the queue for: ${this.guildId}`);
 	}
 	// #endregion Public
 	// #region Private

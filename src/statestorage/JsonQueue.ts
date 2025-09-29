@@ -1,9 +1,10 @@
 import { Manager } from "../structures/Manager";
-import { ManagerEventTypes, PlayerStateEventTypes } from "../structures/Enums";
+import { MagmaStreamErrorCode, ManagerEventTypes, PlayerStateEventTypes } from "../structures/Enums";
 import { IQueue, PlayerStateUpdateEvent, PortableUser, Track } from "../structures/Types";
 import path from "path";
 import { promises as fs } from "fs";
 import { JSONUtils } from "../structures/Utils";
+import { MagmaStreamError } from "../structures/MagmastreamError";
 
 /**
  * The player's queue, the `current` property is the currently playing track, think of the rest as the up-coming tracks.
@@ -30,96 +31,117 @@ export class JsonQueue implements IQueue {
 	 * @param [offset=null] The position to add the track(s) at. If not provided, the track(s) will be added at the end of the queue.
 	 */
 	public async add(track: Track | Track[], offset?: number): Promise<void> {
-		const isArray = Array.isArray(track);
-		const inputTracks = isArray ? track : [track];
-		const tracks = [...inputTracks];
+		try {
+			const isArray = Array.isArray(track);
+			const inputTracks = isArray ? track : [track];
+			const tracks = [...inputTracks];
 
-		const queue = await this.getQueue();
+			const queue = await this.getQueue();
 
-		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
+			const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
-		// Set first track as current if none is active
-		if (!(await this.getCurrent())) {
-			const current = tracks.shift();
-			if (current) {
-				await this.setCurrent(current);
-			}
-		}
-
-		if (typeof offset === "number" && !isNaN(offset)) {
-			queue.splice(offset, 0, ...tracks);
-		} else {
-			queue.push(...tracks);
-		}
-
-		await this.setQueue(queue);
-
-		this.manager.emit(ManagerEventTypes.Debug, `[JSONQUEUE] Added ${tracks.length} track(s) to queue`);
-
-		if (this.manager.players.has(this.guildId) && this.manager.players.get(this.guildId).isAutoplay) {
-			if (!isArray) {
-				const AutoplayUser = (await this.manager.players.get(this.guildId).get("Internal_AutoplayUser")) as PortableUser | null;
-				if (AutoplayUser && AutoplayUser.id === track.requester.id) {
-					this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
-						changeType: PlayerStateEventTypes.QueueChange,
-						details: {
-							type: "queue",
-							action: "autoPlayAdd",
-							tracks: [track],
-						},
-					} as PlayerStateUpdateEvent);
-					return;
+			// Set first track as current if none is active
+			if (!(await this.getCurrent())) {
+				const current = tracks.shift();
+				if (current) {
+					await this.setCurrent(current);
 				}
 			}
-		}
 
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
-			changeType: PlayerStateEventTypes.QueueChange,
-			details: {
-				type: "queue",
-				action: "add",
-				tracks,
-			},
-		} as PlayerStateUpdateEvent);
+			if (typeof offset === "number" && !isNaN(offset)) {
+				queue.splice(offset, 0, ...tracks);
+			} else {
+				queue.push(...tracks);
+			}
+
+			await this.setQueue(queue);
+
+			this.manager.emit(ManagerEventTypes.Debug, `[JSONQUEUE] Added ${tracks.length} track(s) to queue`);
+
+			if (this.manager.players.has(this.guildId) && this.manager.players.get(this.guildId).isAutoplay) {
+				if (!isArray) {
+					const AutoplayUser = (await this.manager.players.get(this.guildId).get("Internal_AutoplayUser")) as PortableUser | null;
+					if (AutoplayUser && AutoplayUser.id === track.requester.id) {
+						this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+							changeType: PlayerStateEventTypes.QueueChange,
+							details: {
+								type: "queue",
+								action: "autoPlayAdd",
+								tracks: [track],
+							},
+						} as PlayerStateUpdateEvent);
+						return;
+					}
+				}
+			}
+
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+				changeType: PlayerStateEventTypes.QueueChange,
+				details: {
+					type: "queue",
+					action: "add",
+					tracks,
+				},
+			} as PlayerStateUpdateEvent);
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
+				message: `Failed to add tracks to JSON queue for guild ${this.guildId}: ${(err as Error).message}`,
+			});
+		}
 	}
 
 	/**
 	 * @param track The track to add.
 	 */
 	public async addPrevious(track: Track | Track[]): Promise<void> {
-		const max = this.manager.options.maxPreviousTracks;
-		const tracks = Array.isArray(track) ? track : [track];
-		if (!tracks.length) return;
+		try {
+			const max = this.manager.options.maxPreviousTracks;
+			const tracks = Array.isArray(track) ? track : [track];
+			if (!tracks.length) return;
 
-		const current = await this.getPrevious();
+			const current = await this.getPrevious();
 
-		const newTracks = tracks.filter((t) => !current.some((p) => p.identifier === t.identifier));
+			const newTracks = tracks.filter((t) => !current.some((p) => p.identifier === t.identifier));
+			if (!newTracks.length) return;
 
-		if (!newTracks.length) return;
-		const updated = [...newTracks.reverse(), ...current];
+			const updated = [...current, ...newTracks];
 
-		const trimmed = updated.slice(0, max);
+			const trimmed = updated.slice(-max);
 
-		await this.writeJSON(this.previousPath, trimmed);
+			await this.writeJSON(this.previousPath, trimmed);
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
+				message: `Failed to add tracks to JSON queue for guild ${this.guildId}: ${(err as Error).message}`,
+			});
+		}
 	}
 
 	/**
 	 * Clears the queue.
 	 */
 	public async clear(): Promise<void> {
-		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
-		await this.deleteFile(this.queuePath);
+		try {
+			const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
+			await this.deleteFile(this.queuePath);
 
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
-			changeType: PlayerStateEventTypes.QueueChange,
-			details: {
-				type: "queue",
-				action: "clear",
-				tracks: [],
-			},
-		} as PlayerStateUpdateEvent);
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+				changeType: PlayerStateEventTypes.QueueChange,
+				details: {
+					type: "queue",
+					action: "clear",
+					tracks: [],
+				},
+			} as PlayerStateUpdateEvent);
 
-		this.manager.emit(ManagerEventTypes.Debug, `[JSONQUEUE] Cleared the queue for: ${this.guildId}`);
+			this.manager.emit(ManagerEventTypes.Debug, `[JSONQUEUE] Cleared the queue for: ${this.guildId}`);
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
+				message: `Failed to clear JSON queue for guild ${this.guildId}: ${(err as Error).message}`,
+			});
+		}
 	}
 
 	/**
@@ -133,31 +155,52 @@ export class JsonQueue implements IQueue {
 	 * Removes the first track from the queue.
 	 */
 	public async dequeue(): Promise<Track | undefined> {
-		const queue = await this.getQueue();
-		const track = queue.shift();
-		await this.setQueue(queue);
-		return track;
+		try {
+			const queue = await this.getQueue();
+			const track = queue.shift();
+			await this.setQueue(queue);
+			return track;
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
+				message: `Failed to dequeue track for guild ${this.guildId}: ${(err as Error).message}`,
+			});
+		}
 	}
 
 	/**
 	 * @returns The total duration of the queue.
 	 */
 	public async duration(): Promise<number> {
-		const queue = await this.getQueue();
-		const current = await this.getCurrent();
-		const currentDuration = current?.duration || 0;
+		try {
+			const queue = await this.getQueue();
+			const current = await this.getCurrent();
+			const currentDuration = current?.duration || 0;
 
-		const total = queue.reduce((acc, track) => acc + (track.duration || 0), currentDuration);
-		return total;
+			const total = queue.reduce((acc, track) => acc + (track.duration || 0), currentDuration);
+			return total;
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
+				message: `Failed to get duration for guild ${this.guildId}: ${(err as Error).message}`,
+			});
+		}
 	}
 
 	/**
 	 * Adds a track to the front of the queue.
 	 */
 	public async enqueueFront(track: Track | Track[]): Promise<void> {
-		const tracks = Array.isArray(track) ? track : [track];
-		const queue = await this.getQueue();
-		await this.setQueue([...tracks.reverse(), ...queue]);
+		try {
+			const tracks = Array.isArray(track) ? track : [track];
+			const queue = await this.getQueue();
+			await this.setQueue([...tracks.reverse(), ...queue]);
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
+				message: `Failed to enqueue front track for guild ${this.guildId}: ${(err as Error).message}`,
+			});
+		}
 	}
 
 	/**
@@ -239,12 +282,19 @@ export class JsonQueue implements IQueue {
 	 * @returns The newest track.
 	 */
 	public async popPrevious(): Promise<Track | null> {
-		const current = await this.getPrevious();
-		if (!current.length) return null;
+		try {
+			const current = await this.getPrevious();
+			if (!current.length) return null;
 
-		const popped = current.shift()!;
-		await this.writeJSON(this.previousPath, current);
-		return popped;
+			const popped = current.pop()!;
+			await this.writeJSON(this.previousPath, current);
+			return popped;
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
+				message: `Failed to pop previous track for guild ${this.guildId}: ${(err as Error).message}`,
+			});
+		}
 	}
 
 	/**
@@ -255,78 +305,92 @@ export class JsonQueue implements IQueue {
 	public async remove(position?: number): Promise<Track[]>;
 	public async remove(start: number, end: number): Promise<Track[]>;
 	public async remove(startOrPos = 0, end?: number): Promise<Track[]> {
-		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
+		try {
+			const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
-		const queue = await this.getQueue();
-		let removed: Track[] = [];
+			const queue = await this.getQueue();
+			let removed: Track[] = [];
 
-		if (typeof end === "number") {
-			if (startOrPos >= end || startOrPos >= queue.length) throw new RangeError("Invalid range.");
-			removed = queue.splice(startOrPos, end - startOrPos);
-		} else {
-			removed = queue.splice(startOrPos, 1);
+			if (typeof end === "number") {
+				if (startOrPos >= end || startOrPos >= queue.length) throw new RangeError("Invalid range.");
+				removed = queue.splice(startOrPos, end - startOrPos);
+			} else {
+				removed = queue.splice(startOrPos, 1);
+			}
+
+			await this.setQueue(queue);
+
+			this.manager.emit(ManagerEventTypes.Debug, `[JSONQUEUE] Removed ${removed.length} track(s) from position ${startOrPos}${end ? ` to ${end}` : ""}`);
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+				changeType: PlayerStateEventTypes.QueueChange,
+				details: {
+					type: "queue",
+					action: "remove",
+					tracks: removed,
+				},
+			} as PlayerStateUpdateEvent);
+
+			return removed;
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
+				message: `Failed to remove track for guild ${this.guildId}: ${(err as Error).message}`,
+			});
 		}
-
-		await this.setQueue(queue);
-
-		this.manager.emit(ManagerEventTypes.Debug, `[JSONQUEUE] Removed ${removed.length} track(s) from position ${startOrPos}${end ? ` to ${end}` : ""}`);
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
-			changeType: PlayerStateEventTypes.QueueChange,
-			details: {
-				type: "queue",
-				action: "remove",
-				tracks: removed,
-			},
-		} as PlayerStateUpdateEvent);
-
-		return removed;
 	}
 
 	/**
 	 * Shuffles the queue by round-robin.
 	 */
 	public async roundRobinShuffle(): Promise<void> {
-		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
+		try {
+			const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
-		const queue = await this.getQueue();
+			const queue = await this.getQueue();
 
-		const userMap = new Map<string, Track[]>();
-		for (const track of queue) {
-			const userId = track.requester.id;
-			if (!userMap.has(userId)) userMap.set(userId, []);
-			userMap.get(userId)!.push(track);
-		}
-
-		// Shuffle each user's tracks
-		for (const tracks of userMap.values()) {
-			for (let i = tracks.length - 1; i > 0; i--) {
-				const j = Math.floor(Math.random() * (i + 1));
-				[tracks[i], tracks[j]] = [tracks[j], tracks[i]];
+			const userMap = new Map<string, Track[]>();
+			for (const track of queue) {
+				const userId = track.requester.id;
+				if (!userMap.has(userId)) userMap.set(userId, []);
+				userMap.get(userId)!.push(track);
 			}
-		}
 
-		const users = [...userMap.keys()];
-		const queues = users.map((id) => userMap.get(id)!);
-		const shuffledQueue: Track[] = [];
-
-		while (queues.some((q) => q.length > 0)) {
-			for (const q of queues) {
-				const track = q.shift();
-				if (track) shuffledQueue.push(track);
+			// Shuffle each user's tracks
+			for (const tracks of userMap.values()) {
+				for (let i = tracks.length - 1; i > 0; i--) {
+					const j = Math.floor(Math.random() * (i + 1));
+					[tracks[i], tracks[j]] = [tracks[j], tracks[i]];
+				}
 			}
+
+			const users = [...userMap.keys()];
+			const queues = users.map((id) => userMap.get(id)!);
+			const shuffledQueue: Track[] = [];
+
+			while (queues.some((q) => q.length > 0)) {
+				for (const q of queues) {
+					const track = q.shift();
+					if (track) shuffledQueue.push(track);
+				}
+			}
+
+			await this.setQueue(shuffledQueue);
+
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+				changeType: PlayerStateEventTypes.QueueChange,
+				details: {
+					type: "queue",
+					action: "roundRobin",
+				},
+			} as PlayerStateUpdateEvent);
+
+			this.manager.emit(ManagerEventTypes.Debug, `[JSONQUEUE] roundRobinShuffled the queue for: ${this.guildId}`);
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
+				message: `Failed to round robin shuffle queue for guild ${this.guildId}: ${(err as Error).message}`,
+			});
 		}
-
-		await this.setQueue(shuffledQueue);
-
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
-			changeType: PlayerStateEventTypes.QueueChange,
-			details: {
-				type: "queue",
-				action: "roundRobin",
-			},
-		} as PlayerStateUpdateEvent);
-
-		this.manager.emit(ManagerEventTypes.Debug, `[JSONQUEUE] roundRobinShuffled the queue for: ${this.guildId}`);
 	}
 
 	/**
@@ -354,25 +418,32 @@ export class JsonQueue implements IQueue {
 	 * Shuffles the queue.
 	 */
 	public async shuffle(): Promise<void> {
-		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
+		try {
+			const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
-		const queue = await this.getQueue();
-		for (let i = queue.length - 1; i > 0; i--) {
-			const j = Math.floor(Math.random() * (i + 1));
-			[queue[i], queue[j]] = [queue[j], queue[i]];
+			const queue = await this.getQueue();
+			for (let i = queue.length - 1; i > 0; i--) {
+				const j = Math.floor(Math.random() * (i + 1));
+				[queue[i], queue[j]] = [queue[j], queue[i]];
+			}
+
+			await this.setQueue(queue);
+
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+				changeType: PlayerStateEventTypes.QueueChange,
+				details: {
+					type: "queue",
+					action: "shuffle",
+				},
+			} as PlayerStateUpdateEvent);
+
+			this.manager.emit(ManagerEventTypes.Debug, `[JSONQUEUE] Shuffled the queue for: ${this.guildId}`);
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
+				message: `Failed to shuffle queue for guild ${this.guildId}: ${(err as Error).message}`,
+			});
 		}
-
-		await this.setQueue(queue);
-
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
-			changeType: PlayerStateEventTypes.QueueChange,
-			details: {
-				type: "queue",
-				action: "shuffle",
-			},
-		} as PlayerStateUpdateEvent);
-
-		this.manager.emit(ManagerEventTypes.Debug, `[JSONQUEUE] Shuffled the queue for: ${this.guildId}`);
 	}
 
 	/**
@@ -403,36 +474,43 @@ export class JsonQueue implements IQueue {
 	 * Shuffles the queue by user.
 	 */
 	public async userBlockShuffle(): Promise<void> {
-		const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
+		try {
+			const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
-		const queue = await this.getQueue();
+			const queue = await this.getQueue();
 
-		const userMap = new Map<string, Track[]>();
-		for (const track of queue) {
-			const userId = track.requester.id;
-			if (!userMap.has(userId)) userMap.set(userId, []);
-			userMap.get(userId)!.push(track);
-		}
-
-		const shuffledQueue: Track[] = [];
-		while (shuffledQueue.length < queue.length) {
-			for (const [, tracks] of userMap) {
-				const track = tracks.shift();
-				if (track) shuffledQueue.push(track);
+			const userMap = new Map<string, Track[]>();
+			for (const track of queue) {
+				const userId = track.requester.id;
+				if (!userMap.has(userId)) userMap.set(userId, []);
+				userMap.get(userId)!.push(track);
 			}
+
+			const shuffledQueue: Track[] = [];
+			while (shuffledQueue.length < queue.length) {
+				for (const [, tracks] of userMap) {
+					const track = tracks.shift();
+					if (track) shuffledQueue.push(track);
+				}
+			}
+
+			await this.setQueue(shuffledQueue);
+
+			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
+				changeType: PlayerStateEventTypes.QueueChange,
+				details: {
+					type: "queue",
+					action: "userBlock",
+				},
+			} as PlayerStateUpdateEvent);
+
+			this.manager.emit(ManagerEventTypes.Debug, `[JSONQUEUE] userBlockShuffled the queue for: ${this.guildId}`);
+		} catch (err) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
+				message: `Failed to user block shuffle queue for guild ${this.guildId}: ${(err as Error).message}`,
+			});
 		}
-
-		await this.setQueue(shuffledQueue);
-
-		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
-			changeType: PlayerStateEventTypes.QueueChange,
-			details: {
-				type: "queue",
-				action: "userBlock",
-			},
-		} as PlayerStateUpdateEvent);
-
-		this.manager.emit(ManagerEventTypes.Debug, `[JSONQUEUE] userBlockShuffled the queue for: ${this.guildId}`);
 	}
 	// #endregion Public
 	// #region Private
@@ -451,6 +529,10 @@ export class JsonQueue implements IQueue {
 			await fs.unlink(filePath);
 		} catch {
 			this.manager.emit(ManagerEventTypes.Debug, `[JSONQUEUE] Failed to delete file: ${filePath}`);
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
+				message: `Failed to delete file: ${filePath}`,
+			});
 		}
 	}
 
@@ -491,7 +573,18 @@ export class JsonQueue implements IQueue {
 		try {
 			const raw = await fs.readFile(filePath, "utf-8");
 			return JSON.parse(raw);
-		} catch {
+		} catch (err) {
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
+							message: "An unknown error occurred.",
+							cause: err,
+							context: { stage: "SIGINT" },
+					  });
+
+			console.error(error);
 			return null;
 		}
 	}
