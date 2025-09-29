@@ -777,12 +777,13 @@ export class Node {
 	 */
 	public async trackEnd(player: Player, track: Track, payload: TrackEndEvent): Promise<void> {
 		const { reason } = payload;
-
 		const skipFlag = player.get<boolean>("skipFlag");
+
 		const previous = await player.queue.getPrevious();
 		const current = await player.queue.getCurrent();
 
-		if (!skipFlag && (previous.length === 0 || (previous[0] && previous[0].track !== current?.track))) {
+		// Only add current to previous if it's not already the newest
+		if (!skipFlag && (previous.length === 0 || (previous.at(-1)?.track !== current?.track))) {
 			await player.queue.addPrevious(current);
 		}
 
@@ -851,10 +852,11 @@ export class Node {
 		if (!player.isAutoplay || attempt > player.autoplayTries || !(await player.queue.getPrevious()).length) return false;
 
 		const PreviousQueue = await player.queue.getPrevious();
-		const lastTrack = PreviousQueue?.at(-1);
+		const lastTrack = PreviousQueue.at(-1); // newest is at tail
+		if (!lastTrack) return false;
+
 		lastTrack.requester = player.get("Internal_AutoplayUser");
 
-		if (!lastTrack) return false;
 
 		const tracks = await AutoPlayUtils.getRecommendedTracks(lastTrack);
 
@@ -870,6 +872,7 @@ export class Node {
 
 		if (filteredTracks.length) {
 			const randomTrack = filteredTracks[Math.floor(Math.random() * filteredTracks.length)];
+			console.log(randomTrack);
 			await player.queue.add(randomTrack);
 			await player.play();
 			return true;

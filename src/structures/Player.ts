@@ -876,7 +876,7 @@ export class Player {
 	 * @emits {PlayerStateUpdate} - With {@link PlayerStateEventTypes.TrackChange} as the change type.
 	 */
 	public async previous(): Promise<this> {
-		// Get and remove the most recent previous track
+		// Pop the most recent previous track (from tail)
 		const lastTrack = await this.queue.popPrevious();
 
 		if (!lastTrack) {
@@ -890,11 +890,10 @@ export class Player {
 		// Capture the current state of the player before making changes.
 		const oldPlayer = { ...this };
 
-		// Set skip flag so trackEnd doesn't add current to previous
+		// Prevent re-adding the current track
 		this.set("skipFlag", true);
 		await this.play(lastTrack);
 
-		// Emit state update
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.TrackChange,
 			details: {
