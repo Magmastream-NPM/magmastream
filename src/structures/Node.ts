@@ -872,7 +872,6 @@ export class Node {
 
 		if (filteredTracks.length) {
 			const randomTrack = filteredTracks[Math.floor(Math.random() * filteredTracks.length)];
-			console.log(randomTrack);
 			await player.queue.add(randomTrack);
 			await player.play();
 			return true;
