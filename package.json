@@ -12,7 +12,8 @@
 		"types": "rtb --dist dist",
 		"lint": "eslint src",
 		"lint:fix": "eslint --fix src",
-		"ci": "run-s lint:fix lint build types"
+		"ci": "run-s lint:fix lint build types",
+		"release:dev": "npm run ci && npm version prerelease --preid=dev && npm run ci && npm publish --tag dev"
 	},
 	"devDependencies": {
 		"@favware/rollup-type-bundler": "^4.0.0",
