@@ -1,7 +1,7 @@
 import { Manager as BaseManager } from "../structures/Manager";
 import type { GatewayVoiceStateUpdate } from "discord-api-types/v10";
 import { Client, User, WorkerClient } from "seyfert";
-import { ManagerOptions, PortableUser } from "../structures/Types";
+import { AnyUser, ManagerOptions } from "../structures/Types";
 import { calculateShardId } from "seyfert/lib/common";
 
 export * from "../index";
@@ -40,20 +40,19 @@ export class SeyfertManager extends BaseManager {
 		if (this.client instanceof Client) {
 			this.client.gateway.send(calculateShardId(packet.d.guild_id), packet);
 		} else {
-			this.client.shards.get(calculateShardId(packet.d.guild_id))?.send(true, packet)
+			this.client.shards.get(calculateShardId(packet.d.guild_id))?.send(true, packet);
 		}
 	}
 
-	public override async resolveUser(user: PortableUser | string): Promise<User | PortableUser> {
+	public override async resolveUser(user: AnyUser | string): Promise<User | AnyUser> {
 		const id = typeof user === "string" ? user : user.id;
 		const cached = this.client.cache.users?.get(id);
 		if (cached) return cached;
-		
+
 		try {
 			return await this.client.users.fetch(id);
 		} catch {
 			return { id, username: typeof user === "string" ? undefined : user.username };
 		}
 	}
-	
 }

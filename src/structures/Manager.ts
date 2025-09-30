@@ -12,6 +12,7 @@ import fs from "fs/promises";
 import path from "path";
 import Redis, { Redis as RedisClient } from "ioredis";
 import {
+	AnyUser,
 	LavalinkResponse,
 	ManagerEvents,
 	ManagerInitOptions,
@@ -20,7 +21,6 @@ import {
 	PlayerOptions,
 	PlaylistInfoData,
 	PlaylistRawData,
-	PortableUser,
 	SearchQuery,
 	SearchResult,
 	Track,
@@ -678,7 +678,7 @@ export class Manager extends EventEmitter {
 								const queueTracks = state.queue.tracks;
 
 								if (state.isAutoplay) {
-									const savedUser = state.data.clientUser as PortableUser | null;
+									const savedUser = state.data.clientUser as AnyUser | null;
 									if (savedUser) {
 										const autoPlayUser = await player.manager.resolveUser(savedUser);
 										player.setAutoplay(true, autoPlayUser, state.autoplayTries);
@@ -890,7 +890,7 @@ export class Manager extends EventEmitter {
 								const queueTracks = state.queue.tracks;
 
 								if (state.isAutoplay) {
-									const savedUser = state.data.clientUser as PortableUser | null;
+									const savedUser = state.data.clientUser as AnyUser | null;
 									if (savedUser) {
 										const autoPlayUser = await player.manager.resolveUser(savedUser);
 										player.setAutoplay(true, autoPlayUser, state.autoplayTries);
@@ -1671,7 +1671,7 @@ export class Manager extends EventEmitter {
 	 * Resolves a PortableUser or ID to a real user object.
 	 * Can be overridden by wrapper managers to return wrapper-specific User classes.
 	 */
-	public async resolveUser(user: PortableUser | string): Promise<PortableUser> {
+	public async resolveUser(user: AnyUser | string): Promise<AnyUser> {
 		if (!user) return null;
 		if (typeof user === "string") return { id: user }; // fallback by ID only
 		return user; // default: just return the portable user

@@ -1,6 +1,6 @@
 import { Manager } from "../structures/Manager";
 import { MagmaStreamErrorCode, ManagerEventTypes, PlayerStateEventTypes } from "../structures/Enums";
-import { IQueue, PlayerStateUpdateEvent, PortableUser, Track } from "../structures/Types";
+import { AnyUser, IQueue, PlayerStateUpdateEvent, Track } from "../structures/Types";
 import { JSONUtils } from "../structures/Utils";
 import { MagmaStreamError } from "../structures/MagmastreamError";
 
@@ -91,7 +91,7 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 
 			if (this.manager.players.has(this.guildId) && this.manager.players.get(this.guildId).isAutoplay) {
 				if (!isArray) {
-					const AutoplayUser = this.manager.players.get(this.guildId).get("Internal_AutoplayUser") as PortableUser | null;
+					const AutoplayUser = this.manager.players.get(this.guildId).get("Internal_AutoplayUser") as AnyUser | null;
 					if (AutoplayUser && AutoplayUser.id === track.requester.id) {
 						this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 							changeType: PlayerStateEventTypes.QueueChange,

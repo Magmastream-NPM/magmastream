@@ -1,6 +1,6 @@
 import { GatewayVoiceStateUpdate } from "discord-api-types/v10";
 import { Manager as BaseManager } from "../structures/Manager";
-import { ManagerOptions, PortableUser, VoicePacket } from "../structures/Types";
+import { AnyUser, ManagerOptions, VoicePacket } from "../structures/Types";
 import type { Client, User } from "oceanic.js";
 
 export * from "../index";
@@ -26,7 +26,7 @@ export class OceanicManager extends BaseManager {
 		if (guild) guild.shard.send(packet.op as number, packet.d);
 	}
 
-	public override async resolveUser(user: PortableUser | string): Promise<User | PortableUser> {
+	public override async resolveUser(user: AnyUser | string): Promise<User | AnyUser> {
 		const id = typeof user === "string" ? user : user.id;
 		const cached = this.client.users.get(id);
 		if (cached) return cached;

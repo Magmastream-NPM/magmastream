@@ -7,6 +7,7 @@ import WebSocket from "ws";
 import fs from "fs";
 import path from "path";
 import {
+	AnyUser,
 	LavalinkInfo,
 	Lyrics,
 	LyricsFoundEvent,
@@ -18,7 +19,6 @@ import {
 	PlayerEvent,
 	PlayerEvents,
 	PlayerStateUpdateEvent,
-	PortableUser,
 	SponsorBlockChaptersLoaded,
 	SponsorBlockChapterStarted,
 	SponsorBlockSegmentSkipped,
@@ -744,7 +744,7 @@ export class Node {
 
 		this.manager.emit(ManagerEventTypes.TrackStart, player, track, payload);
 
-		const AutoplayUser = player.get("Internal_AutoplayUser") as PortableUser | null;
+		const AutoplayUser = player.get("Internal_AutoplayUser") as AnyUser | null;
 
 		if (AutoplayUser && AutoplayUser.id === track.requester.id) {
 			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, player, {
