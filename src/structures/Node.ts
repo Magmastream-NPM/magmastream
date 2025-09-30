@@ -679,6 +679,8 @@ export class Node {
 					if ("delete" in player.nowPlayingMessage && typeof player.nowPlayingMessage.delete === "function") {
 						await player.nowPlayingMessage.delete().catch(() => {});
 					}
+					player.nowPlayingMessage = null;
+					player.set("nowPlayingMessage", null);
 				}
 
 				await this.trackEnd(player, track as Track, payload);

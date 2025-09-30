@@ -12,6 +12,7 @@ import fs from "fs/promises";
 import path from "path";
 import Redis, { Redis as RedisClient } from "ioredis";
 import {
+	AnyMessage,
 	AnyUser,
 	LavalinkResponse,
 	ManagerEvents,
@@ -685,6 +686,11 @@ export class Manager extends EventEmitter {
 									}
 								}
 
+								const savedNowPlayingMessage = state.data?.nowPlayingMessage as AnyMessage | null;
+								if (savedNowPlayingMessage) {
+									player.setNowPlayingMessage(savedNowPlayingMessage);
+								}
+
 								if (lavaPlayer.track) {
 									await player.queue.clear();
 
@@ -893,6 +899,11 @@ export class Manager extends EventEmitter {
 										const autoPlayUser = await player.manager.resolveUser(savedUser);
 										player.setAutoplay(true, autoPlayUser, state.autoplayTries);
 									}
+								}
+
+								const savedNowPlayingMessage = state.data?.nowPlayingMessage as AnyMessage | null;
+								if (savedNowPlayingMessage) {
+									player.setNowPlayingMessage(savedNowPlayingMessage);
 								}
 
 								if (lavaPlayer.track) {
