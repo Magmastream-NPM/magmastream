@@ -1,3 +1,8 @@
+import type { User as DJSUser, ClientUser as DJSClientUser } from "discord.js";
+import type { User as OceanicUser } from "oceanic.js";
+import type { User as DetritusUser } from "detritus-client/lib/structures";
+import type { User as ErisUser } from "eris";
+import type { User as SeyfertUser, ClientUser as SeyfertClientUser } from "seyfert";
 import { JsonQueue } from "../statestorage/JsonQueue";
 import { MemoryQueue } from "../statestorage/MemoryQueue";
 import { RedisQueue } from "../statestorage/RedisQueue";
@@ -161,6 +166,12 @@ export interface PortableUser {
 	id: string;
 	username?: string;
 }
+
+/**
+ * Any user
+ */
+export type AnyUser = PortableUser | DJSUser | DJSClientUser | OceanicUser | DetritusUser | ErisUser | SeyfertUser | SeyfertClientUser;
+
 
 /**
  * Discord Packet
@@ -365,7 +376,7 @@ export interface Track {
 	/** The thumbnail of the track or null if it's a unsupported source. */
 	readonly thumbnail: string | null;
 	/** The user that requested the track. */
-	requester?: PortableUser;
+	requester?: AnyUser;
 	/** Displays the track thumbnail with optional size or null if it's a unsupported source. */
 	displayThumbnail(size?: Sizes): string;
 	/** Additional track info provided by plugins. */
@@ -568,7 +579,7 @@ export interface PlaylistData {
 	/** The playlist name. */
 	name: string;
 	/** Requester of playlist. */
-	requester: PortableUser;
+	requester: AnyUser;
 	/** More playlist information. */
 	playlistInfo: PlaylistInfoData[];
 	/** The length of the playlist. */

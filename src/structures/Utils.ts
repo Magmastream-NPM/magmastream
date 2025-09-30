@@ -5,11 +5,11 @@ import { JSDOM } from "jsdom";
 import { AutoPlayPlatform, LoadTypes, MagmaStreamErrorCode, SearchPlatform, TrackPartial } from "./Enums";
 import { Manager } from "./Manager";
 import {
+	AnyUser,
 	ErrorOrEmptySearchResult,
 	Extendable,
 	LavalinkResponse,
 	PlaylistRawData,
-	PortableUser,
 	SearchResult,
 	Track,
 	TrackData,
@@ -110,7 +110,7 @@ export abstract class TrackUtils {
 	 * @param requester The user who requested the track, if any.
 	 * @returns The built Track.
 	 */
-	static build<T = PortableUser | User | ClientUser>(data: TrackData, requester?: T): Track {
+	static build<T = AnyUser>(data: TrackData, requester?: T): Track {
 		if (typeof data === "undefined") {
 			throw new MagmaStreamError({
 				code: MagmaStreamErrorCode.UTILS_TRACK_BUILD_FAILED,
@@ -160,7 +160,7 @@ export abstract class TrackUtils {
 					const finalSize = SIZES.find((s) => s === size) ?? "default";
 					return this.uri.includes("youtube") ? `https://img.youtube.com/vi/${data.info.identifier}/${finalSize}.jpg` : null;
 				},
-				requester: requester as PortableUser | User | ClientUser,
+				requester: requester as AnyUser,
 				pluginInfo: data.pluginInfo,
 				customData: {},
 			};
