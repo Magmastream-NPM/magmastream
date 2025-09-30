@@ -1,20 +1,9 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 import axios from "axios";
-import { ClientUser, User } from "discord.js";
 import { JSDOM } from "jsdom";
 import { AutoPlayPlatform, LoadTypes, MagmaStreamErrorCode, SearchPlatform, TrackPartial } from "./Enums";
 import { Manager } from "./Manager";
-import {
-	AnyUser,
-	ErrorOrEmptySearchResult,
-	Extendable,
-	LavalinkResponse,
-	PlaylistRawData,
-	SearchResult,
-	Track,
-	TrackData,
-	TrackSourceName,
-} from "./Types";
+import { AnyUser, ErrorOrEmptySearchResult, Extendable, LavalinkResponse, PlaylistRawData, SearchResult, Track, TrackData, TrackSourceName } from "./Types";
 import { Player } from "./Player";
 import path from "path";
 import stringify from "safe-stable-stringify";
