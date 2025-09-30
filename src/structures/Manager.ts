@@ -879,9 +879,7 @@ export class Manager extends EventEmitter {
 									data: { voice: { token: state.voiceState.event.token, endpoint: state.voiceState.event.endpoint, sessionId: state.voiceState.sessionId } },
 								});
 
-								if (!lavaPlayer || !lavaPlayer.state.connected) {
-									player.connect();
-								}
+								player.connect();
 
 								// Rest of the player state restoration code (tracks, filters, etc.)
 								const tracks: Track[] = [];
