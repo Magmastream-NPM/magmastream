@@ -400,6 +400,7 @@ export class Player {
 			});
 		}
 
+		this.set("nowPlayingMessage", message);
 		this.nowPlayingMessage = message;
 
 		return this.nowPlayingMessage;

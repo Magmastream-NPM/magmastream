@@ -769,7 +769,8 @@ export abstract class PlayerUtils {
 
 					if (key === "data") {
 						return {
-							clientUser: value?.Internal_BotUser ?? null,
+							clientUser: value?.Internal_AutoplayUser ?? null,
+							nowPlayingMessage: value?.nowPlayingMessage ?? null,
 						};
 					}
 
