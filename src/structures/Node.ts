@@ -675,8 +675,10 @@ export class Node {
 				break;
 
 			case "TrackEndEvent":
-				if (player?.nowPlayingMessage && player?.nowPlayingMessage.deletable) {
-					await player?.nowPlayingMessage?.delete().catch(() => {});
+				if (player?.nowPlayingMessage) {
+					if ("delete" in player.nowPlayingMessage && typeof player.nowPlayingMessage.delete === "function") {
+						await player.nowPlayingMessage.delete().catch(() => {});
+					}
 				}
 
 				await this.trackEnd(player, track as Track, payload);
@@ -783,7 +785,7 @@ export class Node {
 		const current = await player.queue.getCurrent();
 
 		// Only add current to previous if it's not already the newest
-		if (!skipFlag && (previous.length === 0 || (previous.at(-1)?.track !== current?.track))) {
+		if (!skipFlag && (previous.length === 0 || previous.at(-1)?.track !== current?.track)) {
 			await player.queue.addPrevious(current);
 		}
 
@@ -856,7 +858,6 @@ export class Node {
 		if (!lastTrack) return false;
 
 		lastTrack.requester = player.get("Internal_AutoplayUser");
-
 
 		const tracks = await AutoPlayUtils.getRecommendedTracks(lastTrack);
 

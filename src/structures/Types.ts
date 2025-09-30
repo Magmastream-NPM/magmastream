@@ -1,8 +1,8 @@
-import type { User as DJSUser, ClientUser as DJSClientUser } from "discord.js";
-import type { User as OceanicUser } from "oceanic.js";
-import type { User as DetritusUser } from "detritus-client/lib/structures";
-import type { User as ErisUser } from "eris";
-import type { User as SeyfertUser, ClientUser as SeyfertClientUser } from "seyfert";
+import type { User as DJSUser, ClientUser as DJSClientUser, Message as DJSMessage } from "discord.js";
+import type { User as OceanicUser, Message as OceanicMessage } from "oceanic.js";
+import type { User as DetritusUser, Message as DetritusMessage } from "detritus-client/lib/structures";
+import type { User as ErisUser, Message as ErisMessage } from "eris";
+import type { User as SeyfertUser, ClientUser as SeyfertClientUser, Message as SeyfertMessage } from "seyfert";
 import { JsonQueue } from "../statestorage/JsonQueue";
 import { MemoryQueue } from "../statestorage/MemoryQueue";
 import { RedisQueue } from "../statestorage/RedisQueue";
@@ -172,6 +172,17 @@ export interface PortableUser {
  */
 export type AnyUser = PortableUser | DJSUser | DJSClientUser | OceanicUser | DetritusUser | ErisUser | SeyfertUser | SeyfertClientUser;
 
+/**
+ * Portable Message
+ */
+export interface PortableMessage {
+	id: string;
+}
+
+/**
+ * Any message
+ */
+export type AnyMessage = PortableMessage | DJSMessage | OceanicMessage | DetritusMessage | ErisMessage | SeyfertMessage;
 
 /**
  * Discord Packet

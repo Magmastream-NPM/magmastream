@@ -5,9 +5,8 @@ import { MemoryQueue } from "../statestorage/MemoryQueue";
 import { AutoPlayUtils, JSONUtils, Structure, TrackUtils } from "./Utils";
 import * as _ from "lodash";
 import playerCheck from "../utils/playerCheck";
-import { Message } from "discord.js";
 import { RedisQueue } from "../statestorage/RedisQueue";
-import { IQueue, Lyrics, PlayerOptions, PlayerStateUpdateEvent, PlayOptions, SearchQuery, SearchResult, Track, VoiceReceiverEvent, VoiceState } from "./Types";
+import { AnyMessage, IQueue, Lyrics, PlayerOptions, PlayerStateUpdateEvent, PlayOptions, SearchQuery, SearchResult, Track, VoiceReceiverEvent, VoiceState } from "./Types";
 import { MagmaStreamErrorCode, ManagerEventTypes, PlayerStateEventTypes, SponsorBlockSegment, StateStorageType, StateTypes } from "./Enums";
 import { WebSocket } from "ws";
 import { JsonQueue } from "../statestorage/JsonQueue";
@@ -41,7 +40,7 @@ export class Player {
 	/** The text channel for the player. */
 	public textChannelId: string | null = null;
 	/**The now playing message. */
-	public nowPlayingMessage?: Message;
+	public nowPlayingMessage?: AnyMessage;
 	/** The current state of the player. */
 	public state: StateTypes = StateTypes.Disconnected;
 	/** The equalizer bands array. */
@@ -393,7 +392,7 @@ export class Player {
 	 * @param message - The message of the now playing message.
 	 * @returns The now playing message.
 	 */
-	public setNowPlayingMessage<T = Message>(message: T): Message {
+	public setNowPlayingMessage(message: AnyMessage): AnyMessage {
 		if (!message) {
 			throw new MagmaStreamError({
 				code: MagmaStreamErrorCode.PLAYER_INVALID_NOW_PLAYING_MESSAGE,
@@ -401,7 +400,7 @@ export class Player {
 			});
 		}
 
-		this.nowPlayingMessage = message as Message;
+		this.nowPlayingMessage = message;
 
 		return this.nowPlayingMessage;
 	}
