@@ -6,7 +6,19 @@ import { AutoPlayUtils, JSONUtils, Structure, TrackUtils } from "./Utils";
 import * as _ from "lodash";
 import playerCheck from "../utils/playerCheck";
 import { RedisQueue } from "../statestorage/RedisQueue";
-import { AnyMessage, IQueue, Lyrics, PlayerOptions, PlayerStateUpdateEvent, PlayOptions, SearchQuery, SearchResult, Track, VoiceReceiverEvent, VoiceState } from "./Types";
+import {
+	AnyMessage,
+	IQueue,
+	Lyrics,
+	PlayerOptions,
+	PlayerStateUpdateEvent,
+	PlayOptions,
+	SearchQuery,
+	SearchResult,
+	Track,
+	VoiceReceiverEvent,
+	VoiceState,
+} from "./Types";
 import { MagmaStreamErrorCode, ManagerEventTypes, PlayerStateEventTypes, SponsorBlockSegment, StateStorageType, StateTypes } from "./Enums";
 import { WebSocket } from "ws";
 import { JsonQueue } from "../statestorage/JsonQueue";
@@ -792,17 +804,27 @@ export class Player {
 		const oldPlayer = { ...this };
 		let removedTracks: Track[] = [];
 
+		const current = await this.queue.getCurrent(); // may be null
+
 		if (typeof amount === "number" && amount > 1) {
-			if (amount > (await this.queue.size())) {
+			const queueSize = await this.queue.size();
+			if (amount > queueSize) {
 				throw new MagmaStreamError({
 					code: MagmaStreamErrorCode.PLAYER_QUEUE_EMPTY,
-					message: "The queue size must be greater than 1.",
+					message: "The amount of tracks to remove is greater than the queue size.",
 				});
 			}
 			removedTracks = await this.queue.getSlice(0, amount - 1);
 			await this.queue.modifyAt(0, amount - 1);
+
+			const toAdd: Track[] = [];
+			if (current) toAdd.push(current);
+			toAdd.push(...removedTracks);
+			await this.queue.addPrevious(toAdd);
 		}
 
+		// This will trigger trackEnd for the current track; since we already added current,
+		// addPrevious will ignore duplicates.
 		this.node.rest.updatePlayer({
 			guildId: this.guildId,
 			data: {
