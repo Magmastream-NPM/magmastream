@@ -142,7 +142,7 @@ export abstract class TrackUtils {
 				isSeekable: data.info.isSeekable,
 				isStream: data.info.isStream,
 				uri: data.info.uri,
-				artworkUrl: data.info?.artworkUrl,
+				artworkUrl: data.info?.artworkUrl ?? null,
 				sourceName: sourceNameMap[data.info?.sourceName?.toLowerCase() ?? ""] ?? data.info?.sourceName,
 				thumbnail: data.info.uri.includes("youtube") ? `https://img.youtube.com/vi/${data.info.identifier}/default.jpg` : null,
 				displayThumbnail(size = "default"): string | null {
