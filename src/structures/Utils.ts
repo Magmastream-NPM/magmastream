@@ -184,6 +184,22 @@ export abstract class TrackUtils {
 	static isErrorOrEmptySearchResult(result: SearchResult): result is ErrorOrEmptySearchResult {
 		return result.loadType === LoadTypes.Empty || result.loadType === LoadTypes.Error;
 	}
+
+	/**
+	 * Revives a track.
+	 * @param track The track to revive.
+	 * @returns The revived track.
+	 */
+	static revive(track: Track): Track {
+		if (!track) return track;
+
+		track.displayThumbnail = function (size = "default"): string | null {
+			const finalSize = SIZES.find((s) => s === size) ?? "default";
+			return this.uri.includes("youtube") ? `https://img.youtube.com/vi/${this.identifier}/${finalSize}.jpg` : null;
+		}.bind(track);
+
+		return track;
+	}
 }
 
 export abstract class AutoPlayUtils {
