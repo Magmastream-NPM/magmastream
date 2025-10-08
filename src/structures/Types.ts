@@ -365,7 +365,7 @@ export interface Track {
 	/** The base64 encoded track. */
 	readonly track: string;
 	/** The artwork url of the track. */
-	readonly artworkUrl: string;
+	readonly artworkUrl: string | null;
 	/** The track source name. */
 	readonly sourceName: TrackSourceName;
 	/** The title of the track. */
@@ -389,7 +389,7 @@ export interface Track {
 	/** The user that requested the track. */
 	requester?: AnyUser;
 	/** Displays the track thumbnail with optional size or null if it's a unsupported source. */
-	displayThumbnail(size?: Sizes): string;
+	displayThumbnail(size?: Sizes): string | null;
 	/** Additional track info provided by plugins. */
 	pluginInfo: TrackPluginInfo;
 	/** Add your own data to the track. */
