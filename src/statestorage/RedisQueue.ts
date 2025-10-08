@@ -68,13 +68,19 @@ export class RedisQueue implements IQueue {
 					await this.redis.rpush(this.queueKey, ...serialized);
 				}
 			} catch (err) {
-				throw new MagmaStreamError({
-					code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
-					message: `Failed to add tracks to Redis queue for guild ${this.guildId}: ${(err as Error).message}`,
-				});
+				const error =
+					err instanceof MagmaStreamError
+						? err
+						: new MagmaStreamError({
+								code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+								message: `Failed to add tracks to Redis queue for guild ${this.guildId}: ${(err as Error).message}`,
+								cause: err,
+						  });
+
+				console.error(error);
 			}
 
-			this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Added ${tracks.length} track(s) to queue`);
+			this.manager.emit(ManagerEventTypes.Debug, `[REDISQUEUE] Added ${tracks.length} track(s) to queue`);
 
 			// Autoplay logic
 			if (this.manager.players.has(this.guildId) && this.manager.players.get(this.guildId).isAutoplay) {
@@ -104,11 +110,16 @@ export class RedisQueue implements IQueue {
 				},
 			} as PlayerStateUpdateEvent);
 		} catch (err) {
-			if (err instanceof MagmaStreamError) throw err;
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
-				message: `Unexpected error in add() for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+							message: `Unexpected error in add() for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -136,17 +147,28 @@ export class RedisQueue implements IQueue {
 				const max = this.manager.options.maxPreviousTracks;
 				await this.redis.ltrim(this.previousKey, -max, -1);
 			} catch (err) {
-				throw new MagmaStreamError({
-					code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
-					message: `Failed to add previous tracks to Redis for guild ${this.guildId}: ${(err as Error).message}`,
-				});
+				const error =
+					err instanceof MagmaStreamError
+						? err
+						: new MagmaStreamError({
+								code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+								message: `Failed to add previous tracks to Redis for guild ${this.guildId}: ${(err as Error).message}`,
+								cause: err,
+						  });
+
+				console.error(error);
 			}
 		} catch (err) {
-			if (err instanceof MagmaStreamError) throw err;
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
-				message: `Unexpected error in addPrevious() for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+							message: `Unexpected error in addPrevious() for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -159,10 +181,16 @@ export class RedisQueue implements IQueue {
 		try {
 			await this.redis.del(this.queueKey);
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
-				message: `Failed to clear queue for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+							message: `Failed to clear queue for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
@@ -174,7 +202,7 @@ export class RedisQueue implements IQueue {
 			},
 		} as PlayerStateUpdateEvent);
 
-		this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Cleared the queue for: ${this.guildId}`);
+		this.manager.emit(ManagerEventTypes.Debug, `[REDISQUEUE] Cleared the queue for: ${this.guildId}`);
 	}
 
 	/**
@@ -184,10 +212,16 @@ export class RedisQueue implements IQueue {
 		try {
 			await this.redis.del(this.previousKey);
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
-				message: `Failed to clear previous tracks for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+							message: `Failed to clear previous tracks for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -199,10 +233,16 @@ export class RedisQueue implements IQueue {
 			const raw = await this.redis.lpop(this.queueKey);
 			return raw ? this.deserialize(raw) : undefined;
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
-				message: `Failed to dequeue track for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+							message: `Failed to dequeue track for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -223,7 +263,7 @@ export class RedisQueue implements IQueue {
 					// Skip invalid tracks but log
 					this.manager.emit(
 						ManagerEventTypes.Debug,
-						`[QUEUE] Skipping invalid track during duration calculation for guild ${this.guildId}: ${(err as Error).message}`
+						`[REDISQUEUE] Skipping invalid track during duration calculation for guild ${this.guildId}: ${(err as Error).message}`
 					);
 					return acc;
 				}
@@ -231,10 +271,16 @@ export class RedisQueue implements IQueue {
 
 			return total;
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
-				message: `Failed to calculate total queue duration for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+							message: `Failed to calculate total queue duration for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -249,10 +295,16 @@ export class RedisQueue implements IQueue {
 			// Redis: LPUSH adds to front, reverse to maintain order if multiple tracks
 			await this.redis.lpush(this.queueKey, ...serialized.reverse());
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
-				message: `Failed to enqueue track to front for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+							message: `Failed to enqueue track to front for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -294,10 +346,16 @@ export class RedisQueue implements IQueue {
 			const raw = await this.redis.get(this.currentKey);
 			return raw ? this.deserialize(raw) : null;
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
-				message: `Failed to get current track for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+							message: `Failed to get current track for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -309,10 +367,16 @@ export class RedisQueue implements IQueue {
 			const raw = await this.redis.lrange(this.previousKey, 0, -1);
 			return raw.map(this.deserialize);
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
-				message: `Failed to get previous tracks for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+							message: `Failed to get previous tracks for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -324,10 +388,16 @@ export class RedisQueue implements IQueue {
 			const raw = await this.redis.lrange(this.queueKey, start, end === -1 ? -1 : end - 1);
 			return raw.map(this.deserialize);
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
-				message: `Failed to get slice of queue for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+							message: `Failed to get slice of queue for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -339,10 +409,16 @@ export class RedisQueue implements IQueue {
 			const raw = await this.redis.lrange(this.queueKey, 0, -1);
 			return raw.map(this.deserialize);
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
-				message: `Failed to get tracks for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+							message: `Failed to get tracks for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -375,10 +451,16 @@ export class RedisQueue implements IQueue {
 			}
 			return removed.map(this.deserialize);
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
-				message: `Failed to modify queue at index ${start} for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+							message: `Failed to modify queue at index ${start} for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -392,10 +474,16 @@ export class RedisQueue implements IQueue {
 			const raw = await this.redis.rpop(this.previousKey);
 			return raw ? this.deserialize(raw) : null;
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
-				message: `Failed to pop previous track for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+							message: `Failed to pop previous track for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -431,7 +519,7 @@ export class RedisQueue implements IQueue {
 
 			const deserialized = removed.map(this.deserialize);
 
-			this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Removed ${removed.length} track(s) from position ${startOrPos}${end ? ` to ${end}` : ""}`);
+			this.manager.emit(ManagerEventTypes.Debug, `[REDISQUEUE] Removed ${removed.length} track(s) from position ${startOrPos}${end ? ` to ${end}` : ""}`);
 
 			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 				changeType: PlayerStateEventTypes.QueueChange,
@@ -443,11 +531,17 @@ export class RedisQueue implements IQueue {
 			} as PlayerStateUpdateEvent);
 
 			return deserialized;
-		} catch (error) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
-				message: `Failed to remove track for guild ${this.guildId}: ${(error as Error).message}`,
-			});
+		} catch (err) {
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+							message: `Failed to remove track for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -498,12 +592,18 @@ export class RedisQueue implements IQueue {
 				},
 			} as PlayerStateUpdateEvent);
 
-			this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] roundRobinShuffled the queue for: ${this.guildId}`);
-		} catch (error) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
-				message: `Failed to roundRobinShuffle the queue for guild ${this.guildId}: ${(error as Error).message}`,
-			});
+			this.manager.emit(ManagerEventTypes.Debug, `[REDISQUEUE] roundRobinShuffled the queue for: ${this.guildId}`);
+		} catch (err) {
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+							message: `Failed to roundRobinShuffle the queue for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -518,11 +618,17 @@ export class RedisQueue implements IQueue {
 			} else {
 				await this.redis.del(this.currentKey);
 			}
-		} catch (error) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
-				message: `Failed to setCurrent the queue for guild ${this.guildId}: ${(error as Error).message}`,
-			});
+		} catch (err) {
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+							message: `Failed to setCurrent the queue for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -540,11 +646,17 @@ export class RedisQueue implements IQueue {
 				.del(this.previousKey)
 				.rpush(this.previousKey, ...tracks.map(this.serialize))
 				.exec();
-		} catch (error) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
-				message: `Failed to setPrevious the queue for guild ${this.guildId}: ${(error as Error).message}`,
-			});
+		} catch (err) {
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+							message: `Failed to setPrevious the queue for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -574,12 +686,18 @@ export class RedisQueue implements IQueue {
 				},
 			} as PlayerStateUpdateEvent);
 
-			this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Shuffled the queue for: ${this.guildId}`);
-		} catch (error) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
-				message: `Failed to shuffle the queue for guild ${this.guildId}: ${(error as Error).message}`,
-			});
+			this.manager.emit(ManagerEventTypes.Debug, `[REDISQUEUE] Shuffled the queue for: ${this.guildId}`);
+		} catch (err) {
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+							message: `Failed to shuffle the queue for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -589,11 +707,17 @@ export class RedisQueue implements IQueue {
 	public async size(): Promise<number> {
 		try {
 			return await this.redis.llen(this.queueKey);
-		} catch (error) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
-				message: `Failed to get the size of the queue for guild ${this.guildId}: ${(error as Error).message}`,
-			});
+		} catch (err) {
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+							message: `Failed to get the size of the queue for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -649,12 +773,18 @@ export class RedisQueue implements IQueue {
 				},
 			} as PlayerStateUpdateEvent);
 
-			this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] userBlockShuffled the queue for: ${this.guildId}`);
-		} catch (error) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
-				message: `Failed to userBlockShuffle the queue for guild ${this.guildId}: ${(error as Error).message}`,
-			});
+			this.manager.emit(ManagerEventTypes.Debug, `[REDISQUEUE] userBlockShuffled the queue for: ${this.guildId}`);
+		} catch (err) {
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_REDIS_ERROR,
+							message: `Failed to userBlockShuffle the queue for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 	// #endregion Public
