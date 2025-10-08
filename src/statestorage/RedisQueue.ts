@@ -2,7 +2,7 @@ import { Manager } from "../structures/Manager";
 import { Redis } from "ioredis";
 import { MagmaStreamErrorCode, ManagerEventTypes, PlayerStateEventTypes } from "../structures/Enums";
 import { AnyUser, IQueue, PlayerStateUpdateEvent, Track } from "../structures/Types";
-import { JSONUtils } from "../structures/Utils";
+import { JSONUtils, TrackUtils } from "../structures/Utils";
 import { MagmaStreamError } from "../structures/MagmastreamError";
 
 /**
@@ -800,7 +800,8 @@ export class RedisQueue implements IQueue {
 	 * Deserializes a track from a string.
 	 */
 	private deserialize(data: string): Track {
-		return JSON.parse(data) as Track;
+		const track = JSON.parse(data) as Track;
+		return TrackUtils.revive(track);
 	}
 
 	/**

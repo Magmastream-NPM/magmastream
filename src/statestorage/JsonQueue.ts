@@ -3,7 +3,7 @@ import { MagmaStreamErrorCode, ManagerEventTypes, PlayerStateEventTypes } from "
 import { AnyUser, IQueue, PlayerStateUpdateEvent, Track } from "../structures/Types";
 import path from "path";
 import { promises as fs } from "fs";
-import { JSONUtils } from "../structures/Utils";
+import { JSONUtils, TrackUtils } from "../structures/Utils";
 import { MagmaStreamError } from "../structures/MagmastreamError";
 
 /**
@@ -267,7 +267,8 @@ export class JsonQueue implements IQueue {
 	 * @returns The current track.
 	 */
 	public async getCurrent(): Promise<Track | null> {
-		return await this.readJSON<Track>(this.currentPath);
+		const track = await this.readJSON<Track>(this.currentPath);
+		return track ? TrackUtils.revive(track) : null;
 	}
 
 	/**
@@ -275,7 +276,7 @@ export class JsonQueue implements IQueue {
 	 */
 	public async getPrevious(): Promise<Track[]> {
 		const data = await this.readJSON<Track[]>(this.previousPath);
-		return Array.isArray(data) ? data : [];
+		return Array.isArray(data) ? data.map(TrackUtils.revive) : [];
 	}
 
 	/**
@@ -620,7 +621,7 @@ export class JsonQueue implements IQueue {
 	 */
 	private async getQueue(): Promise<Track[]> {
 		const data = await this.readJSON<Track[]>(this.queuePath);
-		return Array.isArray(data) ? data : [];
+		return Array.isArray(data) ? data.map(TrackUtils.revive) : [];
 	}
 
 	/**
