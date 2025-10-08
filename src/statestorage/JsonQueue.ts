@@ -84,10 +84,16 @@ export class JsonQueue implements IQueue {
 				},
 			} as PlayerStateUpdateEvent);
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
-				message: `Failed to add tracks to JSON queue for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
+							message: `Failed to add tracks to JSON queue for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -111,10 +117,16 @@ export class JsonQueue implements IQueue {
 
 			await this.writeJSON(this.previousPath, trimmed);
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
-				message: `Failed to add tracks to JSON queue for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
+							message: `Failed to add tracks to JSON queue for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -137,10 +149,16 @@ export class JsonQueue implements IQueue {
 
 			this.manager.emit(ManagerEventTypes.Debug, `[JSONQUEUE] Cleared the queue for: ${this.guildId}`);
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
-				message: `Failed to clear JSON queue for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
+							message: `Failed to clear JSON queue for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -161,10 +179,16 @@ export class JsonQueue implements IQueue {
 			await this.setQueue(queue);
 			return track;
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
-				message: `Failed to dequeue track for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
+							message: `Failed to dequeue track for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -180,10 +204,16 @@ export class JsonQueue implements IQueue {
 			const total = queue.reduce((acc, track) => acc + (track.duration || 0), currentDuration);
 			return total;
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
-				message: `Failed to get duration for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
+							message: `Failed to get duration for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -196,10 +226,16 @@ export class JsonQueue implements IQueue {
 			const queue = await this.getQueue();
 			await this.setQueue([...tracks.reverse(), ...queue]);
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
-				message: `Failed to enqueue front track for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
+							message: `Failed to enqueue front track for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -290,10 +326,16 @@ export class JsonQueue implements IQueue {
 			await this.writeJSON(this.previousPath, current);
 			return popped;
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
-				message: `Failed to pop previous track for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
+							message: `Failed to pop previous track for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -332,10 +374,16 @@ export class JsonQueue implements IQueue {
 
 			return removed;
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
-				message: `Failed to remove track for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
+							message: `Failed to remove track for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -386,10 +434,16 @@ export class JsonQueue implements IQueue {
 
 			this.manager.emit(ManagerEventTypes.Debug, `[JSONQUEUE] roundRobinShuffled the queue for: ${this.guildId}`);
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
-				message: `Failed to round robin shuffle queue for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
+							message: `Failed to round robin shuffle queue for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -439,10 +493,16 @@ export class JsonQueue implements IQueue {
 
 			this.manager.emit(ManagerEventTypes.Debug, `[JSONQUEUE] Shuffled the queue for: ${this.guildId}`);
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
-				message: `Failed to shuffle queue for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
+							message: `Failed to shuffle queue for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -506,10 +566,16 @@ export class JsonQueue implements IQueue {
 
 			this.manager.emit(ManagerEventTypes.Debug, `[JSONQUEUE] userBlockShuffled the queue for: ${this.guildId}`);
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
-				message: `Failed to user block shuffle queue for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
+							message: `Failed to user block shuffle queue for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 	// #endregion Public
@@ -527,12 +593,18 @@ export class JsonQueue implements IQueue {
 	private async deleteFile(filePath: string): Promise<void> {
 		try {
 			await fs.unlink(filePath);
-		} catch {
+		} catch (err) {
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
+							message: `Failed to delete file: ${filePath}`,
+							cause: err,
+					  });
+
+			console.error(error);
 			this.manager.emit(ManagerEventTypes.Debug, `[JSONQUEUE] Failed to delete file: ${filePath}`);
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
-				message: `Failed to delete file: ${filePath}`,
-			});
 		}
 	}
 
@@ -579,9 +651,8 @@ export class JsonQueue implements IQueue {
 					? err
 					: new MagmaStreamError({
 							code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
-							message: "An unknown error occurred.",
+							message: `Failed to read file: ${filePath}`,
 							cause: err,
-							context: { stage: "SIGINT" },
 					  });
 
 			console.error(error);

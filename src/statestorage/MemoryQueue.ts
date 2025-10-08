@@ -48,7 +48,7 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 			const trackInfo = isArray ? tracks.map((t) => JSONUtils.safe(t, 2)).join(", ") : JSONUtils.safe(track, 2);
 
 			// Emit a debug message
-			this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Added ${tracks.length} track(s) to queue: ${trackInfo}`);
+			this.manager.emit(ManagerEventTypes.Debug, `[MEMORYQUEUE] Added ${tracks.length} track(s) to queue: ${trackInfo}`);
 
 			const oldPlayer = this.manager.players.get(this.guildId) ? { ...this.manager.players.get(this.guildId) } : null;
 
@@ -116,10 +116,16 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 				},
 			} as PlayerStateUpdateEvent);
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_MEMORY_ERROR,
-				message: `Failed to add tracks to queue for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_MEMORY_ERROR,
+							message: `Failed to add tracks to queue for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -145,10 +151,16 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 				this.previous = this.previous.slice(-max);
 			}
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_MEMORY_ERROR,
-				message: `Failed to add tracks to previous tracks for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_MEMORY_ERROR,
+							message: `Failed to add tracks to previous tracks for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -175,12 +187,18 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 			} as PlayerStateUpdateEvent);
 
 			// Emit a debug message indicating the queue has been cleared for a specific guild ID.
-			this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Cleared the queue for: ${this.guildId}`);
+			this.manager.emit(ManagerEventTypes.Debug, `[MEMORYQUEUE] Cleared the queue for: ${this.guildId}`);
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_MEMORY_ERROR,
-				message: `Failed to clear queue for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_MEMORY_ERROR,
+							message: `Failed to clear queue for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -319,7 +337,7 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 				const removedTracks = this.splice(startOrPosition, end - startOrPosition);
 				this.manager.emit(
 					ManagerEventTypes.Debug,
-					`[QUEUE] Removed ${removedTracks.length} track(s) from player: ${this.guildId} from position ${startOrPosition} to ${end}.`
+					`[MEMORYQUEUE] Removed ${removedTracks.length} track(s) from player: ${this.guildId} from position ${startOrPosition} to ${end}.`
 				);
 
 				this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
@@ -338,7 +356,7 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 			const removedTrack = this.splice(startOrPosition, 1);
 			this.manager.emit(
 				ManagerEventTypes.Debug,
-				`[QUEUE] Removed 1 track from player: ${this.guildId} from position ${startOrPosition}: ${JSONUtils.safe(removedTrack[0], 2)}`
+				`[MEMORYQUEUE] Removed 1 track from player: ${this.guildId} from position ${startOrPosition}: ${JSONUtils.safe(removedTrack[0], 2)}`
 			);
 
 			// Ensure removedTrack is an array for consistency
@@ -355,10 +373,16 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 
 			return removedTrack;
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_MEMORY_ERROR,
-				message: `Failed to remove track(s) from queue for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_MEMORY_ERROR,
+							message: `Failed to remove track(s) from queue for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -423,12 +447,18 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 			} as PlayerStateUpdateEvent);
 
 			// Emit a debug message indicating the queue has been shuffled for a specific guild ID.
-			this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] roundRobinShuffled the queue for: ${this.guildId}`);
+			this.manager.emit(ManagerEventTypes.Debug, `[MEMORYQUEUE] roundRobinShuffled the queue for: ${this.guildId}`);
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_MEMORY_ERROR,
-				message: `Failed to shuffle queue for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_MEMORY_ERROR,
+							message: `Failed to shuffle queue for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -471,12 +501,18 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 			} as PlayerStateUpdateEvent);
 
 			// Emit a debug message indicating the queue has been shuffled for a specific guild ID.
-			this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] Shuffled the queue for: ${this.guildId}`);
+			this.manager.emit(ManagerEventTypes.Debug, `[MEMORYQUEUE] Shuffled the queue for: ${this.guildId}`);
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_MEMORY_ERROR,
-				message: `Failed to shuffle queue for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_MEMORY_ERROR,
+							message: `Failed to shuffle queue for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 
@@ -553,12 +589,18 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 			} as PlayerStateUpdateEvent);
 
 			// Emit a debug message indicating the queue has been shuffled for a specific guild ID.
-			this.manager.emit(ManagerEventTypes.Debug, `[QUEUE] userBlockShuffled the queue for: ${this.guildId}`);
+			this.manager.emit(ManagerEventTypes.Debug, `[MEMORYQUEUE] userBlockShuffled the queue for: ${this.guildId}`);
 		} catch (err) {
-			throw new MagmaStreamError({
-				code: MagmaStreamErrorCode.QUEUE_MEMORY_ERROR,
-				message: `Failed to shuffle queue for guild ${this.guildId}: ${(err as Error).message}`,
-			});
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.QUEUE_MEMORY_ERROR,
+							message: `Failed to add tracks to queue for guild ${this.guildId}: ${(err as Error).message}`,
+							cause: err,
+					  });
+
+			console.error(error);
 		}
 	}
 	// #endregion Public
