@@ -595,17 +595,19 @@ export class JsonQueue implements IQueue {
 		try {
 			await fs.unlink(filePath);
 		} catch (err) {
-			const error =
-				err instanceof MagmaStreamError
-					? err
-					: new MagmaStreamError({
-							code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
-							message: `Failed to delete file: ${filePath}`,
-							cause: err,
-					  });
+			if (err.code !== "ENOENT") {
+				const error =
+					err instanceof MagmaStreamError
+						? err
+						: new MagmaStreamError({
+								code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
+								message: `Failed to delete file: ${filePath}`,
+								cause: err,
+						  });
 
-			console.error(error);
-			this.manager.emit(ManagerEventTypes.Debug, `[JSONQUEUE] Failed to delete file: ${filePath}`);
+				console.error(error);
+				this.manager.emit(ManagerEventTypes.Debug, `[JSONQUEUE] Failed to delete file: ${filePath}`);
+			}
 		}
 	}
 
@@ -647,16 +649,18 @@ export class JsonQueue implements IQueue {
 			const raw = await fs.readFile(filePath, "utf-8");
 			return JSON.parse(raw);
 		} catch (err) {
-			const error =
-				err instanceof MagmaStreamError
-					? err
-					: new MagmaStreamError({
-							code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
-							message: `Failed to read file: ${filePath}`,
-							cause: err,
-					  });
+			if (err.code !== "ENOENT") {
+				const error =
+					err instanceof MagmaStreamError
+						? err
+						: new MagmaStreamError({
+								code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
+								message: `Failed to read file: ${filePath}`,
+								cause: err,
+						  });
 
-			console.error(error);
+				console.error(error);
+			}
 			return null;
 		}
 	}
