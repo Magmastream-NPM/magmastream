@@ -439,10 +439,12 @@ export class Player {
 		}
 
 		if (!(await this.queue.getCurrent())) {
-			throw new MagmaStreamError({
+			const error = new MagmaStreamError({
 				code: MagmaStreamErrorCode.PLAYER_QUEUE_EMPTY,
 				message: "The queue is empty.",
 			});
+			console.error(error);
+			return this;
 		}
 
 		const finalOptions = playOptions
@@ -479,18 +481,22 @@ export class Player {
 	 */
 	public setAutoplay<T = unknown>(autoplayState: boolean, AutoplayUser?: T, tries?: number): this {
 		if (typeof autoplayState !== "boolean") {
-			throw new MagmaStreamError({
+			const error = new MagmaStreamError({
 				code: MagmaStreamErrorCode.PLAYER_INVALID_AUTOPLAY,
 				message: "autoplayState must be a boolean.",
 			});
+			console.error(error);
+			return this;
 		}
 
 		if (autoplayState) {
 			if (!AutoplayUser) {
-				throw new MagmaStreamError({
+				const error = new MagmaStreamError({
 					code: MagmaStreamErrorCode.PLAYER_INVALID_AUTOPLAY,
 					message: "AutoplayUser must be provided when enabling autoplay.",
 				});
+				console.error(error);
+				return this;
 			}
 
 			this.autoplayTries = tries && typeof tries === "number" && tries > 0 ? tries : 3; // Default to 3 if invalid
@@ -897,16 +903,18 @@ export class Player {
 	 * @throws {Error} If there are no previous tracks in the queue.
 	 * @emits {PlayerStateUpdate} - With {@link PlayerStateEventTypes.TrackChange} as the change type.
 	 */
-	public async previous(): Promise<this> {
+	public async previous(addBackToQueue: boolean = true): Promise<this> {
 		// Pop the most recent previous track (from tail)
 		const lastTrack = await this.queue.popPrevious();
 
 		if (!lastTrack) {
 			await this.queue.clearPrevious();
-			throw new MagmaStreamError({
+			const error = new MagmaStreamError({
 				code: MagmaStreamErrorCode.PLAYER_PREVIOUS_EMPTY,
 				message: "Previous queue is empty.",
 			});
+			console.error(error);
+			return this;
 		}
 
 		// Capture the current state of the player before making changes.
@@ -914,7 +922,17 @@ export class Player {
 
 		// Prevent re-adding the current track
 		this.set("skipFlag", true);
-		await this.play(lastTrack);
+
+		// Add the current track to the queue if addBackToQueue is true
+		if (addBackToQueue) {
+			const currentPlayingTrack = await this.queue.getCurrent();
+			if (currentPlayingTrack) {
+				await this.queue.add(currentPlayingTrack, 0);
+			}
+			await this.play(lastTrack);
+		} else {
+			await this.play(lastTrack);
+		}
 
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.TrackChange,
