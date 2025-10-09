@@ -108,7 +108,7 @@ export class JsonQueue implements IQueue {
 
 			const current = await this.getPrevious();
 
-			const newTracks = tracks.filter((t) => !current.some((p) => p.identifier === t.identifier));
+			const newTracks = tracks.filter((t) => !current.some((p) => p.uri === t.uri));
 			if (!newTracks.length) return;
 
 			const updated = [...current, ...newTracks];
@@ -647,6 +647,7 @@ export class JsonQueue implements IQueue {
 	private async readJSON<T>(filePath: string): Promise<T | null> {
 		try {
 			const raw = await fs.readFile(filePath, "utf-8");
+			if (!raw || !raw.trim()) return null;
 			return JSON.parse(raw);
 		} catch (err) {
 			if (err.code !== "ENOENT") {
