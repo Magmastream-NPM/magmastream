@@ -91,7 +91,7 @@ export class MemoryQueue extends Array<Track> implements IQueue {
 
 			if (this.manager.players.has(this.guildId) && this.manager.players.get(this.guildId).isAutoplay) {
 				if (!isArray) {
-					const AutoplayUser = this.manager.players.get(this.guildId).get("Internal_AutoplayUser") as AnyUser | null;
+					const AutoplayUser = this.manager.players.get(this.guildId).get("Internal_AutoplayUser") as AnyUser;
 					if (AutoplayUser && AutoplayUser.id === track.requester.id) {
 						this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 							changeType: PlayerStateEventTypes.QueueChange,

@@ -387,7 +387,7 @@ export interface Track {
 	/** The thumbnail of the track or null if it's a unsupported source. */
 	readonly thumbnail: string | null;
 	/** The user that requested the track. */
-	requester?: AnyUser;
+	requester: AnyUser;
 	/** Displays the track thumbnail with optional size or null if it's a unsupported source. */
 	displayThumbnail(size?: Sizes): string | null;
 	/** Additional track info provided by plugins. */
