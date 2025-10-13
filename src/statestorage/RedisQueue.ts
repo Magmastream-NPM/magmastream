@@ -85,7 +85,7 @@ export class RedisQueue implements IQueue {
 			// Autoplay logic
 			if (this.manager.players.has(this.guildId) && this.manager.players.get(this.guildId).isAutoplay) {
 				if (!Array.isArray(track)) {
-					const AutoplayUser = (await this.manager.players.get(this.guildId).get("Internal_AutoplayUser")) as AnyUser | null;
+					const AutoplayUser = (await this.manager.players.get(this.guildId).get("Internal_AutoplayUser")) as AnyUser;
 					if (AutoplayUser && AutoplayUser.id === track.requester.id) {
 						this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 							changeType: PlayerStateEventTypes.QueueChange,

@@ -748,7 +748,7 @@ export class Node {
 
 		this.manager.emit(ManagerEventTypes.TrackStart, player, track, payload);
 
-		const AutoplayUser = player.get("Internal_AutoplayUser") as AnyUser | null;
+		const AutoplayUser = player.get("Internal_AutoplayUser") as AnyUser;
 
 		if (AutoplayUser && AutoplayUser.id === track.requester.id) {
 			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, player, {
@@ -859,7 +859,7 @@ export class Node {
 		const lastTrack = PreviousQueue.at(-1); // newest is at tail
 		if (!lastTrack) return false;
 
-		lastTrack.requester = player.get("Internal_AutoplayUser");
+		lastTrack.requester = player.get("Internal_AutoplayUser") as AnyUser;
 
 		const tracks = await AutoPlayUtils.getRecommendedTracks(lastTrack);
 
