@@ -67,6 +67,7 @@ export enum SearchPlatform {
 	SoundCloud = "scsearch",
 	Spotify = "spsearch",
 	Tidal = "tdsearch",
+	TTS = "speak",
 	VKMusic = "vksearch",
 	YouTube = "ytsearch",
 	YouTubeMusic = "ytmsearch",
