@@ -105,6 +105,7 @@ export class Player {
 			selfMute: options.selfMute ?? false,
 			selfDeafen: options.selfDeafen ?? false,
 			volume: options.volume ?? 100,
+			pauseOnDisconnect: options.pauseOnDisconnect ?? true,
 		};
 
 		// Set the guild ID and voice state.

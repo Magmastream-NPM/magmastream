@@ -15,7 +15,7 @@ export default function playerCheck(options: PlayerOptions) {
 		});
 	}
 
-	const { guildId, nodeIdentifier, selfDeafen, selfMute, textChannelId, voiceChannelId, volume, applyVolumeAsFilter } = options;
+	const { guildId, nodeIdentifier, selfDeafen, selfMute, textChannelId, voiceChannelId, volume, applyVolumeAsFilter, pauseOnDisconnect } = options;
 
 	if (!/^\d+$/.test(guildId)) {
 		throw new MagmaStreamError({
@@ -78,6 +78,14 @@ export default function playerCheck(options: PlayerOptions) {
 			code: MagmaStreamErrorCode.PLAYER_INVALID_CONFIG,
 			message: 'Player option "applyVolumeAsFilter" must be a boolean.',
 			context: { applyVolumeAsFilter },
+		});
+	}
+
+	if (typeof pauseOnDisconnect !== "undefined" && typeof pauseOnDisconnect !== "boolean") {
+		throw new MagmaStreamError({
+			code: MagmaStreamErrorCode.PLAYER_INVALID_CONFIG,
+			message: 'Player option "pauseOnDisconnect" must be a boolean.',
+			context: { pauseOnDisconnect },
 		});
 	}
 }

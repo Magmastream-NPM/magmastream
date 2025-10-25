@@ -1104,6 +1104,8 @@ export interface PlayerOptions {
 	selfDeafen?: boolean;
 	/** Whether to apply the volume as a filter. */
 	applyVolumeAsFilter?: boolean;
+	/** Whether to pause the player when the voice connection is disconnected. */
+	pauseOnDisconnect?: boolean;
 }
 
 /**
