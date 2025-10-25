@@ -750,13 +750,17 @@ export class Node {
 
 		const AutoplayUser = player.get("Internal_AutoplayUser") as AnyUser;
 
-		if (AutoplayUser && AutoplayUser.id === track.requester.id) {
+		if (!track.requester || !track.requester.id) {
+			console.log(track);
+			console.warn(`[WARN] Track requester missing for guild ${player.guildId}`, track);
+		}
+		if (AutoplayUser && track.requester && AutoplayUser.id === track.requester.id) {
 			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, player, {
 				changeType: PlayerStateEventTypes.TrackChange,
 				details: {
 					type: "track",
 					action: "autoPlay",
-					track: track,
+					track,
 				},
 			} as PlayerStateUpdateEvent);
 			return;
@@ -767,7 +771,7 @@ export class Node {
 			details: {
 				type: "track",
 				action: "start",
-				track: track,
+				track,
 			},
 		} as PlayerStateUpdateEvent);
 	}

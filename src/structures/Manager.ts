@@ -656,6 +656,7 @@ export class Manager extends EventEmitter {
 									volume: lavaPlayer.volume || state.options.volume,
 									nodeIdentifier: nodeId,
 									applyVolumeAsFilter: state.options.applyVolumeAsFilter,
+									pauseOnDisconnect: state.options.pauseOnDisconnect,
 								};
 
 								this.emit(ManagerEventTypes.Debug, `[MANAGER] Recreating player: ${state.guildId} from saved file: ${JSONUtils.safe(state.options, 2)}`);
@@ -875,6 +876,7 @@ export class Manager extends EventEmitter {
 									volume: lavaPlayer.volume || state.options.volume,
 									nodeIdentifier: nodeId,
 									applyVolumeAsFilter: state.options.applyVolumeAsFilter,
+									pauseOnDisconnect: state.options.pauseOnDisconnect,
 								};
 
 								this.emit(ManagerEventTypes.Debug, `[MANAGER] Recreating player: ${guildId} from Redis`);
