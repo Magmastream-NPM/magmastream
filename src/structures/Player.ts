@@ -256,7 +256,9 @@ export class Player {
 		const oldPlayer = this ? { ...this } : null;
 
 		// Pause the player.
-		await this.pause(true);
+		if (this.options.pauseOnDisconnect) {
+			await this.pause(true);
+		}
 
 		// Send the voice state update to the gateway.
 		this.manager.sendPacket({
