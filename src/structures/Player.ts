@@ -1161,6 +1161,7 @@ export class Player {
 			nowPlayingMessage: this.nowPlayingMessage,
 			isAutoplay: this.isAutoplay,
 			applyVolumeAsFilter: this.options.applyVolumeAsFilter,
+			pauseOnDisconnect: this.options.pauseOnDisconnect,
 		};
 
 		// If force is true, destroy the existing player for the new guild
@@ -1173,6 +1174,7 @@ export class Player {
 		newOptions.selfMute = newOptions.selfMute ?? oldPlayerProperties.selfMute;
 		newOptions.volume = newOptions.volume ?? oldPlayerProperties.volume;
 		newOptions.applyVolumeAsFilter = newOptions.applyVolumeAsFilter ?? oldPlayerProperties.applyVolumeAsFilter;
+		newOptions.pauseOnDisconnect = newOptions.pauseOnDisconnect ?? oldPlayerProperties.pauseOnDisconnect;
 
 		// Deep clone the current player
 		const clonedPlayer = this.manager.create(newOptions);
