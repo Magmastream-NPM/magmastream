@@ -748,13 +748,7 @@ export class Node {
 
 		this.manager.emit(ManagerEventTypes.TrackStart, player, track, payload);
 
-		const AutoplayUser = player.get("Internal_AutoplayUser") as AnyUser;
-
-		if (!track.requester || !track.requester.id) {
-			console.log(track);
-			console.warn(`[WARN] Track requester missing for guild ${player.guildId}`, track);
-		}
-		if (AutoplayUser && track.requester && AutoplayUser.id === track.requester.id) {
+		if (track.isAutoplay) {
 			this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, player, {
 				changeType: PlayerStateEventTypes.TrackChange,
 				details: {
