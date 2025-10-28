@@ -43,19 +43,12 @@ export abstract class TrackUtils {
 		const defaultProperties = [
 			TrackPartial.Track,
 			TrackPartial.Title,
-			TrackPartial.Identifier,
 			TrackPartial.Author,
 			TrackPartial.Duration,
-			TrackPartial.Isrc,
-			TrackPartial.IsSeekable,
-			TrackPartial.IsStream,
 			TrackPartial.Uri,
-			TrackPartial.ArtworkUrl,
 			TrackPartial.SourceName,
-			TrackPartial.ThumbNail,
+			TrackPartial.ArtworkUrl,
 			TrackPartial.Requester,
-			TrackPartial.PluginInfo,
-			TrackPartial.CustomData,
 		];
 
 		/** The array of property names that will be removed from the Track class */
