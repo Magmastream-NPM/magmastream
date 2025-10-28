@@ -301,6 +301,10 @@ export class Player {
 	public async destroy(disconnect: boolean = true): Promise<boolean> {
 		this.state = StateTypes.Destroying;
 
+		await this.queue.clear();
+		await this.queue.clearPrevious();
+		await this.queue.setCurrent(null);
+		
 		if (disconnect) {
 			await this.disconnect().catch((err) => {
 				console.warn(`[Player#destroy] Failed to disconnect player ${this.guildId}:`, err);
@@ -311,9 +315,6 @@ export class Player {
 			console.warn(`[Player#destroy] REST failed to destroy player ${this.guildId}:`, err);
 		});
 
-		await this.queue.clear();
-		await this.queue.clearPrevious();
-		await this.queue.setCurrent(null);
 
 		this.manager.emit(ManagerEventTypes.PlayerDestroy, this);
 
