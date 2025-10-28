@@ -1293,6 +1293,7 @@ export class Manager extends EventEmitter {
 		this.emit(ManagerEventTypes.PlayerDisconnect, player, player.voiceChannelId);
 
 		player.voiceChannelId = null;
+		player.state = StateTypes.Disconnected;
 		player.voiceState = Object.assign({});
 		if (player.options.pauseOnDisconnect) {
 			await player.pause(true);
