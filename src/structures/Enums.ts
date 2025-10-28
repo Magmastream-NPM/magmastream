@@ -159,6 +159,8 @@ export enum TrackPartial {
 	PluginInfo = "pluginInfo",
 	/** The custom data of the track */
 	CustomData = "customData",
+	/** Whether the track got autoplayed */
+	IsAutoPlay = "isAutoplay",
 }
 
 /**
