@@ -394,6 +394,8 @@ export interface Track {
 	pluginInfo: TrackPluginInfo;
 	/** Add your own data to the track. */
 	customData: Record<string, unknown>;
+	/** If the track is autoplayed. */
+	readonly isAutoplay: boolean;
 }
 
 /**

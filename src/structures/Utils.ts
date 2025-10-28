@@ -97,9 +97,10 @@ export abstract class TrackUtils {
 	 * Builds a Track from the raw data from Lavalink and a optional requester.
 	 * @param data The raw data from Lavalink to build the Track from.
 	 * @param requester The user who requested the track, if any.
+	 * @param isAutoPlay Whether the track is autoplayed. Defaults to false.
 	 * @returns The built Track.
 	 */
-	static build<T = AnyUser>(data: TrackData, requester?: T): Track {
+	static build<T = AnyUser>(data: TrackData, requester?: T, isAutoplay: boolean = false): Track {
 		if (typeof data === "undefined") {
 			throw new MagmaStreamError({
 				code: MagmaStreamErrorCode.UTILS_TRACK_BUILD_FAILED,
@@ -152,6 +153,7 @@ export abstract class TrackUtils {
 				requester: requester as AnyUser,
 				pluginInfo: data.pluginInfo,
 				customData: {},
+				isAutoplay: isAutoplay,
 			};
 
 			track.displayThumbnail = track.displayThumbnail.bind(track);
@@ -666,7 +668,7 @@ export abstract class AutoPlayUtils {
 					});
 				}
 
-				return [TrackUtils.build(data, requester)];
+				return [TrackUtils.build(data, requester, true)];
 			}
 
 			case LoadTypes.Short:
@@ -681,7 +683,7 @@ export abstract class AutoPlayUtils {
 					});
 				}
 
-				return data.map((d) => TrackUtils.build(d, requester));
+				return data.map((d) => TrackUtils.build(d, requester, true));
 			}
 			case LoadTypes.Album:
 			case LoadTypes.Artist:
@@ -692,7 +694,7 @@ export abstract class AutoPlayUtils {
 				const data = recommendedResult.data;
 
 				if (this.isPlaylistRawData(data)) {
-					return data.tracks.map((d) => TrackUtils.build(d, requester));
+					return data.tracks.map((d) => TrackUtils.build(d, requester, true));
 				}
 
 				throw new MagmaStreamError({

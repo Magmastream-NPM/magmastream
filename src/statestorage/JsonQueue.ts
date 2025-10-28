@@ -1,6 +1,6 @@
 import { Manager } from "../structures/Manager";
 import { MagmaStreamErrorCode, ManagerEventTypes, PlayerStateEventTypes } from "../structures/Enums";
-import { AnyUser, IQueue, PlayerStateUpdateEvent, Track } from "../structures/Types";
+import { IQueue, PlayerStateUpdateEvent, Track } from "../structures/Types";
 import path from "path";
 import { promises as fs } from "fs";
 import { JSONUtils, TrackUtils } from "../structures/Utils";
@@ -60,8 +60,7 @@ export class JsonQueue implements IQueue {
 
 			if (this.manager.players.has(this.guildId) && this.manager.players.get(this.guildId).isAutoplay) {
 				if (!isArray) {
-					const AutoplayUser = (await this.manager.players.get(this.guildId).get("Internal_AutoplayUser")) as AnyUser;
-					if (AutoplayUser && AutoplayUser.id === track.requester.id) {
+					if (track.isAutoplay) {
 						this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this.manager.players.get(this.guildId), {
 							changeType: PlayerStateEventTypes.QueueChange,
 							details: {

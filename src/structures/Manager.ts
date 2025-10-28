@@ -696,7 +696,7 @@ export class Manager extends EventEmitter {
 									await player.queue.clear();
 
 									if (currentTrack) {
-										await player.queue.add(TrackUtils.build(lavaPlayer.track as TrackData, currentTrack.requester));
+										await player.queue.add(TrackUtils.build(lavaPlayer.track as TrackData, currentTrack.requester, currentTrack.isAutoplay));
 									}
 
 									const remainingQueue = queueTracks.filter((t: Track) => t.uri !== lavaPlayer.track.info.uri);
@@ -912,7 +912,7 @@ export class Manager extends EventEmitter {
 									await player.queue.clear();
 
 									if (currentTrack) {
-										await player.queue.add(TrackUtils.build(lavaPlayer.track as TrackData, currentTrack.requester));
+										await player.queue.add(TrackUtils.build(lavaPlayer.track as TrackData, currentTrack.requester, currentTrack.isAutoplay));
 									}
 
 									const remainingQueue = queueTracks.filter((t: Track) => t.uri !== lavaPlayer.track.info.uri);
