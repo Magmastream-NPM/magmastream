@@ -12,6 +12,7 @@ import { MagmaStreamError } from "./MagmastreamError";
 
 /** @hidden */
 const SIZES = ["0", "1", "2", "3", "default", "mqdefault", "hqdefault", "maxresdefault"];
+const REQUIRED_TRACK_KEYS = ["track", "title", "uri"] as const;
 
 export abstract class TrackUtils {
 	static trackPartial: TrackPartial[] | null = null;
@@ -60,30 +61,32 @@ export abstract class TrackUtils {
 
 	/**
 	 * Checks if the provided argument is a valid Track.
-	 * If provided an array then every element will be checked.
-	 * @param trackOrTracks The Track or array of Tracks to check.
+	 * @param value The value to check.
 	 * @returns {boolean} Whether the provided argument is a valid Track.
 	 */
-	static validate(trackOrTracks: unknown): boolean {
-		if (typeof trackOrTracks !== "object" || trackOrTracks === null) {
-			return false;
-		}
+	static isTrack(track: unknown): track is Track {
+		if (typeof track !== "object" || track === null) return false;
 
-		const isValidTrack = (track: unknown): track is Track => {
-			if (typeof track !== "object" || track === null) {
-				return false;
-			}
-			const t = track as Record<string, unknown>;
-			return (
-				typeof t.track === "string" && typeof t.title === "string" && typeof t.identifier === "string" && typeof t.isrc === "string" && typeof t.uri === "string"
-			);
-		};
+		const t = track as Record<string, unknown>;
+		return REQUIRED_TRACK_KEYS.every((key) => typeof t[key] === "string");
+	}
 
-		if (Array.isArray(trackOrTracks)) {
-			return trackOrTracks.every(isValidTrack);
-		}
+	/**
+	 * Checks if the provided argument is a valid Track array.
+	 * @param value The value to check.
+	 * @returns {boolean} Whether the provided argument is a valid Track array.
+	 */
+	static isTrackArray(value: unknown): value is Track[] {
+		return Array.isArray(value) && value.every(this.isTrack);
+	}
 
-		return isValidTrack(trackOrTracks);
+	/**
+	 * Checks if the provided argument is a valid Track or Track array.
+	 * @param value The value to check.
+	 * @returns {boolean} Whether the provided argument is a valid Track or Track array.
+	 */
+	static validate(value: unknown): value is Track | Track[] {
+		return this.isTrack(value) || this.isTrackArray(value);
 	}
 
 	/**

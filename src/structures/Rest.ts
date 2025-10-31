@@ -1,5 +1,5 @@
 import { Node } from "./Node";
-import axios, { AxiosError, AxiosRequestConfig } from "axios";
+import axios, { AxiosRequestConfig } from "axios";
 import { Manager } from "./Manager";
 import { MagmaStreamErrorCode, ManagerEventTypes } from "./Enums";
 import { LavaPlayer, RestPlayOptions } from "./Types";
@@ -116,41 +116,65 @@ export class Rest {
 			},
 			data: body,
 			timeout: this.node.options.apiRequestTimeoutMs,
+			validateStatus: () => true,
 		};
 
+		let response;
 		try {
-			const response = await axios(config);
-			return response.data;
+			response = await axios(config);
 		} catch (err: unknown) {
-			const error = err as AxiosError;
-
-			if (!error.response) {
-				throw new MagmaStreamError({
-					code: MagmaStreamErrorCode.REST_REQUEST_FAILED,
-					message: `No response from node ${this.node.options.identifier}: ${error.message}`,
-				});
-			}
-
-			const data = error.response.data as { message?: string };
-
-			if (data?.message === "Guild not found") {
-				return [];
-			}
-
-			if (error.response.status === 401) {
-				throw new MagmaStreamError({
-					code: MagmaStreamErrorCode.REST_UNAUTHORIZED,
-					message: `Unauthorized access to node ${this.node.options.identifier}`,
-				});
-			}
-
-			const dataMessage = typeof data === "string" ? data : data?.message ? data.message : JSONUtils.safe(data, 2);
-
+			const message = err instanceof Error ? err.message : "Unknown error";
 			throw new MagmaStreamError({
 				code: MagmaStreamErrorCode.REST_REQUEST_FAILED,
-				message: `Request to node ${this.node.options.identifier} failed with status ${error.response.status}: ${dataMessage}`,
+				message: `No response from node ${this.node.options.identifier}: ${message}`,
 			});
 		}
+
+		const { status, data } = response;
+
+		if (status >= 200 && status < 300) {
+			return data;
+		}
+
+		// Lavalink sometimes returns "Guild not found" for inactive players
+		if (status === 404 && (data as Record<string, unknown>)?.message === "Guild not found") {
+			return [];
+		}
+
+		if (status === 401) {
+			throw new MagmaStreamError({
+				code: MagmaStreamErrorCode.REST_UNAUTHORIZED,
+				message: `Unauthorized access to node ${this.node.options.identifier}`,
+			});
+		}
+
+		if (status >= 400 && status < 500) {
+			const message =
+				typeof data === "string"
+					? data
+					: typeof data === "object" && data !== null && "message" in data && typeof data.message === "string"
+					? data.message
+					: "Unknown client error";
+
+			return {
+				status,
+				error: true,
+				message,
+				data,
+			};
+		}
+
+		const safeMessage =
+			typeof data === "string"
+				? data
+				: typeof data === "object" && data !== null && "message" in data && typeof data.message === "string"
+				? data.message
+				: JSONUtils.safe(data, 2);
+
+		throw new MagmaStreamError({
+			code: MagmaStreamErrorCode.REST_REQUEST_FAILED,
+			message: `Request to node ${this.node.options.identifier} failed (${status}): ${safeMessage}`,
+		});
 	}
 
 	/**

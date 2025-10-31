@@ -304,7 +304,7 @@ export class Player {
 		await this.queue.clear();
 		await this.queue.clearPrevious();
 		await this.queue.setCurrent(null);
-		
+
 		if (disconnect) {
 			await this.disconnect().catch((err) => {
 				console.warn(`[Player#destroy] Failed to disconnect player ${this.guildId}:`, err);
@@ -314,7 +314,6 @@ export class Player {
 		await this.node.rest.destroyPlayer(this.guildId).catch((err) => {
 			console.warn(`[Player#destroy] REST failed to destroy player ${this.guildId}:`, err);
 		});
-
 
 		this.manager.emit(ManagerEventTypes.PlayerDestroy, this);
 
@@ -933,10 +932,9 @@ export class Player {
 			if (currentPlayingTrack) {
 				await this.queue.add(currentPlayingTrack, 0);
 			}
-			await this.play(lastTrack);
-		} else {
-			await this.play(lastTrack);
 		}
+
+		await this.play(lastTrack);
 
 		this.manager.emit(ManagerEventTypes.PlayerStateUpdate, oldPlayer, this, {
 			changeType: PlayerStateEventTypes.TrackChange,
