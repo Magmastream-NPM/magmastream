@@ -8,6 +8,7 @@ import { Player } from "./Player";
 import path from "path";
 import stringify from "safe-stable-stringify";
 import { MagmaStreamError } from "./MagmastreamError";
+import { isPlainObject } from "lodash";
 // import playwright from "playwright";
 
 /** @hidden */
@@ -733,73 +734,101 @@ export abstract class PlayerUtils {
 	 * @returns The serialized Player instance
 	 */
 	public static async serializePlayer(player: Player): Promise<Record<string, unknown>> {
+		const current = await player.queue.getCurrent();
+		const tracks = await player.queue.getTracks();
+		const previous = await player.queue.getPrevious();
+
+		const serializeTrack = (track: Track) => ({
+			...track,
+			requester: track.requester ? { id: track.requester.id, username: track.requester.username } : null,
+		});
+
+		const safeNode = player.node
+			? JSON.parse(
+					JSON.stringify(player.node, (key, value) => {
+						if (key === "rest" || key === "players" || key === "shards" || key === "manager") return undefined;
+						return value;
+					})
+			  )
+			: null;
+
+		const isNonSerializable = (value: unknown): boolean => {
+			if (typeof value === "function" || typeof value === "symbol") return true;
+			if (typeof value === "object" && value !== null) {
+				const ctorName = (value as { constructor?: { name?: string } }).constructor?.name ?? "";
+
+				return (
+					value instanceof Map ||
+					value instanceof Set ||
+					value instanceof WeakMap ||
+					value instanceof WeakSet ||
+					ctorName === "Timeout" ||
+					ctorName === "Socket" ||
+					ctorName === "TLSSocket" ||
+					ctorName === "EventEmitter"
+				);
+			}
+			return false;
+		};
+
+		const safeReplacer = (key: string, value: unknown): unknown => {
+			if (isNonSerializable(value)) return undefined;
+
+			if (key === "manager") return null;
+
+			if (key === "node") return safeNode;
+
+			if (key === "filters" && isPlainObject(value)) {
+				return {
+					distortion: value["distortion"] ?? null,
+					equalizer: value["equalizer"] ?? [],
+					karaoke: value["karaoke"] ?? null,
+					rotation: value["rotation"] ?? null,
+					timescale: value["timescale"] ?? null,
+					vibrato: value["vibrato"] ?? null,
+					reverb: value["reverb"] ?? null,
+					volume: value["volume"] ?? 1.0,
+					bassBoostlevel: value["bassBoostlevel"] ?? null,
+					filterStatus: isPlainObject(value["filtersStatus"]) ? { ...value["filtersStatus"] } : {},
+				};
+			}
+
+			if (key === "queue") {
+				return {
+					current: current ? serializeTrack(current) : null,
+					tracks: tracks.map(serializeTrack),
+					previous: previous.map(serializeTrack),
+				};
+			}
+
+			if (key === "data" && isPlainObject(value)) {
+				return {
+					clientUser: value["Internal_AutoplayUser"] ?? null,
+					nowPlayingMessage: value["nowPlayingMessage"] ?? null,
+				};
+			}
+
+			return value;
+		};
+
+		let serialized: string;
+
 		try {
-			const current = await player.queue.getCurrent();
-			const tracks = await player.queue.getTracks();
-			const previous = await player.queue.getPrevious();
-
-			const serializeTrack = (track: Track) => ({
-				...track,
-				requester: track.requester ? { id: track.requester.id, username: track.requester.username } : null,
-			});
-
-			const safeNode = player.node
-				? JSON.parse(
-						JSON.stringify(player.node, (key, value) => {
-							if (key === "rest" || key === "players" || key === "shards" || key === "manager") return undefined;
-							return value;
-						})
-				  )
-				: null;
-
-			return JSON.parse(
-				JSON.stringify(player, (key, value) => {
-					if (key === "manager") return null;
-
-					if (key === "node") return safeNode;
-
-					if (key === "filters") {
-						return {
-							distortion: value?.distortion ?? null,
-							equalizer: value?.equalizer ?? [],
-							karaoke: value?.karaoke ?? null,
-							rotation: value?.rotation ?? null,
-							timescale: value?.timescale ?? null,
-							vibrato: value?.vibrato ?? null,
-							reverb: value?.reverb ?? null,
-							volume: value?.volume ?? 1.0,
-							bassBoostlevel: value?.bassBoostlevel ?? null,
-							filterStatus: value?.filtersStatus ? { ...value.filtersStatus } : {},
-						};
-					}
-
-					if (key === "queue") {
-						return {
-							current: current ? serializeTrack(current) : null,
-							tracks: tracks.map(serializeTrack),
-							previous: previous.map(serializeTrack),
-						};
-					}
-
-					if (key === "data") {
-						return {
-							clientUser: value?.Internal_AutoplayUser ?? null,
-							nowPlayingMessage: value?.nowPlayingMessage ?? null,
-						};
-					}
-
-					return value;
-				})
-			);
+			serialized = JSON.stringify(player, safeReplacer);
 		} catch (err) {
-			throw err instanceof MagmaStreamError
-				? err
-				: new MagmaStreamError({
-						code: MagmaStreamErrorCode.MANAGER_SEARCH_FAILED,
-						message: `An error occurred while searching: ${err instanceof Error ? err.message : String(err)}`,
-						cause: err instanceof Error ? err : undefined,
-				  });
+			const error =
+				err instanceof MagmaStreamError
+					? err
+					: new MagmaStreamError({
+							code: MagmaStreamErrorCode.MANAGER_SEARCH_FAILED,
+							message: `An error occurred while searching: ${err instanceof Error ? err.message : String(err)}`,
+							cause: err instanceof Error ? err : undefined,
+					  });
+
+			console.error(error);
 		}
+
+		return JSON.parse(serialized);
 	}
 
 	/**
