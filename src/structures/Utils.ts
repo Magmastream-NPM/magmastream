@@ -778,12 +778,15 @@ export abstract class PlayerUtils {
 
 			if (key === "node") return safeNode;
 
-			if (key === "filters" && isPlainObject(value)) {
+			if (key === "filters") {
+				const filters = { ...(value as Record<string, unknown>) };
+				delete filters.player;
+				
 				return {
-					distortion: value["distortion"] ?? null,
-					equalizer: value["equalizer"] ?? [],
-					karaoke: value["karaoke"] ?? null,
-					rotation: value["rotation"] ?? null,
+					distortion: filters["distortion"] ?? null,
+					equalizer: filters["equalizer"] ?? [],
+					karaoke: filters["karaoke"] ?? null,
+					rotation: filters["rotation"] ?? null,
 					timescale: value["timescale"] ?? null,
 					vibrato: value["vibrato"] ?? null,
 					reverb: value["reverb"] ?? null,
