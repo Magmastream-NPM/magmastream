@@ -1,5 +1,4 @@
-import { Client, User } from "discord.js";
-import { version as djsVersion } from "discord.js";
+import { Client, User, version as djsVersion } from "discord.js";
 import { Manager as BaseManager } from "../structures/Manager";
 import { AnyUser, ManagerOptions, VoicePacket } from "../structures/Types";
 import type { GatewayVoiceStateUpdate } from "discord-api-types/v10";
@@ -23,15 +22,8 @@ export class DiscordJSManager extends BaseManager {
 				if (!this.options.clientId) this.options.clientId = this.client.user!.id;
 			};
 
-			// Only attach clientReady if Discord.js >= 14.22.0
-			if (major > 14 || (major === 14 && minor >= 22)) {
-				client.once("clientReady", handler);
-			}
-
-			// Only attach ready if Discord.js < 14.22.0
-			if (major < 14 || (major === 14 && minor < 22)) {
-				client.once("ready", handler);
-			}
+			const hasClientReady = major > 14 || (major === 14 && minor >= 22);
+			client.once(hasClientReady ? "clientReady" : "ready", handler);
 		};
 
 		attachReadyHandler();
