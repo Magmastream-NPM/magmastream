@@ -1,8 +1,9 @@
-import { Manager as BaseManager } from "../structures/Manager";
-import type { GatewayVoiceStateUpdate } from "discord-api-types/v10";
 import { Client, User } from "discord.js";
-import { AnyUser, ManagerOptions, VoicePacket } from "../structures/Types";
 import { version as djsVersion } from "discord.js";
+import { Manager as BaseManager } from "../structures/Manager";
+import { AnyUser, ManagerOptions, VoicePacket } from "../structures/Types";
+import type { GatewayVoiceStateUpdate } from "discord-api-types/v10";
+
 const [major, minor] = djsVersion.split(".").map(Number);
 
 export * from "../index";
@@ -11,7 +12,10 @@ export * from "../index";
  * Discord.js wrapper for Magmastream.
  */
 export class DiscordJSManager extends BaseManager {
-	public constructor(public readonly client: Client, options?: ManagerOptions) {
+	public constructor(
+		public readonly client: Client,
+		options?: ManagerOptions,
+	) {
 		super(options);
 
 		const attachReadyHandler = () => {

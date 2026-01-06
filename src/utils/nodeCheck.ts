@@ -1,6 +1,6 @@
-import { NodeOptions } from "../structures/Types";
-import { MagmaStreamError } from "../structures/MagmastreamError";
 import { MagmaStreamErrorCode } from "../structures/Enums";
+import { MagmaStreamError } from "../structures/MagmastreamError";
+import { NodeOptions } from "../structures/Types";
 
 /**
  * Validates the provided NodeOptions object.

@@ -1,6 +1,12 @@
+import { AvailableFilters, MagmaStreamErrorCode, ManagerEventTypes, PlayerStateEventTypes } from "./Enums";
+import { MagmaStreamError } from "./MagmastreamError";
+import { Manager } from "./Manager";
+import { Player } from "./Player";
+import { DistortionOptions, KaraokeOptions, PlayerStateUpdateEvent, ReverbOptions, RotationOptions, TimescaleOptions, VibratoOptions } from "./Types";
 import {
 	Band,
 	bassBoostEqualizer,
+	demonEqualizer,
 	electronicEqualizer,
 	popEqualizer,
 	radioEqualizer,
@@ -8,13 +14,7 @@ import {
 	trebleBassEqualizer,
 	tvEqualizer,
 	vaporwaveEqualizer,
-	demonEqualizer,
 } from "../utils/filtersEqualizers";
-import { AvailableFilters, MagmaStreamErrorCode, ManagerEventTypes, PlayerStateEventTypes } from "./Enums";
-import { MagmaStreamError } from "./MagmastreamError";
-import { Manager } from "./Manager";
-import { Player } from "./Player";
-import { DistortionOptions, KaraokeOptions, PlayerStateUpdateEvent, ReverbOptions, RotationOptions, TimescaleOptions, VibratoOptions } from "./Types";
 
 export class Filters {
 	public distortion: DistortionOptions | null;
@@ -42,10 +42,13 @@ export class Filters {
 		this.volume = 1.0;
 		this.bassBoostlevel = 0;
 		// Initialize filter status
-		this.filtersStatus = Object.values(AvailableFilters).reduce((acc, filter) => {
-			acc[filter] = false;
-			return acc;
-		}, {} as Record<AvailableFilters, boolean>);
+		this.filtersStatus = Object.values(AvailableFilters).reduce(
+			(acc, filter) => {
+				acc[filter] = false;
+				return acc;
+			},
+			{} as Record<AvailableFilters, boolean>,
+		);
 	}
 
 	/**
@@ -87,7 +90,7 @@ export class Filters {
 							message: `Failed to apply filters to player "${this.player.guildId}".`,
 							cause: err instanceof Error ? err : undefined,
 							context: { nodeId: this.player.node.options.identifier },
-					  });
+						});
 
 			console.log(error);
 		}
@@ -157,10 +160,13 @@ export class Filters {
 	 */
 	public async clearFilters(): Promise<this> {
 		const oldPlayer = { ...this };
-		this.filtersStatus = Object.values(AvailableFilters).reduce((acc, filter) => {
-			acc[filter] = false;
-			return acc;
-		}, {} as Record<AvailableFilters, boolean>);
+		this.filtersStatus = Object.values(AvailableFilters).reduce(
+			(acc, filter) => {
+				acc[filter] = false;
+				return acc;
+			},
+			{} as Record<AvailableFilters, boolean>,
+		);
 
 		this.player.filters = new Filters(this.player, this.manager);
 		await this.setEqualizer([]);
@@ -676,12 +682,12 @@ export class Filters {
 					equalizer: demonEqualizer,
 					timescale: { pitch: 0.8 } as TimescaleOptions,
 					reverb: { wet: 0.7, dry: 0.3, roomSize: 0.8, damping: 0.5 } as ReverbOptions,
-			  }
+				}
 			: {
 					equalizer: [] as Band[],
 					timescale: null as TimescaleOptions | null,
 					reverb: null as ReverbOptions | null,
-			  };
+				};
 
 		await Promise.all(Object.entries(filters).map(([property, value]) => this.applyFilter({ property: property as keyof Filters, value })));
 

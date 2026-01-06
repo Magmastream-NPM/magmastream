@@ -9,7 +9,10 @@ export * from "../index";
  * Oceanic wrapper for Magmastream.
  */
 export class OceanicManager extends BaseManager {
-	constructor(public readonly client: Client, options?: ManagerOptions) {
+	constructor(
+		public readonly client: Client,
+		options?: ManagerOptions,
+	) {
 		super(options);
 
 		client.once("ready", () => {

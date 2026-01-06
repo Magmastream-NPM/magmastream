@@ -1,7 +1,7 @@
 import { GatewayReceivePayload, GatewayVoiceStateUpdate } from "discord-api-types/v10";
 import { Manager as BaseManager } from "../structures/Manager";
-import type { Client, User } from "eris";
 import { AnyUser, ManagerOptions, VoicePacket } from "../structures/Types";
+import type { Client, User } from "eris";
 
 export * from "../index";
 
@@ -9,7 +9,10 @@ export * from "../index";
  * Eris wrapper for Magmastream.
  */
 export class ErisManager extends BaseManager {
-	public constructor(public readonly client: Client, options?: ManagerOptions) {
+	public constructor(
+		public readonly client: Client,
+		options?: ManagerOptions,
+	) {
 		super(options);
 
 		client.once("ready", () => {

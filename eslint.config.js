@@ -1,5 +1,6 @@
-const eslintPlugin = require("@typescript-eslint/eslint-plugin");
-const eslintParser = require("@typescript-eslint/parser");
+const eslintPluginTs = require("@typescript-eslint/eslint-plugin");
+const eslintParserTs = require("@typescript-eslint/parser");
+const eslintPluginImport = require("eslint-plugin-import");
 
 module.exports = [
 	{
@@ -8,14 +9,28 @@ module.exports = [
 	{
 		files: ["**/*.ts"],
 		languageOptions: {
-			parser: eslintParser,
+			parser: eslintParserTs,
 			sourceType: "module",
 		},
 		plugins: {
-			"@typescript-eslint": eslintPlugin,
+			"@typescript-eslint": eslintPluginTs,
+			import: eslintPluginImport,
 		},
 		rules: {
-			...eslintPlugin.configs.recommended.rules,
+			...eslintPluginTs.configs.recommended.rules,
+
+			semi: ["error", "always"],
+			"import/order": [
+				"error",
+				{
+					groups: ["builtin", "external", "internal", ["parent", "sibling"], "index", "type"],
+					"newlines-between": "never",
+					alphabetize: {
+						order: "asc",
+						caseInsensitive: true,
+					},
+				},
+			],
 		},
 	},
 ];

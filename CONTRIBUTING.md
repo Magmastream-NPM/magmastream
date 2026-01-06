@@ -37,48 +37,55 @@ We expect all contributors to adhere to our Code of Conduct. Please read it befo
 
 1. Fork the repository on GitHub
 2. Clone your fork locally:
-   ```bash
-   git clone https://github.com/YOUR-USERNAME/magmastream.git
-   cd magmastream
-   ```
+    ```bash
+    git clone https://github.com/YOUR-USERNAME/magmastream.git
+    cd magmastream
+    ```
 3. Install dependencies:
-   ```bash
-   npm install
-   ```
+    ```bash
+    npm install
+    ```
 4. Add the original repository as a remote:
-   ```bash
-   git remote add upstream https://github.com/Magmastream-NPM/magmastream.git
-   ```
+    ```bash
+    git remote add upstream https://github.com/Magmastream-NPM/magmastream.git
+    ```
 
 ## Development Workflow
 
 1. Create a new branch for your feature/fix:
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
-   or
-   ```bash
-   git checkout -b fix/issue-you-are-fixing
-   ```
+
+    ```bash
+    git checkout -b feature/your-feature-name
+    ```
+
+    or
+
+    ```bash
+    git checkout -b fix/issue-you-are-fixing
+    ```
 
 2. Make your changes
 
 3. Run tests to ensure your changes don't break existing functionality:
-   ```bash
-   npm test
-   ```
+
+    ```bash
+    npm test
+    ```
 
 4. Commit your changes with a descriptive message:
-   ```bash
-   git commit -m "feat: add new audio filter functionality"
-   ```
-   We follow [Conventional Commits](https://www.conventionalcommits.org/) for commit messages.
-   Also take a look at [this](https://www.freecodecamp.org/news/how-to-write-better-git-commit-messages/) tutorial for more information.
+
+    ```bash
+    git commit -m "feat: add new audio filter functionality"
+    ```
+
+    We follow [Conventional Commits](https://www.conventionalcommits.org/) for commit messages.
+    Also take a look at [this](https://www.freecodecamp.org/news/how-to-write-better-git-commit-messages/) tutorial for more information.
 
 5. Push to your fork:
-   ```bash
-   git push origin feature/your-feature-name
-   ```
+
+    ```bash
+    git push origin feature/your-feature-name
+    ```
 
 6. Create a Pull Request from your fork to the [dev](https://github.com/Magmastream-NPM/magmastream/tree/dev) branch
 
@@ -118,6 +125,7 @@ All new features and bug fixes should include tests. We use Jest for testing.
 - Make sure your tests are meaningful and cover edge cases
 
 To run tests:
+
 ```bash
 npm test
 ```

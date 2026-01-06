@@ -1,11 +1,12 @@
-import { AutoPlayUtils, JSONUtils } from "./Utils";
+import fs from "fs";
+import { IncomingMessage } from "http";
+import path from "path";
+import WebSocket from "ws";
+import { MagmaStreamErrorCode, ManagerEventTypes, PlayerStateEventTypes, SponsorBlockSegment, StateStorageType, TrackEndReasonTypes } from "./Enums";
+import { MagmaStreamError } from "./MagmastreamError";
 import { Manager } from "./Manager";
 import { Player } from "./Player";
 import { Rest } from "./Rest";
-import nodeCheck from "../utils/nodeCheck";
-import WebSocket from "ws";
-import fs from "fs";
-import path from "path";
 import {
 	AnyUser,
 	LavalinkInfo,
@@ -30,9 +31,8 @@ import {
 	TrackStuckEvent,
 	WebSocketClosedEvent,
 } from "./Types";
-import { MagmaStreamErrorCode, ManagerEventTypes, PlayerStateEventTypes, SponsorBlockSegment, StateStorageType, TrackEndReasonTypes } from "./Enums";
-import { IncomingMessage } from "http";
-import { MagmaStreamError } from "./MagmastreamError";
+import { AutoPlayUtils, JSONUtils } from "./Utils";
+import nodeCheck from "../utils/nodeCheck";
 
 const validSponsorBlocks = Object.values(SponsorBlockSegment).map((v) => v.toLowerCase());
 
@@ -63,7 +63,10 @@ export class Node {
 	 * @param manager - The manager for the node.
 	 * @param options - The options for the node.
 	 */
-	constructor(public manager: Manager, public options: NodeOptions) {
+	constructor(
+		public manager: Manager,
+		public options: NodeOptions,
+	) {
 		if (!this.manager) {
 			throw new MagmaStreamError({
 				code: MagmaStreamErrorCode.GENERAL_INVALID_MANAGER,
@@ -141,7 +144,7 @@ export class Node {
 			case StateStorageType.Redis:
 				this.redisPrefix = this.manager.options.stateStorage.redisConfig.prefix?.endsWith(":")
 					? this.manager.options.stateStorage.redisConfig.prefix
-					: this.manager.options.stateStorage.redisConfig.prefix ?? "magmastream:";
+					: (this.manager.options.stateStorage.redisConfig.prefix ?? "magmastream:");
 				break;
 		}
 	}
@@ -868,7 +871,7 @@ export class Node {
 				.replace(/[^a-z0-9]/g, "");
 
 		const filteredTracks = tracks.filter(
-			(track) => track.identifier !== lastTrack.identifier && track.uri !== lastTrack.uri && normalize(track.title) !== normalize(lastTrack.title)
+			(track) => track.identifier !== lastTrack.identifier && track.uri !== lastTrack.uri && normalize(track.title) !== normalize(lastTrack.title),
 		);
 
 		if (filteredTracks.length) {
@@ -1025,9 +1028,7 @@ export class Node {
 		}
 
 		if (this.isNodeLink) {
-			return (await this.rest.get(
-				`/v4/loadlyrics?encodedTrack=${encodeURIComponent(track.track)}${language ? `&language=${language}` : ""}`
-			)) as NodeLinkGetLyrics;
+			return (await this.rest.get(`/v4/loadlyrics?encodedTrack=${encodeURIComponent(track.track)}${language ? `&language=${language}` : ""}`)) as NodeLinkGetLyrics;
 		}
 
 		const requiredPlugins = ["lavalyrics-plugin"];
@@ -1107,7 +1108,7 @@ export class Node {
 						message: "Failed to subscribe to lyrics session.",
 						cause: err instanceof Error ? err : undefined,
 						context: { identifier: this.options.identifier, guildId, skipTrackSource },
-				  });
+					});
 		}
 	}
 
@@ -1152,7 +1153,7 @@ export class Node {
 						message: "Failed to unsubscribe from lyrics session.",
 						cause: err instanceof Error ? err : undefined,
 						context: { identifier: this.options.identifier, guildId },
-				  });
+					});
 		}
 	}
 
@@ -1307,7 +1308,7 @@ export class Node {
 						message: "Failed to fetch SponsorBlock segments.",
 						cause: err instanceof Error ? err : undefined,
 						context: { identifier: this.options.identifier, guildId: player.guildId },
-				  });
+					});
 		}
 	}
 
@@ -1355,8 +1356,8 @@ export class Node {
 				`/v4/sessions/${this.sessionId}/players/${player.guildId}/sponsorblock/categories`,
 				JSONUtils.safe(
 					segments.map((v) => v.toLowerCase()),
-					2
-				)
+					2,
+				),
 			);
 		} catch (err) {
 			throw err instanceof MagmaStreamError
@@ -1366,7 +1367,7 @@ export class Node {
 						message: "Failed to set SponsorBlock segments.",
 						cause: err instanceof Error ? err : undefined,
 						context: { identifier: this.options.identifier, guildId: player.guildId, segments },
-				  });
+					});
 		}
 	}
 
@@ -1395,7 +1396,7 @@ export class Node {
 						message: "Failed to delete SponsorBlock segments.",
 						cause: err instanceof Error ? err : undefined,
 						context: { identifier: this.options.identifier, guildId: player.guildId },
-				  });
+					});
 		}
 	}
 

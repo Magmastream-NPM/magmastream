@@ -1,28 +1,16 @@
+import * as _ from "lodash";
+import { WebSocket } from "ws";
+import { MagmaStreamErrorCode, ManagerEventTypes, PlayerStateEventTypes, SponsorBlockSegment, StateStorageType, StateTypes } from "./Enums";
 import { Filters } from "./Filters";
+import { MagmaStreamError } from "./MagmastreamError";
 import { Manager } from "./Manager";
 import { Node } from "./Node";
-import { MemoryQueue } from "../statestorage/MemoryQueue";
+import { AnyMessage, IQueue, Lyrics, PlayerOptions, PlayerStateUpdateEvent, PlayOptions, SearchQuery, SearchResult, Track, VoiceReceiverEvent, VoiceState } from "./Types";
 import { AutoPlayUtils, JSONUtils, Structure, TrackUtils } from "./Utils";
-import * as _ from "lodash";
-import playerCheck from "../utils/playerCheck";
-import { RedisQueue } from "../statestorage/RedisQueue";
-import {
-	AnyMessage,
-	IQueue,
-	Lyrics,
-	PlayerOptions,
-	PlayerStateUpdateEvent,
-	PlayOptions,
-	SearchQuery,
-	SearchResult,
-	Track,
-	VoiceReceiverEvent,
-	VoiceState,
-} from "./Types";
-import { MagmaStreamErrorCode, ManagerEventTypes, PlayerStateEventTypes, SponsorBlockSegment, StateStorageType, StateTypes } from "./Enums";
-import { WebSocket } from "ws";
 import { JsonQueue } from "../statestorage/JsonQueue";
-import { MagmaStreamError } from "./MagmastreamError";
+import { MemoryQueue } from "../statestorage/MemoryQueue";
+import { RedisQueue } from "../statestorage/RedisQueue";
+import playerCheck from "../utils/playerCheck";
 
 export class Player {
 	/** The Queue for the Player. */
@@ -453,8 +441,8 @@ export class Player {
 		const finalOptions = playOptions
 			? playOptions
 			: ["startTime", "endTime", "noReplace"].every((v) => Object.keys(optionsOrTrack || {}).includes(v))
-			? (optionsOrTrack as PlayOptions)
-			: {};
+				? (optionsOrTrack as PlayOptions)
+				: {};
 
 		await this.node.rest.updatePlayer({
 			guildId: this.guildId,
@@ -1068,7 +1056,7 @@ export class Player {
 			if (!sessionId || !token || !endpoint) {
 				this.manager.emit(
 					ManagerEventTypes.Debug,
-					`[MANAGER] Voice state is not properly initialized for player ${this.guildId}. The bot might not be connected to a voice channel.`
+					`[MANAGER] Voice state is not properly initialized for player ${this.guildId}. The bot might not be connected to a voice channel.`,
 				);
 				throw new MagmaStreamError({
 					code: MagmaStreamErrorCode.PLAYER_STATE_INVALID,
@@ -1099,7 +1087,7 @@ export class Player {
 							message: "Error moving player to node.",
 							cause: err,
 							context: { guildId: this.guildId },
-					  });
+						});
 
 			this.manager.emit(ManagerEventTypes.Debug, error);
 			console.error(error);

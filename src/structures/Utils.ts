@@ -1,14 +1,15 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
+import path from "path";
 import axios from "axios";
 import { JSDOM } from "jsdom";
-import { AutoPlayPlatform, LoadTypes, MagmaStreamErrorCode, SearchPlatform, TrackPartial } from "./Enums";
-import { Manager } from "./Manager";
-import { AnyUser, ErrorOrEmptySearchResult, Extendable, LavalinkResponse, PlaylistRawData, SearchResult, Track, TrackData, TrackSourceName } from "./Types";
-import { Player } from "./Player";
-import path from "path";
-import stringify from "safe-stable-stringify";
-import { MagmaStreamError } from "./MagmastreamError";
 import { isPlainObject } from "lodash";
+import stringify from "safe-stable-stringify";
+import { AutoPlayPlatform, LoadTypes, MagmaStreamErrorCode, SearchPlatform, TrackPartial } from "./Enums";
+import { MagmaStreamError } from "./MagmastreamError";
+import { Manager } from "./Manager";
+import { Player } from "./Player";
+import { AnyUser, ErrorOrEmptySearchResult, Extendable, LavalinkResponse, PlaylistRawData, SearchResult, Track, TrackData, TrackSourceName } from "./Types";
+
 // import playwright from "playwright";
 
 /** @hidden */
@@ -286,7 +287,7 @@ export abstract class AutoPlayUtils {
 				const resolvedTracks = await this.resolveTracksFromQuery(
 					`${randomTrack.artist.name} - ${randomTrack.name}`,
 					this.manager.options.defaultSearchPlatform,
-					track.requester
+					track.requester,
 				);
 
 				if (!resolvedTracks.length) return [];
@@ -331,7 +332,7 @@ export abstract class AutoPlayUtils {
 			const resolvedTracks = await this.resolveTracksFromQuery(
 				`${randomTrack.artist.name} - ${randomTrack.name}`,
 				this.manager.options.defaultSearchPlatform,
-				track.requester
+				track.requester,
 			);
 
 			if (!resolvedTracks.length) return [];
@@ -350,11 +351,7 @@ export abstract class AutoPlayUtils {
 			return [];
 		}
 
-		const resolvedTracks = await this.resolveTracksFromQuery(
-			`${randomTrack.artist.name} - ${randomTrack.name}`,
-			this.manager.options.defaultSearchPlatform,
-			track.requester
-		);
+		const resolvedTracks = await this.resolveTracksFromQuery(`${randomTrack.artist.name} - ${randomTrack.name}`, this.manager.options.defaultSearchPlatform, track.requester);
 
 		if (!resolvedTracks.length) return [];
 
@@ -643,8 +640,7 @@ export abstract class AutoPlayUtils {
 
 	private static isTrackDataArray(data: unknown): data is TrackData[] {
 		return (
-			Array.isArray(data) &&
-			data.every((track) => typeof track === "object" && track !== null && "encoded" in track && "info" in track && typeof track.encoded === "string")
+			Array.isArray(data) && data.every((track) => typeof track === "object" && track !== null && "encoded" in track && "info" in track && typeof track.encoded === "string")
 		);
 	}
 
@@ -748,8 +744,8 @@ export abstract class PlayerUtils {
 					JSON.stringify(player.node, (key, value) => {
 						if (key === "rest" || key === "players" || key === "shards" || key === "manager") return undefined;
 						return value;
-					})
-			  )
+					}),
+				)
 			: null;
 
 		const isNonSerializable = (value: unknown): boolean => {
@@ -781,7 +777,7 @@ export abstract class PlayerUtils {
 			if (key === "filters") {
 				const filters = { ...(value as Record<string, unknown>) };
 				delete filters.player;
-				
+
 				return {
 					distortion: filters["distortion"] ?? null,
 					equalizer: filters["equalizer"] ?? [],
@@ -826,7 +822,7 @@ export abstract class PlayerUtils {
 							code: MagmaStreamErrorCode.MANAGER_SEARCH_FAILED,
 							message: `An error occurred while searching: ${err instanceof Error ? err.message : String(err)}`,
 							cause: err instanceof Error ? err : undefined,
-					  });
+						});
 
 			console.error(error);
 		}

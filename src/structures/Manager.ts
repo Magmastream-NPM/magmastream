@@ -1,16 +1,15 @@
-import { AutoPlayUtils, JSONUtils, PlayerUtils, Structure, TrackUtils } from "./Utils";
-import { Collection } from "@discordjs/collection";
-import { GatewayVoiceStateUpdate } from "discord-api-types/v10";
 import { EventEmitter } from "events";
-import { Node } from "./Node";
-import { Player } from "./Player";
-import { Plugin } from "..";
-import managerCheck from "../utils/managerCheck";
-import { User } from "discord.js";
-import { blockedWords } from "../config/blockedWords";
 import fs from "fs/promises";
 import path from "path";
+import { Collection } from "@discordjs/collection";
+import { GatewayVoiceStateUpdate } from "discord-api-types/v10";
+import { User } from "discord.js";
 import Redis, { Redis as RedisClient } from "ioredis";
+import { Plugin } from "..";
+import { AutoPlayPlatform, LoadTypes, MagmaStreamErrorCode, ManagerEventTypes, SearchPlatform, StateStorageType, StateTypes, TrackEndReasonTypes, UseNodeOptions } from "./Enums";
+import { MagmaStreamError } from "./MagmastreamError";
+import { Node } from "./Node";
+import { Player } from "./Player";
 import {
 	AnyMessage,
 	AnyUser,
@@ -31,19 +30,10 @@ import {
 	VoiceServer,
 	VoiceState,
 } from "./Types";
-import {
-	AutoPlayPlatform,
-	LoadTypes,
-	MagmaStreamErrorCode,
-	ManagerEventTypes,
-	SearchPlatform,
-	StateStorageType,
-	StateTypes,
-	TrackEndReasonTypes,
-	UseNodeOptions,
-} from "./Enums";
+import { AutoPlayUtils, JSONUtils, PlayerUtils, Structure, TrackUtils } from "./Utils";
 import { version } from "../../package.json";
-import { MagmaStreamError } from "./MagmastreamError";
+import { blockedWords } from "../config/blockedWords";
+import managerCheck from "../utils/managerCheck";
 
 /**
  * The main hub for interacting with Lavalink and using Magmastream.
@@ -151,7 +141,7 @@ export class Manager extends EventEmitter {
 								message: "An unknown error occurred.",
 								cause: err,
 								context: { stage: "SIGINT" },
-						  });
+							});
 
 				console.error(error);
 				process.exit(1);
@@ -174,7 +164,7 @@ export class Manager extends EventEmitter {
 								message: "An unknown error occurred.",
 								cause: err,
 								context: { stage: "SIGTERM" },
-						  });
+							});
 
 				console.error(error);
 				process.exit(1);
@@ -236,7 +226,7 @@ export class Manager extends EventEmitter {
 								message: `Failed to connect node "${node.options.identifier}".`,
 								cause: err instanceof Error ? err : undefined,
 								context: { nodeId: node.options.identifier },
-						  });
+							});
 
 				this.emit(ManagerEventTypes.NodeError, node, error);
 			}
@@ -269,10 +259,7 @@ export class Manager extends EventEmitter {
 		const isUrl = /^https?:\/\//.test(_query.query);
 		const search = isUrl ? _query.query : `${_source}:${_query.query}`;
 
-		this.emit(
-			ManagerEventTypes.Debug,
-			isUrl ? `[MANAGER] Performing search for: ${_query.query}` : `[MANAGER] Performing ${_source} search for: ${_query.query}`
-		);
+		this.emit(ManagerEventTypes.Debug, isUrl ? `[MANAGER] Performing search for: ${_query.query}` : `[MANAGER] Performing ${_source} search for: ${_query.query}`);
 
 		try {
 			const res = (await node.rest.get(`/v4/loadtracks?identifier=${encodeURIComponent(search)}`)) as LavalinkResponse;
@@ -343,9 +330,7 @@ export class Manager extends EventEmitter {
 			}
 
 			const summary =
-				"tracks" in result
-					? result.tracks.map((t) => Object.fromEntries(Object.entries(t).filter(([key]) => key !== "requester")) as Omit<Track, "requester">)
-					: [];
+				"tracks" in result ? result.tracks.map((t) => Object.fromEntries(Object.entries(t).filter(([key]) => key !== "requester")) as Omit<Track, "requester">) : [];
 
 			this.emit(ManagerEventTypes.Debug, `[MANAGER] Result search for ${_query.query}: ${JSONUtils.safe(summary, 2)}`);
 
@@ -358,7 +343,7 @@ export class Manager extends EventEmitter {
 						message: `An error occurred while searching: ${err instanceof Error ? err.message : String(err)}`,
 						cause: err instanceof Error ? err : undefined,
 						context: { query, requester },
-				  });
+					});
 		}
 	}
 
@@ -564,7 +549,7 @@ export class Manager extends EventEmitter {
 						const redisKey = `${
 							this.options.stateStorage.redisConfig.prefix?.endsWith(":")
 								? this.options.stateStorage.redisConfig.prefix
-								: this.options.stateStorage.redisConfig.prefix ?? "magmastream:"
+								: (this.options.stateStorage.redisConfig.prefix ?? "magmastream:")
 						}playerstore:${guildId}`;
 
 						await this.redis.set(redisKey, JSON.stringify(serializedPlayer));
@@ -847,7 +832,7 @@ export class Manager extends EventEmitter {
 						const redisKeyPattern = `${
 							this.options.stateStorage.redisConfig.prefix?.endsWith(":")
 								? this.options.stateStorage.redisConfig.prefix
-								: this.options.stateStorage.redisConfig.prefix ?? "magmastream:"
+								: (this.options.stateStorage.redisConfig.prefix ?? "magmastream:")
 						}playerstore:*`;
 						const keys = await this.redis.keys(redisKeyPattern);
 
@@ -1063,11 +1048,7 @@ export class Manager extends EventEmitter {
 	 * @returns {Node} The node to use.
 	 */
 	public get useableNode(): Node {
-		return this.options.enablePriorityMode
-			? this.priorityNode
-			: this.options.useNode === UseNodeOptions.LeastLoad
-			? this.leastLoadNode.first()
-			: this.leastPlayersNode.first();
+		return this.options.enablePriorityMode ? this.priorityNode : this.options.useNode === UseNodeOptions.LeastLoad ? this.leastLoadNode.first() : this.leastPlayersNode.first();
 	}
 
 	/**
@@ -1094,7 +1075,7 @@ export class Manager extends EventEmitter {
 									message: "Error saving player state.",
 									cause: err,
 									context: { guildId },
-							  });
+								});
 
 					console.error(error);
 				}
@@ -1117,7 +1098,7 @@ export class Manager extends EventEmitter {
 							message: "Error saving player state.",
 							cause: err,
 							context: { stage: "SHUTDOWN" },
-					  });
+						});
 
 			console.error(error);
 			process.exit(1);
@@ -1260,10 +1241,7 @@ export class Manager extends EventEmitter {
 			data: { voice: { token, endpoint, sessionId } },
 		});
 
-		this.emit(
-			ManagerEventTypes.Debug,
-			`Updated voice server for player ${player.guildId} with token ${token} and endpoint ${endpoint} and sessionId ${sessionId}`
-		);
+		this.emit(ManagerEventTypes.Debug, `Updated voice server for player ${player.guildId} with token ${token} and endpoint ${endpoint} and sessionId ${sessionId}`);
 		return;
 	}
 
@@ -1275,10 +1253,7 @@ export class Manager extends EventEmitter {
 	 * @emits {playerDisconnect} - Emits a player disconnect event if the channel ID is null.
 	 */
 	private async handleVoiceStateUpdate(player: Player, update: VoiceState): Promise<void> {
-		this.emit(
-			ManagerEventTypes.Debug,
-			`Updated voice state for player ${player.guildId} with channel id ${update.channel_id} and session id ${update.session_id}`
-		);
+		this.emit(ManagerEventTypes.Debug, `Updated voice state for player ${player.guildId} with channel id ${update.channel_id} and session id ${update.session_id}`);
 		if (update.channel_id) {
 			if (player.voiceChannelId !== update.channel_id) {
 				this.emit(ManagerEventTypes.PlayerMove, player, player.voiceChannelId, update.channel_id);
@@ -1339,7 +1314,7 @@ export class Manager extends EventEmitter {
 										message: "Error cleaning up inactive players.",
 										cause: err,
 										context: { stage: "CLEANUP_INACTIVE_PLAYERS" },
-								  });
+									});
 
 						console.error(error);
 					}
@@ -1349,7 +1324,7 @@ export class Manager extends EventEmitter {
 				{
 					const prefix = this.options.stateStorage.redisConfig.prefix?.endsWith(":")
 						? this.options.stateStorage.redisConfig.prefix
-						: this.options.stateStorage.redisConfig.prefix ?? "magmastream:";
+						: (this.options.stateStorage.redisConfig.prefix ?? "magmastream:");
 
 					const pattern = `${prefix}queue:*:current`;
 
@@ -1373,7 +1348,7 @@ export class Manager extends EventEmitter {
 										`${prefix}playerstore:${guildId}`,
 										`${prefix}queue:${guildId}:current`,
 										`${prefix}queue:${guildId}:tracks`,
-										`${prefix}queue:${guildId}:previous`
+										`${prefix}queue:${guildId}:previous`,
 									);
 
 									this.emit(ManagerEventTypes.Debug, `[MANAGER] Cleaned inactive Redis player data: ${guildId}`);
@@ -1389,7 +1364,7 @@ export class Manager extends EventEmitter {
 										message: "Error saving player state.",
 										cause: err,
 										context: { stage: "CLEANUP_INACTIVE_PLAYERS" },
-								  });
+									});
 
 						console.error(error);
 					}
@@ -1426,7 +1401,7 @@ export class Manager extends EventEmitter {
 										message: "Error cleaning up inactive player.",
 										cause: err,
 										context: { guildId },
-								  });
+									});
 
 						console.error(error);
 					}
@@ -1459,7 +1434,7 @@ export class Manager extends EventEmitter {
 										message: "Error cleaning up inactive player.",
 										cause: err,
 										context: { guildId },
-								  });
+									});
 
 						console.error(error);
 					}
@@ -1499,7 +1474,7 @@ export class Manager extends EventEmitter {
 								message: `Failed to load plugin "${plugin.name}".`,
 								cause: err instanceof Error ? err : undefined,
 								context: { pluginName: plugin.name, index },
-						  });
+							});
 
 				this.emit(ManagerEventTypes.Debug, `[PLUGIN] ${error.name}: ${error.message}`);
 			}
@@ -1523,7 +1498,7 @@ export class Manager extends EventEmitter {
 								message: `Failed to unload plugin "${plugin.name}".`,
 								cause: err instanceof Error ? err : undefined,
 								context: { pluginName: plugin.name },
-						  });
+							});
 
 				this.emit(ManagerEventTypes.Debug, `[PLUGIN] ${error.name}: ${error.message}`);
 			}
@@ -1551,8 +1526,8 @@ export class Manager extends EventEmitter {
 					const files = await fs.readdir(playersBaseDir);
 					await Promise.all(
 						files.map((file) =>
-							fs.unlink(path.join(playersBaseDir, file)).catch((err) => this.emit(ManagerEventTypes.Debug, `[MANAGER] Failed to delete file ${file}: ${err}`))
-						)
+							fs.unlink(path.join(playersBaseDir, file)).catch((err) => this.emit(ManagerEventTypes.Debug, `[MANAGER] Failed to delete file ${file}: ${err}`)),
+						),
 					);
 
 					this.emit(ManagerEventTypes.Debug, `[MANAGER] Cleared all player state files in ${playersBaseDir}`);
@@ -1564,7 +1539,7 @@ export class Manager extends EventEmitter {
 			case StateStorageType.Redis: {
 				const prefix = this.options.stateStorage.redisConfig.prefix?.endsWith(":")
 					? this.options.stateStorage.redisConfig.prefix
-					: this.options.stateStorage.redisConfig.prefix ?? "magmastream:";
+					: (this.options.stateStorage.redisConfig.prefix ?? "magmastream:");
 
 				const patterns = [`${prefix}playerstore:*`, `${prefix}queue:*`];
 

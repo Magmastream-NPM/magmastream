@@ -1,8 +1,7 @@
+import { ClusterClient, ShardClient } from "detritus-client";
 import { GatewayReceivePayload, GatewayVoiceStateUpdate } from "discord-api-types/v10";
 import { Manager as BaseManager } from "../structures/Manager";
 import { AnyUser, ManagerOptions, VoicePacket } from "../structures/Types";
-
-import { ClusterClient, ShardClient } from "detritus-client";
 
 export * from "../index";
 
@@ -10,7 +9,10 @@ export * from "../index";
  * Detritus wrapper for Magmastream.
  */
 export class DetritusManager extends BaseManager {
-	public constructor(public readonly client: ClusterClient | ShardClient, options?: ManagerOptions) {
+	public constructor(
+		public readonly client: ClusterClient | ShardClient,
+		options?: ManagerOptions,
+	) {
 		super(options);
 
 		client.once("ready", () => {

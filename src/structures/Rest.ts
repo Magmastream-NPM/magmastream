@@ -1,10 +1,10 @@
-import { Node } from "./Node";
 import axios, { AxiosRequestConfig } from "axios";
-import { Manager } from "./Manager";
 import { MagmaStreamErrorCode, ManagerEventTypes } from "./Enums";
+import { MagmaStreamError } from "./MagmastreamError";
+import { Manager } from "./Manager";
+import { Node } from "./Node";
 import { LavaPlayer, RestPlayOptions } from "./Types";
 import { JSONUtils } from "./Utils";
-import { MagmaStreamError } from "./MagmastreamError";
 
 /** Handles the requests sent to the Lavalink REST API. */
 export class Rest {
@@ -153,8 +153,8 @@ export class Rest {
 				typeof data === "string"
 					? data
 					: typeof data === "object" && data !== null && "message" in data && typeof data.message === "string"
-					? data.message
-					: "Unknown client error";
+						? data.message
+						: "Unknown client error";
 
 			return {
 				status,
@@ -168,8 +168,8 @@ export class Rest {
 			typeof data === "string"
 				? data
 				: typeof data === "object" && data !== null && "message" in data && typeof data.message === "string"
-				? data.message
-				: JSONUtils.safe(data, 2);
+					? data.message
+					: JSONUtils.safe(data, 2);
 
 		throw new MagmaStreamError({
 			code: MagmaStreamErrorCode.REST_REQUEST_FAILED,

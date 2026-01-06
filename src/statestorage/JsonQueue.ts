@@ -1,10 +1,10 @@
-import { Manager } from "../structures/Manager";
-import { MagmaStreamErrorCode, ManagerEventTypes, PlayerStateEventTypes } from "../structures/Enums";
-import { IQueue, PlayerStateUpdateEvent, Track } from "../structures/Types";
-import path from "path";
 import { promises as fs } from "fs";
-import { JSONUtils, TrackUtils } from "../structures/Utils";
+import path from "path";
+import { MagmaStreamErrorCode, ManagerEventTypes, PlayerStateEventTypes } from "../structures/Enums";
 import { MagmaStreamError } from "../structures/MagmastreamError";
+import { Manager } from "../structures/Manager";
+import { IQueue, PlayerStateUpdateEvent, Track } from "../structures/Types";
+import { JSONUtils, TrackUtils } from "../structures/Utils";
 
 /**
  * The player's queue, the `current` property is the currently playing track, think of the rest as the up-coming tracks.
@@ -19,7 +19,10 @@ export class JsonQueue implements IQueue {
 	 * @param guildId The guild ID.
 	 * @param manager The manager.
 	 */
-	constructor(public readonly guildId: string, public readonly manager: Manager) {
+	constructor(
+		public readonly guildId: string,
+		public readonly manager: Manager,
+	) {
 		const base = manager.options.stateStorage?.jsonConfig?.path ?? path.join(process.cwd(), "magmastream", "sessionData", "players");
 
 		this.basePath = path.join(base, this.guildId);
@@ -90,7 +93,7 @@ export class JsonQueue implements IQueue {
 							code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
 							message: `Failed to add tracks to JSON queue for guild ${this.guildId}: ${(err as Error).message}`,
 							cause: err,
-					  });
+						});
 
 			console.error(error);
 		}
@@ -123,7 +126,7 @@ export class JsonQueue implements IQueue {
 							code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
 							message: `Failed to add tracks to JSON queue for guild ${this.guildId}: ${(err as Error).message}`,
 							cause: err,
-					  });
+						});
 
 			console.error(error);
 		}
@@ -155,7 +158,7 @@ export class JsonQueue implements IQueue {
 							code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
 							message: `Failed to clear JSON queue for guild ${this.guildId}: ${(err as Error).message}`,
 							cause: err,
-					  });
+						});
 
 			console.error(error);
 		}
@@ -185,7 +188,7 @@ export class JsonQueue implements IQueue {
 							code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
 							message: `Failed to dequeue track for guild ${this.guildId}: ${(err as Error).message}`,
 							cause: err,
-					  });
+						});
 
 			console.error(error);
 		}
@@ -210,7 +213,7 @@ export class JsonQueue implements IQueue {
 							code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
 							message: `Failed to get duration for guild ${this.guildId}: ${(err as Error).message}`,
 							cause: err,
-					  });
+						});
 
 			console.error(error);
 		}
@@ -232,7 +235,7 @@ export class JsonQueue implements IQueue {
 							code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
 							message: `Failed to enqueue front track for guild ${this.guildId}: ${(err as Error).message}`,
 							cause: err,
-					  });
+						});
 
 			console.error(error);
 		}
@@ -333,7 +336,7 @@ export class JsonQueue implements IQueue {
 							code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
 							message: `Failed to pop previous track for guild ${this.guildId}: ${(err as Error).message}`,
 							cause: err,
-					  });
+						});
 
 			console.error(error);
 		}
@@ -381,7 +384,7 @@ export class JsonQueue implements IQueue {
 							code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
 							message: `Failed to remove track for guild ${this.guildId}: ${(err as Error).message}`,
 							cause: err,
-					  });
+						});
 
 			console.error(error);
 		}
@@ -441,7 +444,7 @@ export class JsonQueue implements IQueue {
 							code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
 							message: `Failed to round robin shuffle queue for guild ${this.guildId}: ${(err as Error).message}`,
 							cause: err,
-					  });
+						});
 
 			console.error(error);
 		}
@@ -500,7 +503,7 @@ export class JsonQueue implements IQueue {
 							code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
 							message: `Failed to shuffle queue for guild ${this.guildId}: ${(err as Error).message}`,
 							cause: err,
-					  });
+						});
 
 			console.error(error);
 		}
@@ -573,13 +576,14 @@ export class JsonQueue implements IQueue {
 							code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
 							message: `Failed to user block shuffle queue for guild ${this.guildId}: ${(err as Error).message}`,
 							cause: err,
-					  });
+						});
 
 			console.error(error);
 		}
 	}
 	// #endregion Public
 	// #region Private
+
 	/**
 	 * @returns The current path.
 	 */
@@ -602,7 +606,7 @@ export class JsonQueue implements IQueue {
 								code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
 								message: `Failed to delete file: ${filePath}`,
 								cause: err,
-						  });
+							});
 
 				console.error(error);
 				this.manager.emit(ManagerEventTypes.Debug, `[JSONQUEUE] Failed to delete file: ${filePath}`);
@@ -657,7 +661,7 @@ export class JsonQueue implements IQueue {
 								code: MagmaStreamErrorCode.QUEUE_JSON_ERROR,
 								message: `Failed to read file: ${filePath}`,
 								cause: err,
-						  });
+							});
 
 				console.error(error);
 			}

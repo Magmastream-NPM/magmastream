@@ -1,11 +1,3 @@
-import type { User as DJSUser, ClientUser as DJSClientUser, Message as DJSMessage } from "discord.js";
-import type { User as OceanicUser, Message as OceanicMessage } from "oceanic.js";
-import type { User as DetritusUser, Message as DetritusMessage } from "detritus-client/lib/structures";
-import type { User as ErisUser, Message as ErisMessage } from "eris";
-import type { User as SeyfertUser, ClientUser as SeyfertClientUser, Message as SeyfertMessage } from "seyfert";
-import { JsonQueue } from "../statestorage/JsonQueue";
-import { MemoryQueue } from "../statestorage/MemoryQueue";
-import { RedisQueue } from "../statestorage/RedisQueue";
 import {
 	AutoPlayPlatform,
 	LoadTypes,
@@ -22,6 +14,14 @@ import {
 import { Node } from "./Node";
 import { Player } from "./Player";
 import { Plugin } from "./Plugin";
+import { JsonQueue } from "../statestorage/JsonQueue";
+import { MemoryQueue } from "../statestorage/MemoryQueue";
+import { RedisQueue } from "../statestorage/RedisQueue";
+import type { User as DetritusUser, Message as DetritusMessage } from "detritus-client/lib/structures";
+import type { User as DJSUser, ClientUser as DJSClientUser, Message as DJSMessage } from "discord.js";
+import type { User as ErisUser, Message as ErisMessage } from "eris";
+import type { User as OceanicUser, Message as OceanicMessage } from "oceanic.js";
+import type { User as SeyfertUser, ClientUser as SeyfertClientUser, Message as SeyfertMessage } from "seyfert";
 
 /**
  * Manager Options
@@ -1311,14 +1311,7 @@ export type SponsorBlockSegmentEventType = "SegmentSkipped" | "SegmentsLoaded" |
 /**
  * Player Events Enum type
  */
-export type PlayerEvents =
-	| TrackStartEvent
-	| TrackEndEvent
-	| TrackStuckEvent
-	| TrackExceptionEvent
-	| WebSocketClosedEvent
-	| SponsorBlockSegmentEvents
-	| LyricsEvent;
+export type PlayerEvents = TrackStartEvent | TrackEndEvent | TrackStuckEvent | TrackExceptionEvent | WebSocketClosedEvent | SponsorBlockSegmentEvents | LyricsEvent;
 
 /**
  * Load Type Enum type
