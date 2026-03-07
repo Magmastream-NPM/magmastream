@@ -5,7 +5,6 @@
 </p>
 
 [![NPM Version](https://img.shields.io/npm/v/magmastream?color=00DDB3&label=Magmastream&style=for-the-badge&logo=npm)](https://www.npmjs.com/package/magmastream)
-[![GitHub Stars](https://img.shields.io/github/stars/Magmastream-NPM/magmastream?color=yellow&style=for-the-badge&logo=github)](https://github.com/Magmastream-NPM/magmastream/stargazers)
 [![Downloads](https://img.shields.io/npm/dt/magmastream.svg?style=for-the-badge&color=FF6B6B)](https://www.npmjs.com/package/magmastream)
 
 <br />
@@ -15,6 +14,20 @@
 </p>
 
 </div>
+
+---
+
+> [!IMPORTANT]
+> ## 📦 We have moved!
+>
+> This repository is no longer actively maintained. All development has moved to our self-hosted Gitea instance.
+>
+> **New home:** [https://gitryx.com/MagmaStream/magmastream](https://gitryx.com/MagmaStream/magmastream)
+>
+> Please update your bookmarks, issue reports, and pull requests accordingly.
+> The npm package (`magmastream`) continues to be published as normal — nothing changes for installation.
+
+---
 
 <div align="center">
   <h3>🎵 The Most Advanced Lavalink Wrapper for Node.js 🚀</h3>
@@ -46,6 +59,9 @@
   <a href="https://docs.magmastream.com">
     <img src="https://img.shields.io/badge/Documentation-00DDB3?style=for-the-badge&logo=bookstack&logoColor=white" />
   </a>
+  <a href="https://gitryx.com/MagmaStream/magmastream">
+    <img src="https://img.shields.io/badge/Source_Code-FFA500?style=for-the-badge&logo=gitea&logoColor=white" />
+  </a>
   <a href="https://github.com/Magmastream-NPM/magmastream_basics_bot">
     <img src="https://img.shields.io/badge/Example_Bot-5865F2?style=for-the-badge&logo=discord&logoColor=white" />
   </a>
@@ -74,7 +90,7 @@
 </tr>
 </table>
 
-[View All Projects →](https://github.com/Magmastream-NPM/magmastream#used-by)
+[View All Projects →](https://magmastream.com/usedby)
 </div>
 
 ## 📊 Project Statistics
@@ -125,9 +141,9 @@ Want to showcase your bot? Feel free to create a pull request in [the docs repo]
 
 <div align="center">
 
-We welcome contributions! Check out our [Contributing Guide](CONTRIBUTING.md) to get started.
+Contributions are welcome! Please open issues and pull requests on our **[Gitea repository](https://gitryx.com/MagmaStream/magmastream)**. Check out our [Contributing Guide](CONTRIBUTING.md) to get started.
 
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=for-the-badge)](CONTRIBUTING.md)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=for-the-badge)](https://gitryx.com/MagmaStream/magmastream)
 
 </div>
 
